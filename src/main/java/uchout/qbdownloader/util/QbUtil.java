@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import uchout.qbdownloader.entity.TorrentContent;
 import cn.hutool.core.util.StrUtil;
+import uchout.qbdownloader.entity.Config;
 
 /**
  * Qbittorrent 种子下载相关
@@ -36,15 +37,15 @@ public class QbUtil {
     /**
      * @return 是否登录成功
      */
-    public static Boolean login() {
+    public static Boolean login(Config config) {
         try {
             getHost();
-            String username = ConfigUtil.CONFIG.getQbUsername();
+            String username = config.getQbUsername();
             if (username == null || username.isEmpty()) {
                 throw new Exception("qbittorrent username is null");
 
             }
-            String password = ConfigUtil.CONFIG.getQbPassword();
+            String password = config.getQbPassword();
             if (password == null || password.isEmpty()) {
                 throw new Exception("qbittorrent password is null");
 
@@ -105,21 +106,12 @@ public class QbUtil {
     }
 
     /**
-     * 重新校验种子
+     * 重新校验种子，涉及到文件内容删改的都应该 recheck
      * 
      * @param hash 种子 hash
      */
-    public static void reAnnounce(String hash) {
-        try {
-            HttpRequest.post(host + "/api/v2/torrents/reannounce")
-                    .form("hashes", hash)
-                    .thenFunction(res -> {
-                        Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
-                        return true;
-                    });
-        } catch (Exception e) {
-            log.error(e.getMessage());
-        }
+    public static void recheck(String hash) {
+        manage(hash, "recheck");
     }
 
     /**
@@ -129,12 +121,12 @@ public class QbUtil {
      * @param priority  优先级，1 表示下载， 0 表示不下载
      * @param indexList 需要设置优先级的种子分片索引
      */
-    public static void setPrio(String hash, String priority, List<Integer> indexList) {
+    public static void setPrio(String hash, Integer priority, List<Integer> indexList) {
         try {
             String id = StrUtil.join("|", indexList);
             HttpRequest.post(host + "/api/v2/torrents/filePrio")
                     .form("hash", hash)
-                    .form("priority", priority)
+                    .form("priority", priority.toString())
                     .form("id", id)
                     .thenFunction(res -> {
                         Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
@@ -152,7 +144,7 @@ public class QbUtil {
      * @param hash
      * @return ContentList 种子内容列表
      */
-    public static List<TorrentContent> getContent(String hash) {
+    public static List<TorrentContent> getTorrentContentList(String hash) {
         try {
             return HttpRequest.get(host + "/api/v2/torrents/files")
                     .form("hash", hash)
@@ -177,35 +169,84 @@ public class QbUtil {
     }
 
     /**
-     * 开始种子
+     * 适用于种子管理操作
+     * 
+     * @param hash
+     * @param req
+     */
+    private static void manage(String hash, String req) {
+        try {
+            HttpRequest.post(host + "/api/v2/torrents/" + req)
+                    .form("hashes", hash)
+                    .thenFunction(res -> {
+                        Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
+                        return true;
+                    });
+        } catch (Exception e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    /**
+     * 开始 / 继续 下载种子
      * 
      * @param hash 种子 hash
      */
     public static void start(String hash) {
+        manage(hash, "start");
     }
 
     /**
      * 暂停种子
-     * 
+     * FIXME: 种子做种状态下，暂停种子会直接完成种子，可能触发删除操作
      * @param hash 种子 hash
      */
     public static void pause(String hash) {
+        manage(hash, "stop");
     }
 
     /**
      * 删除种子
      * 
-     * @param hash 种子 hash
+     * @param hash        种子 hash
+     * @param deleteFiles 是否删除种子文件
      */
-    public static void delete(String hash) {
+    public static void delete(String hash, Boolean deleteFiles) {
+        try {
+            HttpRequest.post(host + "/api/v2/torrents/delete")
+                    .form("hashes", hash)
+                    .form("deleteFiles", deleteFiles.toString())
+                    .thenFunction(res -> {
+                        Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
+                        return true;
+                    });
+        } catch (Exception e) {
+            log.error(e.getMessage());
+        }
     }
 
     /**
-     * 根据磁力链接添加种子
+     * 根据磁力链接添加种子，添加后不会自动开始下载
      * 
      * @param url 磁力链接
+     * @return 是否添加成功
      */
-    public static void add(String url) {
+    public static boolean add(String url) {
+        try {
+            return HttpRequest.post(host + "/api/v2/torrents/add")
+                    .form("urls", url)
+                    // 所有通过 qb-downloader 添加的种子都属于这个分类
+                    .form("category", TorrentsInfo.category)
+                    .form("stopCondition", "MetadataReceived")
+                    .thenFunction(res -> {
+                        Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
+                        return true;
+                    });
+
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            return false;
+        }
     }
 
     /**
