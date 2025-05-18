@@ -46,4 +46,18 @@ public class Config implements Serializable {
      */
     private boolean customDownloadOrder;
 
+    /**
+     * rclone rcd 地址
+     */
+    private String rcloneHost;
+
+    /**
+     * rclone rcd 用户名
+     */
+    private String rcloneuserName;
+
+    /**
+     * rclone rcd 密码
+     */
+    private String rclonePassword;
 }

@@ -121,10 +121,10 @@ public class QbUtil {
      * @param priority  优先级，1 表示下载， 0 表示不下载
      * @param indexList 需要设置优先级的种子分片索引
      */
-    public static void setPrio(String hash, Integer priority, List<Integer> indexList) {
+    public static boolean setPrio(String hash, Integer priority, List<Integer> indexList) {
         try {
             String id = StrUtil.join("|", indexList);
-            HttpRequest.post(host + "/api/v2/torrents/filePrio")
+            return HttpRequest.post(host + "/api/v2/torrents/filePrio")
                     .form("hash", hash)
                     .form("priority", priority.toString())
                     .form("id", id)
@@ -135,6 +135,7 @@ public class QbUtil {
 
         } catch (Exception e) {
             log.error(e.getMessage());
+            return false;
         }
     }
 
@@ -174,9 +175,9 @@ public class QbUtil {
      * @param hash
      * @param req
      */
-    private static void manage(String hash, String req) {
+    private static boolean manage(String hash, String req) {
         try {
-            HttpRequest.post(host + "/api/v2/torrents/" + req)
+            return HttpRequest.post(host + "/api/v2/torrents/" + req)
                     .form("hashes", hash)
                     .thenFunction(res -> {
                         Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
@@ -184,6 +185,7 @@ public class QbUtil {
                     });
         } catch (Exception e) {
             log.error(e.getMessage());
+            return false;
         }
     }
 
@@ -192,17 +194,18 @@ public class QbUtil {
      * 
      * @param hash 种子 hash
      */
-    public static void start(String hash) {
-        manage(hash, "start");
+    public static boolean start(String hash) {
+        return manage(hash, "start");
     }
 
     /**
      * 暂停种子
      * FIXME: 种子做种状态下，暂停种子会直接完成种子，可能触发删除操作
+     * 
      * @param hash 种子 hash
      */
-    public static void pause(String hash) {
-        manage(hash, "stop");
+    public static boolean pause(String hash) {
+        return manage(hash, "stop");
     }
 
     /**
@@ -211,9 +214,9 @@ public class QbUtil {
      * @param hash        种子 hash
      * @param deleteFiles 是否删除种子文件
      */
-    public static void delete(String hash, Boolean deleteFiles) {
+    public static boolean delete(String hash, Boolean deleteFiles) {
         try {
-            HttpRequest.post(host + "/api/v2/torrents/delete")
+            return HttpRequest.post(host + "/api/v2/torrents/delete")
                     .form("hashes", hash)
                     .form("deleteFiles", deleteFiles.toString())
                     .thenFunction(res -> {
@@ -222,6 +225,7 @@ public class QbUtil {
                     });
         } catch (Exception e) {
             log.error(e.getMessage());
+            return false;
         }
     }
 

@@ -12,9 +12,13 @@ public class ConfigUtil {
                 .setQbPassword("")
                 .setAlistHost("")
                 .setAlistToken("")
-                .setCustomDownloadOrder(false);
+                .setCustomDownloadOrder(false)
+                .setRcloneHost("http://localhost:5572")
+                .setRclonePassword("secret")
+                .setRcloneuserName("admin");
     }
-// FIXME: 后续设置无法更改
+
+    // FIXME: 后续设置无法更改
     /**
      * 加载配置文件
      */
