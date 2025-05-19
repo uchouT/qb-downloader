@@ -1,2 +1,4 @@
 .vscode
 target
+config.yaml
+src/test/
