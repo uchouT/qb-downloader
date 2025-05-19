@@ -1,13 +1,11 @@
 package moe.uchout.qbdownloader.entity;
 
-import java.io.Serializable;
-
 import lombok.Data;
 import lombok.experimental.Accessors;
 
 @Data
 @Accessors(chain = true)
-public class TorrentsInfo implements Serializable {
+public class TorrentsInfo {
     /**
      * qb-downloader 接管的种子分类
      */

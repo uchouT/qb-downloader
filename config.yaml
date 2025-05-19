@@ -1,0 +1,9 @@
+alistHost: http://localhost:5244
+alistToken: 'adfjlkadjflkds'
+customDownloadOrder: false
+qbHost: http://localhost:8080
+qbPassword: adminadmin
+qbUsername: admin
+rclonePassword: secret
+rcloneuserName: admin
+totalSizeLimit: 0

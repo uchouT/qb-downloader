@@ -5,10 +5,9 @@ import com.google.gson.JsonArray;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.http.HttpRequest;
 import lombok.extern.slf4j.Slf4j;
-import moe.uchout.qbdownloader.entity.Config;
 import moe.uchout.qbdownloader.entity.TorrentContent;
 import moe.uchout.qbdownloader.entity.TorrentsInfo;
-
+import moe.uchout.qbdownloader.entity.Task;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
@@ -40,15 +39,15 @@ public class QbUtil {
     /**
      * @return 是否登录成功
      */
-    public static Boolean login(Config config) {
+    public static boolean login() {
         try {
             getHost();
-            String username = config.getQbUsername();
+            String username = ConfigUtil.CONFIG.getQbUsername();
             if (username == null || username.isEmpty()) {
                 throw new Exception("qbittorrent username is null");
 
             }
-            String password = config.getQbPassword();
+            String password = ConfigUtil.CONFIG.getQbPassword();
             if (password == null || password.isEmpty()) {
                 throw new Exception("qbittorrent password is null");
 
@@ -109,15 +108,6 @@ public class QbUtil {
     }
 
     /**
-     * 重新校验种子，涉及到文件内容删改的都应该 recheck
-     * 
-     * @param hash 种子 hash
-     */
-    public static void recheck(String hash) {
-        manage(hash, "recheck");
-    }
-
-    /**
      * 设置种子的下载优先级
      * 
      * @param hash      种子的 hash
@@ -143,12 +133,15 @@ public class QbUtil {
     }
 
     /**
-     * 获取种子的内容信息
+     * 获取种子的内容信息，将获取到的 rootDir 应用到任务实体中，
+     * precondition: 种子内容符合规范，只有一个根目录，里面包含所有文件
+     * size 的单位是字节
      * 
      * @param hash
+     * @param task 任务实体
      * @return ContentList 种子内容列表
      */
-    public static List<TorrentContent> getTorrentContentList(String hash) {
+    public static List<TorrentContent> getTorrentContentList(String hash, Task task) {
         try {
             return HttpRequest.get(host + "/api/v2/torrents/files")
                     .form("hash", hash)
@@ -164,6 +157,8 @@ public class QbUtil {
                             torrentContent.setIndex(index).setSize(size);
                             torrentContentList.add(torrentContent);
                         }
+                        String rootDir = jsonArray.get(0).getAsJsonObject().get("name").getAsString().split("/")[0];
+                        task.setRootDir(rootDir);
                         return torrentContentList;
                     });
         } catch (Exception e) {
@@ -203,12 +198,21 @@ public class QbUtil {
 
     /**
      * 暂停种子
-     * FIXME: 种子做种状态下，暂停种子会直接完成种子，可能触发删除操作
+     * NOTE: 种子做种状态下，暂停种子会直接完成种子，可能触发删除操作
      * 
      * @param hash 种子 hash
      */
     public static boolean pause(String hash) {
         return manage(hash, "stop");
+    }
+
+    /**
+     * 重新校验种子，涉及到文件内容删改的都应该 recheck
+     * 
+     * @param hash 种子 hash
+     */
+    public static void recheck(String hash) {
+        manage(hash, "recheck");
     }
 
     /**
@@ -233,7 +237,7 @@ public class QbUtil {
     }
 
     /**
-     * 根据磁力链接添加种子，添加后不会自动开始下载
+     * 根据磁力链接添加种子，获取到 metadata 后暂停
      * 
      * @param url 磁力链接
      * @return 是否添加成功

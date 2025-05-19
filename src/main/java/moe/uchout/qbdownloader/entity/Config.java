@@ -6,7 +6,7 @@ import lombok.experimental.Accessors;
 import java.io.Serializable;
 
 /**
- * 设置
+ * 设置项
  */
 @Data
 @Accessors(chain = true)

@@ -2,23 +2,13 @@ package moe.uchout.qbdownloader.util;
 
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-
 import com.google.gson.JsonObject;
 
 import cn.hutool.core.lang.Assert;
-import cn.hutool.core.thread.ExecutorBuilder;
 import cn.hutool.http.HttpRequest;
 
 @Slf4j
 public class RcloneUtil {
-    // TODO: 学习线程池使用
-    private static final ExecutorService EXECUTOR = ExecutorBuilder.create()
-            .setCorePoolSize(1)
-            .setMaxPoolSize(1)
-            .setWorkQueue(new LinkedBlockingQueue<>(256))
-            .build();
 
     /**
      * rclone 上传文件
