@@ -1,4 +1,4 @@
-package uchout.qbdownloader.entity;
+package moe.uchout.qbdownloader.entity;
 
 import lombok.Data;
 import lombok.experimental.Accessors;

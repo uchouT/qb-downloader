@@ -1,4 +1,4 @@
-package uchout.qbdownloader.enums;
+package moe.uchout.qbdownloader.enums;
 /**
  * 整个下载任务的状态
  */

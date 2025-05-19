@@ -1,13 +1,14 @@
-package uchout.qbdownloader.util;
+package moe.uchout.qbdownloader.util;
 
 import java.util.TimeZone;
-import uchout.qbdownloader.other.TimeZoneSerializer;
+
 import cn.hutool.core.date.DatePattern;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import lombok.extern.slf4j.Slf4j;
+import moe.uchout.qbdownloader.other.TimeZoneSerializer;
 
 import java.util.List;
 

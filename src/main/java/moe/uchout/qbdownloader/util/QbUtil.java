@@ -1,17 +1,20 @@
-package uchout.qbdownloader.util;
+package moe.uchout.qbdownloader.util;
 
 import com.google.gson.JsonArray;
-import uchout.qbdownloader.entity.TorrentsInfo;
+
 import cn.hutool.core.lang.Assert;
 import cn.hutool.http.HttpRequest;
 import lombok.extern.slf4j.Slf4j;
+import moe.uchout.qbdownloader.entity.Config;
+import moe.uchout.qbdownloader.entity.TorrentContent;
+import moe.uchout.qbdownloader.entity.TorrentsInfo;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
-import uchout.qbdownloader.entity.TorrentContent;
+
 import cn.hutool.core.util.StrUtil;
-import uchout.qbdownloader.entity.Config;
 
 /**
  * Qbittorrent 种子下载相关

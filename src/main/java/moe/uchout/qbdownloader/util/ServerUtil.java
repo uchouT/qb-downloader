@@ -1,7 +1,8 @@
-package uchout.qbdownloader.util;
+package moe.uchout.qbdownloader.util;
 
 import lombok.extern.slf4j.Slf4j;
-import uchout.qbdownloader.Main;
+import moe.uchout.qbdownloader.Main;
+
 import java.util.Map;
 
 import cn.hutool.core.util.StrUtil;

@@ -1,4 +1,4 @@
-package uchout.qbdownloader.enums;
+package moe.uchout.qbdownloader.enums;
 
 /**
  * 分片任务的状态

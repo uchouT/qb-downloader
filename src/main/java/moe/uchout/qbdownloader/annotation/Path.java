@@ -1,4 +1,4 @@
-package uchout.qbdownloader.annotation;
+package moe.uchout.qbdownloader.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

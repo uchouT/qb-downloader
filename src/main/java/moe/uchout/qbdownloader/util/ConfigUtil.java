@@ -1,7 +1,7 @@
-package uchout.qbdownloader.util;
+package moe.uchout.qbdownloader.util;
 
-import uchout.qbdownloader.entity.Config;
 import lombok.extern.slf4j.Slf4j;
+import moe.uchout.qbdownloader.entity.Config;
 
 @Slf4j
 public class ConfigUtil {

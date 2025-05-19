@@ -1,4 +1,4 @@
-package uchout.qbdownloader.other;
+package moe.uchout.qbdownloader.other;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;

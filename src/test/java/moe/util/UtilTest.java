@@ -1,6 +1,8 @@
-package uchout.qbdownloader.util;
+package moe.util;
 
 import org.junit.jupiter.api.Test;
+
+import moe.uchout.qbdownloader.util.RcloneUtil;
 
 public class UtilTest {
 

@@ -1,10 +1,10 @@
-package uchout.qbdownloader;
+package moe.uchout.qbdownloader;
 
 import lombok.extern.slf4j.Slf4j;
+import moe.uchout.qbdownloader.util.ConfigUtil;
 import cn.hutool.core.util.ObjectUtil;
 import java.util.ArrayList;
 import java.util.List;
-import uchout.qbdownloader.util.ConfigUtil;
 
 @Slf4j
 public class Main {
