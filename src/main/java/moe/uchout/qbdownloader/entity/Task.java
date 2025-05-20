@@ -67,7 +67,7 @@ public class Task implements Serializable {
     private int totalPieceNum;
 
     /**
-     * 当前进行的分片任务序号
+     * 当前进行的分片任务序号, 从 1 开始
      */
     private int currentPieceNum;
 }
