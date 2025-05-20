@@ -2,33 +2,30 @@ package moe.uchout.qbdownloader.util;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.Map;
+import java.util.HashMap;
 
-import cn.hutool.core.thread.ExecutorBuilder;
 import moe.uchout.qbdownloader.entity.Task;
+import moe.uchout.qbdownloader.entity.TorrentContent;
 
 /**
  * 任务执行相关
  */
 public class TaskUtil {
-    private static final ExecutorService EXECUTOR = ExecutorBuilder.create()
-            .setCorePoolSize(1)
-            .setMaxPoolSize(1)
-            .setWorkQueue(new LinkedBlockingQueue<>(256))
-            .build();
+
     /**
      * 任务列表
      */
-    private static final List<Task> TASK_LIST = new ArrayList<>();
+    private static final Map<String, Task> TASK_LIST = new HashMap<>();
 
     /** 添加任务 */
     public static void addTask(Task task) {
-        TASK_LIST.add(task);
+        TASK_LIST.put(task.getHash(), task);
+        sync();
     }
 
     /**
-     * 获取任务列表
+     * 从文件获取任务列表
      */
     public static synchronized void load() {
 
@@ -42,21 +39,54 @@ public class TaskUtil {
     }
 
     /**
-     * 删除任务，根据 id
+     * 删除任务，根据 hash
      * 
-     * @param id 任务 id
+     * @param hash
      */
-    public static void delete(int id) {
+    public static void delete(String hash) {
 
     }
 
     /**
-     * 异步运行间隔任务，成功发起间隔任务后，标记任务为 on-task, 
-     * 间隔运行任务发生错误时，标记为 on-error
+     * 检测任务是否可在最大分片大小范围内完成
      * 
-     * @param id 任务 id
+     * @param torrentContents
+     * @param maxSize
+     * @return 是否可以完成
      */
-    public static void runIntervalTask(int id) {
+    public static boolean check(List<TorrentContent> torrentContents, int maxSize) {
+        for (TorrentContent torrentContent : torrentContents) {
+            if (torrentContent.getSize() > maxSize) {
+                return false;
+            }
+        }
+        return true;
+    }
 
+    /**
+     * 分片任务下载顺序
+     * 
+     * @param torrentContentList 种子内容列表
+     * @param maxSize            最大分片大小
+     * @return 二维数组，每个元素是 index 列表
+     */
+    public static List<List<Integer>> getTaskOrder(List<TorrentContent> torrentContentList, int maxSize)
+            throws Exception {
+        if (!check(torrentContentList, maxSize)) {
+            throw new IllegalArgumentException("任务过大，无法分片");
+        }
+        List<List<Integer>> TaskOrder = new ArrayList<>();
+        List<Integer> onePiece = new ArrayList<>();
+        int currentSize = 0;
+        for (TorrentContent torrentContent : torrentContentList) {
+            if (currentSize + torrentContent.getSize() > maxSize) {
+                TaskOrder.add(onePiece);
+                onePiece = new ArrayList<>();
+                currentSize = 0;
+            }
+            onePiece.add(torrentContent.getIndex());
+            currentSize += torrentContent.getSize();
+        }
+        return TaskOrder;
     }
 }

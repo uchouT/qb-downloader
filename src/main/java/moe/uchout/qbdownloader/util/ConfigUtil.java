@@ -33,6 +33,7 @@ public class ConfigUtil {
      */
     public static synchronized void load() {
         try (java.io.FileReader reader = new java.io.FileReader("./config.yaml")) {
+            TaskUtil.load();
             DumperOptions options = new DumperOptions();
             options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
             options.setPrettyFlow(true);
@@ -50,7 +51,7 @@ public class ConfigUtil {
             } else {
             }
         } catch (Exception e) {
-            log.error("加载配置文件失败", e);
+            log.error("加载配置文件失败: {}", e.getMessage());
         }
     }
 

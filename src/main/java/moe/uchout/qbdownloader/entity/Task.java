@@ -1,7 +1,11 @@
 package moe.uchout.qbdownloader.entity;
 
 import java.io.Serializable;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
 
+import cn.hutool.core.thread.ExecutorBuilder;
 import lombok.Data;
 import lombok.experimental.Accessors;
 import moe.uchout.qbdownloader.enums.*;
@@ -12,10 +16,15 @@ import moe.uchout.qbdownloader.enums.*;
 @Data
 @Accessors(chain = true)
 public class Task implements Serializable {
+    private static final ExecutorService EXECUTOR = ExecutorBuilder.create()
+            .setCorePoolSize(1)
+            .setMaxPoolSize(1)
+            .setWorkQueue(new LinkedBlockingQueue<>(256))
+            .build();
     /**
-     * 任务 id
+     * 任务 hash
      */
-    private int id;
+    private String hash;
 
     /**
      * 任务名称
@@ -44,7 +53,7 @@ public class Task implements Serializable {
     /**
      * 当前分片任务状态
      */
-    private CurrentTaskStatus CurrentTaskStatus;
+    private CurrentTaskStatus currentTaskStatus;
 
     /**
      * 内容保存路径
@@ -70,4 +79,14 @@ public class Task implements Serializable {
      * 当前进行的分片任务序号, 从 1 开始
      */
     private int currentPieceNum;
+
+    /**
+     * 分片任务下载顺序
+     */
+    private List<List<Integer>> taskOrder;
+
+    public static void runInterval() {
+        // TODO
+        EXECUTOR.execute();
+    }
 }
