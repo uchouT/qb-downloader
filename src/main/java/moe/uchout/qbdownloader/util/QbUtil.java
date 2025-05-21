@@ -2,6 +2,7 @@ package moe.uchout.qbdownloader.util;
 
 import com.google.gson.JsonArray;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.http.HttpRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +11,8 @@ import moe.uchout.qbdownloader.entity.TorrentsInfo;
 import moe.uchout.qbdownloader.entity.Task;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -206,13 +209,34 @@ public class QbUtil {
         return manage(hash, "stop");
     }
 
-    /** TODO: 可能用不上了，需要删除
+    /**
+     * TODO: 可能用不上了，需要删除
      * 重新校验种子，涉及到文件内容删改的都应该 recheck
      * 
      * @param hash 种子 hash
      */
     public static void recheck(String hash) {
         manage(hash, "recheck");
+    }
+
+    /**
+     * 将种子导出 .torrent 文件存放到指定位置
+     * 
+     * @param hash
+     * @param path
+     */
+    public static void export(String hash, String path) {
+        try {
+            HttpRequest.post(host + "/api/v2/torrents/export")
+                    .form("hash", hash)
+                    .then(res -> {
+                        Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
+                        FileUtil.writeBytes(res.bodyBytes(), new File(path));
+                        log.debug("export torrent file to {}", path);
+                    });
+        } catch (Exception e) {
+            log.error(e.getMessage());
+        }
     }
 
     /**

@@ -158,7 +158,7 @@ public class TaskUtil extends Thread {
 
     /**
      * 更新任务的状态
-     * 
+     * @see Status
      * @see <a href=
      *      "https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#get-torrent-list">
      *      qbittorrent API </a>

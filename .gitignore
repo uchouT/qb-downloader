@@ -1,4 +1,5 @@
 .vscode
 target
 config.yaml
-src/test/
+src/test
+torrents
