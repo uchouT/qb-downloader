@@ -206,7 +206,7 @@ public class QbUtil {
         return manage(hash, "stop");
     }
 
-    /**
+    /** TODO: 可能用不上了，需要删除
      * 重新校验种子，涉及到文件内容删改的都应该 recheck
      * 
      * @param hash 种子 hash
@@ -237,7 +237,8 @@ public class QbUtil {
     }
 
     /**
-     * 根据磁力链接添加种子，获取到 metadata 后暂停
+     * 根据磁力链接添加种子，获取到 metadata 后暂停;
+     * 刚添加后，所有文件默认都下载
      * 
      * @param url 磁力链接
      * @return 是否添加成功

@@ -7,7 +7,7 @@ public enum Status {
     ON_TASK,
 
     /**
-     * 整个分片任务完成
+     * 整个分片任务完成，包括间隔任务
      */
     FINISHED,
 
@@ -19,5 +19,10 @@ public enum Status {
     /**
      * 分片任务正在下载
      */
-    DOWNLOADING
+    DOWNLOADING,
+
+    /**
+     * 整个任务完成
+     */
+    ALL_FINISHED
 }

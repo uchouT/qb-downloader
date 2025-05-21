@@ -108,7 +108,7 @@ public class TaskUtil extends Thread {
                 logined = QbUtil.login();
             } else {
                 try {
-                    processTaskList();
+                    processTask();
                     Thread.sleep(5000); // 5秒钟检查一次
                 } catch (InterruptedException e) {
                     // 捕获中断异常，优雅退出
@@ -129,15 +129,27 @@ public class TaskUtil extends Thread {
     /**
      * 处理任务列表中的任务
      */
-    private void processTaskList() {
+    private void processTask() {
         try {
             updateTaskStatus();
             for (Task task : TASK_LIST.values()) {
-                if (task.getStatus() != Status.DONWLOADED) {
-                    continue;
+                Status status = task.getStatus();
+                if (status == Status.DONWLOADED) {
+                    task.runInterval();
+                } else if (status == Status.FINISHED) {
+                    if (task.getCurrentPieceNum() < task.getTotalPieceNum() - 1) {
+                        task.setCurrentPieceNum(task.getCurrentPieceNum() + 1);
+                        String hash = task.getHash();
+                        QbUtil.delete(hash, true);
+                        // TODO: 从缓存的种子文件中快速重新添加
+                        // QbUtil.add();
+                        QbUtil.setPrio(hash, 1, task.getTaskOrder().get(task.getCurrentPieceNum()));
+                        QbUtil.start(hash);
+                        task.setStatus(Status.DOWNLOADING);
+                    } else {
+                        task.setStatus(Status.ALL_FINISHED);
+                    }
                 }
-                task.runInterval();
-                // TODO: 间隔任务逻辑
             }
         } catch (Exception e) {
             // TODO: handle exception
@@ -146,6 +158,10 @@ public class TaskUtil extends Thread {
 
     /**
      * 更新任务的状态
+     * 
+     * @see <a href=
+     *      "https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#get-torrent-list">
+     *      qbittorrent API </a>
      */
     private void updateTaskStatus() {
         List<TorrentsInfo> torrentsInfos = QbUtil.getTorrentsInfo();
@@ -156,9 +172,13 @@ public class TaskUtil extends Thread {
                 task.setState(state);
                 task.setEta(torrentsInfo.getEta());
                 task.setTotalProcess(torrentsInfo.getProgress());
-                if (state.equals("completed") ||
+                if (state.equals("uploading") ||
                         state.equals("pausedUP") ||
-                        state.equals("stalledUP")) {
+                        state.equals("stalledUP") ||
+                        state.equals("queuedUP") ||
+                        state.equals("checkingUP") ||
+                        state.equals("forceUP") ||
+                        state.equals("moving")) {
                     task.setStatus(Status.DONWLOADED);
                 }
             }
