@@ -4,11 +4,10 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
-
+import moe.uchout.qbdownloader.enums.Status;
 import cn.hutool.core.thread.ExecutorBuilder;
 import lombok.Data;
 import lombok.experimental.Accessors;
-import moe.uchout.qbdownloader.enums.*;
 
 /**
  * 任务类
@@ -46,14 +45,14 @@ public class Task implements Serializable {
     private float currentProcess;
 
     /**
-     * 总任务状态
+     * 任务状态
      */
-    private TaskStatus status;
+    private String state;
 
     /**
-     * 当前分片任务状态
+     * 分片任务状态
      */
-    private CurrentTaskStatus currentTaskStatus;
+    private Status status;
 
     /**
      * 内容保存路径
@@ -64,6 +63,11 @@ public class Task implements Serializable {
      * rclone 上传路径
      */
     private String uploadPath;
+
+    /**
+     * 上传方式, Alist 或者 Rclone
+     */
+    private String uploadType;
 
     /**
      * 分片任务剩余时间
@@ -85,8 +89,20 @@ public class Task implements Serializable {
      */
     private List<List<Integer>> taskOrder;
 
-    public static void runInterval() {
+    /**
+     * 执行间隔任务，标记状态为 ON_TASK, 完成任务后标记为 COMPLETED
+     */
+    public void runInterval() {
         // TODO
-        EXECUTOR.execute();
+        this.status = Status.ON_TASK;
+        try {
+            EXECUTOR.execute(
+                    () -> {
+
+                    });
+        } catch (Exception e) {
+            // TODO: handle exception
+        }
+
     }
 }

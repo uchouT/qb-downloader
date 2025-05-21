@@ -1,17 +1,22 @@
 package moe.uchout.qbdownloader.util;
 
+import moe.uchout.qbdownloader.enums.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.HashMap;
 import moe.uchout.qbdownloader.entity.Task;
 import moe.uchout.qbdownloader.entity.TorrentContent;
+import moe.uchout.qbdownloader.entity.TorrentsInfo;
 
 /**
  * 任务执行相关
  */
-public class TaskUtil {
+@Slf4j
+public class TaskUtil extends Thread {
 
     /**
      * 任务列表
@@ -88,5 +93,105 @@ public class TaskUtil {
             currentSize += torrentContent.getSize();
         }
         return TaskOrder;
+    }
+
+    // 添加一个停止标志，使其可以从外部被修改
+    private volatile boolean running = true;
+
+    @Override
+    public void run() {
+        super.setName("qb-downloader-task");
+        boolean logined = QbUtil.login();
+
+        while (running) {
+            if (!logined) {
+                logined = QbUtil.login();
+            } else {
+                try {
+                    processTaskList();
+                    Thread.sleep(5000); // 5秒钟检查一次
+                } catch (InterruptedException e) {
+                    // 捕获中断异常，优雅退出
+                    running = false;
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception e) {
+                    // 捕获其他异常但继续运行
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        // 线程退出前的清理操作
+        cleanupBeforeExit();
+    }
+
+    /**
+     * 处理任务列表中的任务
+     */
+    private void processTaskList() {
+        try {
+            updateTaskStatus();
+            for (Task task : TASK_LIST.values()) {
+                if (task.getStatus() != Status.DONWLOADED) {
+                    continue;
+                }
+                task.runInterval();
+                // TODO: 间隔任务逻辑
+            }
+        } catch (Exception e) {
+            // TODO: handle exception
+        }
+    }
+
+    /**
+     * 更新任务的状态
+     */
+    private void updateTaskStatus() {
+        List<TorrentsInfo> torrentsInfos = QbUtil.getTorrentsInfo();
+        for (TorrentsInfo torrentsInfo : torrentsInfos) {
+            Task task = TASK_LIST.get(torrentsInfo.getHash());
+            if (task.getStatus() == Status.DOWNLOADING) {
+                String state = torrentsInfo.getState();
+                task.setState(state);
+                task.setEta(torrentsInfo.getEta());
+                task.setTotalProcess(torrentsInfo.getProgress());
+                if (state.equals("completed") ||
+                        state.equals("pausedUP") ||
+                        state.equals("stalledUP")) {
+                    task.setStatus(Status.DONWLOADED);
+                }
+            }
+
+        }
+    }
+
+    /**
+     * 线程退出前执行的清理操作
+     */
+    private void cleanupBeforeExit() {
+        sync();
+    }
+
+    /**
+     * 停止任务线程，优雅退出
+     */
+    public void stopTask() {
+
+        // 2. 设置停止标志
+        running = false;
+
+        // 3. 发送中断信号，确保线程能立即从 sleep 等待状态退出
+        this.interrupt();
+
+        // 4. 等待线程结束（可选，视需求而定）
+        try {
+            this.join(10000); // 最多等待10秒
+            if (this.isAlive()) {
+                log.error("任务线程未能在规定时间内结束，强制退出");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
