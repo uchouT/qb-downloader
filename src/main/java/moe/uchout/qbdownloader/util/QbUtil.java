@@ -11,7 +11,7 @@ import moe.uchout.qbdownloader.entity.TorrentsInfo;
 import moe.uchout.qbdownloader.entity.Task;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-
+import moe.uchout.qbdownloader.enums.Tags;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -215,8 +215,30 @@ public class QbUtil {
      * 
      * @param hash 种子 hash
      */
-    public static void recheck(String hash) {
-        manage(hash, "recheck");
+    public static boolean recheck(String hash) {
+        return manage(hash, "recheck");
+    }
+
+    /**
+     * 删除标签
+     * 
+     * @param hash
+     * @param tag
+     * @return
+     */
+    public static boolean removeTag(String hash, String tag) {
+        try {
+            return HttpRequest.post(host + "/api/v2/torrents/removeTags")
+                    .form("hashes", hash)
+                    .form("tags", tag)
+                    .thenFunction(res -> {
+                        Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
+                        return true;
+                    });
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -225,7 +247,7 @@ public class QbUtil {
      * @param hash
      * @param path
      */
-    public static void export(String hash, String path) {
+    public static synchronized void export(String hash, String path) {
         try {
             HttpRequest.post(host + "/api/v2/torrents/export")
                     .form("hash", hash)
@@ -262,7 +284,8 @@ public class QbUtil {
 
     /**
      * 根据磁力链接添加种子，获取到 metadata 后暂停;
-     * 刚添加后，所有文件默认都下载
+     * 会打上 "new" 标签，在处理完成后需要删除该标签
+     * NOTE:刚添加后，所有文件默认都下载
      * 
      * @param url 磁力链接
      * @return 是否添加成功
@@ -273,6 +296,7 @@ public class QbUtil {
                     .form("urls", url)
                     // 所有通过 qb-downloader 添加的种子都属于这个分类
                     .form("category", TorrentsInfo.category)
+                    .form("tags", Tags.NEW)
                     .form("stopCondition", "MetadataReceived")
                     .thenFunction(res -> {
                         Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
