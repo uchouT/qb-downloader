@@ -14,7 +14,7 @@ import java.util.List;
 
 @Slf4j
 public class GsonStatic {
-    public static Gson gson = new GsonBuilder()
+    public static final Gson gson = new GsonBuilder()
             .disableHtmlEscaping()
             .disableJdkUnsafe()
             .disableInnerClassSerialization()

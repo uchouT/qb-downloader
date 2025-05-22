@@ -30,6 +30,7 @@ public class QbUtil {
 
     /**
      * 获取 host
+     * TODO: 在配置 config 时，就把 / 去掉
      */
     static void getHost() throws Exception {
         host = ConfigUtil.CONFIG.getQbHost();

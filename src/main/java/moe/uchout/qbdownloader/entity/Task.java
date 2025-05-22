@@ -65,7 +65,7 @@ public class Task implements Serializable {
     private String uploadPath;
 
     /**
-     * 上传方式, Alist 或者 Rclone
+     * 上传方式, alist 或者 rclone
      */
     private String uploadType;
 
@@ -100,19 +100,27 @@ public class Task implements Serializable {
     private String torrentPath;
 
     /**
-     * 执行间隔任务，标记状态为 ON_TASK, 完成任务后标记为 COMPLETED
+     * 执行间隔任务，标记状态为 ON_TASK, 完成任务后标记为 FINISHED
      */
     public void runInterval() {
-        // TODO
         this.status = Status.ON_TASK;
         try {
-            EXECUTOR.execute(
-                    () -> {
+            // 使用线程池执行上传任务
+            EXECUTOR.execute(() -> {
 
-                    });
+                String localPath = this.getSavePath() + "/" + this.getRootDir();
+                String remotePath = this.getUploadPath();
+                // 使用工厂获取上传器并执行上传
+                boolean success = moe.uchout.qbdownloader.util.uploader.UploaderFactory
+                        .copy(this.getUploadType(), localPath, remotePath);
+                if (success) {
+                    this.setStatus(Status.FINISHED);
+                } else {
+                    this.setStatus(Status.DONWLOADED); // 上传失败，保持下载完成状态，等待下次尝试
+                }
+            });
         } catch (Exception e) {
             // TODO: handle exception
         }
-
     }
 }
