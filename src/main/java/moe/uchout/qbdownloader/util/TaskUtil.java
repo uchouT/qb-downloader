@@ -104,24 +104,25 @@ public class TaskUtil extends Thread {
         boolean logined = QbUtil.login();
 
         while (running) {
-            if (!logined) {
-                logined = QbUtil.login();
-            } else {
-                try {
+            try {
+                if (!logined) {
+                    logined = QbUtil.login();
+                    if (!logined) {
+                        Thread.sleep(15000);
+                        continue;
+                    }
+                } else {
                     processTask();
-                    Thread.sleep(5000); // 5秒钟检查一次
-                } catch (InterruptedException e) {
-                    // 捕获中断异常，优雅退出
-                    running = false;
-                    Thread.currentThread().interrupt();
-                    break;
-                } catch (Exception e) {
-                    // 捕获其他异常但继续运行
-                    e.printStackTrace();
                 }
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                running = false;
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                log.error(e.getMessage());
             }
         }
-
         // 线程退出前的清理操作
         cleanupBeforeExit();
     }
@@ -141,9 +142,11 @@ public class TaskUtil extends Thread {
                         task.setCurrentPieceNum(task.getCurrentPieceNum() + 1);
                         String hash = task.getHash();
                         QbUtil.delete(hash, true);
-                        // TODO: 从缓存的种子文件中快速重新添加
-                        // QbUtil.add();
+                        // 从缓存的种子文件中快速重新添加
+                        QbUtil.add(task.getTorrentPath(), true);
+                        QbUtil.setNotDownload(task);
                         QbUtil.setPrio(hash, 1, task.getTaskOrder().get(task.getCurrentPieceNum()));
+                        QbUtil.removeTag(hash, Tags.NEW);
                         QbUtil.start(hash);
                         task.setStatus(Status.DOWNLOADING);
                     } else {
@@ -158,6 +161,7 @@ public class TaskUtil extends Thread {
 
     /**
      * 更新任务的状态
+     * 
      * @see Status
      * @see <a href=
      *      "https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#get-torrent-list">

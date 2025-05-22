@@ -90,6 +90,16 @@ public class Task implements Serializable {
     private List<List<Integer>> taskOrder;
 
     /**
+     * 文件总数
+     */
+    private int fileNum;
+
+    /**
+     * 种子文件备份路径
+     */
+    private String torrentPath;
+
+    /**
      * 执行间隔任务，标记状态为 ON_TASK, 完成任务后标记为 COMPLETED
      */
     public void runInterval() {

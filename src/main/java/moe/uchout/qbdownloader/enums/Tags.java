@@ -30,4 +30,9 @@ public enum Tags {
     public String getTag() {
         return tag;
     }
+    
+    @Override
+    public String toString() {
+        return tag;
+    }
 }
