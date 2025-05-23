@@ -1,18 +1,19 @@
 package moe.uchout.qbdownloader.util.uploader;
 
-import lombok.extern.slf4j.Slf4j;
-import moe.uchout.qbdownloader.util.ConfigUtil;
-import moe.uchout.qbdownloader.util.GsonStatic;
-
 import java.io.File;
+import java.util.List;
 
 import com.google.gson.JsonObject;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.URLUtil;
 import cn.hutool.http.Header;
 import cn.hutool.http.HttpConfig;
 import cn.hutool.http.HttpRequest;
+import lombok.extern.slf4j.Slf4j;
+import moe.uchout.qbdownloader.util.ConfigUtil;
+import moe.uchout.qbdownloader.util.GsonStatic;
 
 /**
  * Alist 工具类
@@ -29,7 +30,8 @@ public class Alist implements Uploader {
     }
 
     /**
-     * 使用 Alist 上传文件
+     * 使用 Alist 上传文件 TODO: 异常处理
+     * TODO: Task 中保存文件路径
      * 
      * @param localPath  本地文件路径，需要绝对路径
      * @param remotePath 远程路径
@@ -38,29 +40,51 @@ public class Alist implements Uploader {
     @Override
     public boolean copy(String localPath, String remotePath) {
         try {
-            log.info("Alist 上传文件: {} -> {}", localPath, remotePath);
-            File file = new File(localPath);
             String host = ConfigUtil.CONFIG.getAlistHost();
             String alistToken = ConfigUtil.CONFIG.getAlistToken();
             HttpConfig httpConfig = new HttpConfig()
                     .setBlockSize(1024 * 1024 * 50);
-            return HttpRequest.put(host + "/api/fs/form")
-                    .setConfig(httpConfig)
-                    .timeout(1000 * 60 * 2)
-                    .header(Header.AUTHORIZATION, alistToken)
-                    .header("As-Task", "false")
-                    .header(Header.CONTENT_LENGTH, String.valueOf(file.length()))
-                    .header("File-Path", URLUtil.encode(remotePath))
-                    .form("file", file)
-                    .thenFunction(res -> {
-                        Assert.isTrue(res.isOk(), "上传失败 {} 状态码:{}", localPath, res.getStatus());
-                        JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
-                        int code = jsonObject.get("code").getAsInt();
-                        log.debug(jsonObject.toString());
-                        Assert.isTrue(code == 200, "上传失败 {} 状态码:{}", localPath, code);
-                        log.info("Alist 上传成功: {} -> {}", localPath, remotePath);
-                        return true;
-                    });
+            if (FileUtil.isDirectory(localPath)) {
+                List<File> files = FileUtil.loopFiles(localPath);
+                for (File file : files) {
+                    HttpRequest.put(host + "/api/fs/form")
+                            .setConfig(httpConfig)
+                            .timeout(1000 * 60 * 2)
+                            .header(Header.AUTHORIZATION, alistToken)
+                            .header("As-Task", "false")
+                            .header(Header.CONTENT_LENGTH, String.valueOf(file.length()))
+                            .header("File-Path", URLUtil.encode(remotePath + "/" + file.getPath()))
+                            .form("file", file)
+                            .then(res -> {
+                                Assert.isTrue(res.isOk(), "上传失败 {} 状态码:{}", localPath, res.getStatus());
+                                JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
+                                int code = jsonObject.get("code").getAsInt();
+                                log.debug(jsonObject.toString());
+                                Assert.isTrue(code == 200, "上传失败 {} 状态码:{}", localPath, code);
+                                log.info("Alist 上传文件成功: {} -> {}", file.getName(), remotePath + "/" + file.getPath());
+                            });
+                }
+            } else {
+                File file = new File(localPath);
+                HttpRequest.put(host + "/api/fs/form")
+                        .setConfig(httpConfig)
+                        .timeout(1000 * 60 * 2)
+                        .header(Header.AUTHORIZATION, alistToken)
+                        .header("As-Task", "false")
+                        .header(Header.CONTENT_LENGTH, String.valueOf(file.length()))
+                        .header("File-Path", URLUtil.encode(remotePath + "/" + file.getName()))
+                        .form("file", file)
+                        .then(res -> {
+                            Assert.isTrue(res.isOk(), "上传失败 {} 状态码:{}", localPath, res.getStatus());
+                            JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
+                            int code = jsonObject.get("code").getAsInt();
+                            log.debug(jsonObject.toString());
+                            Assert.isTrue(code == 200, "上传失败 {} 状态码:{}", localPath, code);
+                            log.info("Alist 上传成功: {} -> {}", localPath, remotePath);
+                        });
+            }
+            log.info("Alist 上传文件: {} -> {}", localPath, remotePath);
+            return true;
         } catch (Exception e) {
             log.error("Alist 上传文件失败: {}", e.getMessage(), e);
             return false;
