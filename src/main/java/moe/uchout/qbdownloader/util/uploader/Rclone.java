@@ -3,7 +3,7 @@ package moe.uchout.qbdownloader.util.uploader;
 import lombok.extern.slf4j.Slf4j;
 import moe.uchout.qbdownloader.util.ConfigUtil;
 import moe.uchout.qbdownloader.util.GsonStatic;
-
+import moe.uchout.qbdownloader.entity.Task;
 import com.google.gson.JsonObject;
 
 import cn.hutool.core.lang.Assert;
@@ -21,17 +21,20 @@ public class Rclone implements Uploader {
     }
 
     /**
-     * rclone 上传文件
+     * rclone 上传文件，假设所有文件都在同一个目录下，
+     * 或者只有一个单文件
      * 
-     * @param src
+     * @param task
      * @param dst
      * @return 是否上传成功
      */
     @Override
-    public boolean copy(String src, String dst) {
+    public boolean copy(Task task) {
         String host = ConfigUtil.CONFIG.getRcloneHost();
         String username = ConfigUtil.CONFIG.getRcloneuserName();
         String password = ConfigUtil.CONFIG.getRclonePassword();
+        String src = task.getSavePath() + "/" + task.getRootDir();
+        String dst = task.getUploadPath();
         JsonObject obj = new JsonObject();
         obj.addProperty("srcFs", src);
         obj.addProperty("dstFs", dst);

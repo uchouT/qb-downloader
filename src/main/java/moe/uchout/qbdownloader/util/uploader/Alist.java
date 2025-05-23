@@ -1,11 +1,9 @@
 package moe.uchout.qbdownloader.util.uploader;
 
 import java.io.File;
-import java.util.List;
 
 import com.google.gson.JsonObject;
-
-import cn.hutool.core.io.FileUtil;
+import moe.uchout.qbdownloader.entity.Task;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.URLUtil;
 import cn.hutool.http.Header;
@@ -33,57 +31,38 @@ public class Alist implements Uploader {
      * 使用 Alist 上传文件 TODO: 异常处理
      * TODO: Task 中保存文件路径
      * 
-     * @param localPath  本地文件路径，需要绝对路径
-     * @param remotePath 远程路径
+     * @param task 待上传的任务
+     * @param dst  远程路径
      * @return 是否上传成功
      */
     @Override
-    public boolean copy(String localPath, String remotePath) {
+    public boolean copy(Task task) {
         try {
             String host = ConfigUtil.CONFIG.getAlistHost();
             String alistToken = ConfigUtil.CONFIG.getAlistToken();
             HttpConfig httpConfig = new HttpConfig()
                     .setBlockSize(1024 * 1024 * 50);
-            if (FileUtil.isDirectory(localPath)) {
-                List<File> files = FileUtil.loopFiles(localPath);
-                for (File file : files) {
-                    HttpRequest.put(host + "/api/fs/form")
-                            .setConfig(httpConfig)
-                            .timeout(1000 * 60 * 2)
-                            .header(Header.AUTHORIZATION, alistToken)
-                            .header("As-Task", "false")
-                            .header(Header.CONTENT_LENGTH, String.valueOf(file.length()))
-                            .header("File-Path", URLUtil.encode(remotePath + "/" + file.getPath()))
-                            .form("file", file)
-                            .then(res -> {
-                                Assert.isTrue(res.isOk(), "上传失败 {} 状态码:{}", localPath, res.getStatus());
-                                JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
-                                int code = jsonObject.get("code").getAsInt();
-                                log.debug(jsonObject.toString());
-                                Assert.isTrue(code == 200, "上传失败 {} 状态码:{}", localPath, code);
-                                log.info("Alist 上传文件成功: {} -> {}", file.getName(), remotePath + "/" + file.getPath());
-                            });
-                }
-            } else {
-                File file = new File(localPath);
+            for (String filePath : task.getFiles()) {
+                File file = new File(filePath);
+                String remotePath = task.getUploadPath();
                 HttpRequest.put(host + "/api/fs/form")
                         .setConfig(httpConfig)
                         .timeout(1000 * 60 * 2)
                         .header(Header.AUTHORIZATION, alistToken)
                         .header("As-Task", "false")
                         .header(Header.CONTENT_LENGTH, String.valueOf(file.length()))
-                        .header("File-Path", URLUtil.encode(remotePath + "/" + file.getName()))
+                        .header("File-Path", URLUtil.encode(remotePath))
                         .form("file", file)
                         .then(res -> {
-                            Assert.isTrue(res.isOk(), "上传失败 {} 状态码:{}", localPath, res.getStatus());
+                            Assert.isTrue(res.isOk(), "上传失败 {} 状态码:{}", filePath, res.getStatus());
                             JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
                             int code = jsonObject.get("code").getAsInt();
                             log.debug(jsonObject.toString());
-                            Assert.isTrue(code == 200, "上传失败 {} 状态码:{}", localPath, code);
-                            log.info("Alist 上传成功: {} -> {}", localPath, remotePath);
+                            Assert.isTrue(code == 200, "上传失败 {} 状态码:{}", filePath, code);
+                            log.info("Alist 上传文件成功: {} -> {}", file.getName(), remotePath + "/" + file.getPath());
                         });
             }
-            log.info("Alist 上传文件: {} -> {}", localPath, remotePath);
+            log.info("Alist 上传文件: {} -> {}");
             return true;
         } catch (Exception e) {
             log.error("Alist 上传文件失败: {}", e.getMessage(), e);

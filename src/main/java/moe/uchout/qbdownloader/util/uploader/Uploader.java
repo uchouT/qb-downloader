@@ -1,5 +1,7 @@
 package moe.uchout.qbdownloader.util.uploader;
 
+import moe.uchout.qbdownloader.entity.Task;
+
 /**
  * 上传器接口
  */
@@ -7,12 +9,11 @@ public interface Uploader {
     /**
      * 上传文件到远程存储
      * 
-     * @param localPath  本地文件路径
-     * @param remotePath 远程存储路径
+     * @param task  待上传的任务
      * @return 上传是否成功
      */
-    boolean copy(String localPath, String remotePath);
-    
+    boolean copy(Task task);
+
     /**
      * 检查上传器状态
      * 

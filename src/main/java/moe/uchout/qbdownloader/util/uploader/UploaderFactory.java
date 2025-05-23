@@ -1,5 +1,6 @@
 package moe.uchout.qbdownloader.util.uploader;
 
+import moe.uchout.qbdownloader.entity.Task;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -45,8 +46,8 @@ public class UploaderFactory {
      * @param remotePath 远程文件路径
      * @return 是否上传成功
      */
-    public static boolean copy(String uploadType, String localPath, String remotePath) {
+    public static boolean copy(String uploadType, Task task) {
         Uploader uploader = getUploader(uploadType);
-        return uploader.copy(localPath, remotePath);
+        return uploader.copy(task);
     }
 }
