@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
-
+import java.util.function.Supplier;
 import moe.uchout.qbdownloader.enums.Status;
 import cn.hutool.core.thread.ExecutorBuilder;
 import lombok.Data;
@@ -35,10 +35,6 @@ public class Task implements Serializable {
      * 种子根目录
      */
     private String rootDir;
-    /**
-     * 总任务进度
-     */
-    transient private float totalProcess;
 
     /**
      * 当前分片任务进度
@@ -48,11 +44,6 @@ public class Task implements Serializable {
     /**
      * 任务状态
      */
-    private String state;
-
-    /**
-     * 分片任务状态
-     */
     private Status status;
 
     /**
@@ -61,7 +52,9 @@ public class Task implements Serializable {
     private String savePath;
 
     /**
-     * 上传路径
+     * 上传路径, 与 uploadType 相对应
+     * rclone 为 dest:/path/to/dir
+     * alist 为 /path/to/dir
      */
     private String uploadPath;
 
@@ -106,6 +99,28 @@ public class Task implements Serializable {
     private String torrentPath;
 
     /**
+     * 任务总大小
+     */
+    private int totalSize;
+
+    /**
+     * 已下载大小, 不包含当前分片下载量
+     */
+    private int downloaded;
+
+    /**
+     * 当前下载大小
+     */
+    transient private int currentDownloaded;
+
+    /**
+     * 总任务进度
+     */
+    transient private Supplier<Float> totalProcess = () -> {
+        return (float) (downloaded + currentDownloaded) / totalSize;
+    };
+
+    /**
      * 执行间隔任务，标记状态为 ON_TASK, 完成任务后标记为 FINISHED
      */
     public void runInterval() {
@@ -114,13 +129,9 @@ public class Task implements Serializable {
             // 使用线程池执行上传任务
             EXECUTOR.execute(() -> {
                 try {
-                    String localPath = this.getSavePath() + "/" + this.getRootDir();
-                    String remotePath = this.getUploadPath();
-
                     // 使用工厂获取上传器并执行上传
-                    // TODO: 修改为传入 Task，rclone 和 alist 用不同的方式上传
                     boolean success = moe.uchout.qbdownloader.util.uploader.UploaderFactory
-                            .copy(this.getUploadType(), localPath, remotePath);
+                            .copy(this.getUploadType(), this);
 
                     // 根据上传结果设置状态
                     if (success) {

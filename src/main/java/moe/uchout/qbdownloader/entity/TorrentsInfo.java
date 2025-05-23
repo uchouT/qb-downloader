@@ -27,9 +27,14 @@ public class TorrentsInfo {
     private String state;
 
     /**
+     * 当前已下载文件大小，单位字节
+     */
+    private int downloaded;
+
+    /**
      * 种子下载进度
      */
-    private Float progress;
+    private float progress;
 
     /**
      * 种子下载剩余时间

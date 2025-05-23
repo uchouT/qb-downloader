@@ -94,11 +94,13 @@ public class QbUtil {
                             String state = jsonObject.get("state").getAsString();
                             Float progress = jsonObject.get("progress").getAsFloat();
                             int size = jsonObject.get("size").getAsInt();
+                            int downloaded = jsonObject.get("downloaded").getAsInt();
                             String eta = jsonObject.get("eta").getAsString();
 
                             TorrentsInfo torrentsInfo = new TorrentsInfo();
                             torrentsInfo.setHash(hash)
                                     .setSize(size)
+                                    .setDownloaded(downloaded)
                                     .setEta(eta)
                                     .setName(name)
                                     .setState(state)

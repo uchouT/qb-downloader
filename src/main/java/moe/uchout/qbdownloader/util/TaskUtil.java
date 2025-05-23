@@ -40,7 +40,7 @@ public class TaskUtil extends Thread {
      * 同步任务列表, 将任务保存到文件中
      */
     public static synchronized void sync() {
-
+        
     }
 
     /**
@@ -173,9 +173,8 @@ public class TaskUtil extends Thread {
             Task task = TASK_LIST.get(torrentsInfo.getHash());
             if (task.getStatus() == Status.DOWNLOADING) {
                 String state = torrentsInfo.getState();
-                task.setState(state);
                 task.setEta(torrentsInfo.getEta());
-                task.setTotalProcess(torrentsInfo.getProgress());
+                task.setCurrentDownloaded(torrentsInfo.getDownloaded());
                 if (state.equals("uploading") ||
                         state.equals("pausedUP") ||
                         state.equals("stalledUP") ||
