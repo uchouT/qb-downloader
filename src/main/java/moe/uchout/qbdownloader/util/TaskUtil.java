@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.io.File;
 import com.google.gson.reflect.TypeToken;
+
+import cn.hutool.core.lang.Assert;
+
 import java.lang.reflect.Type;
 import java.io.InputStreamReader;
 import java.io.FileOutputStream;
@@ -26,6 +29,7 @@ public class TaskUtil extends Thread {
 
     private static final String TASK_FILE_PATH = "configs/tasks.json";
     private static final String TORRENT_FILE_PATH = "configs/torrents/";
+    private static final int RETRY_TIMES = 3;
 
     /**
      * 任务列表
@@ -33,7 +37,7 @@ public class TaskUtil extends Thread {
     private static final Map<String, Task> TASK_LIST = new HashMap<>();
 
     /**
-     * 添加任务
+     * 添加任务 TODO: 仅提供测试，具体添加任务要在前端交互
      */
     public static void addTask(String url, String uploadType, String savePath, String uploadPath, int maxSize) {
         try {
@@ -55,13 +59,17 @@ public class TaskUtil extends Thread {
             task.setTaskOrder(order);
             TASK_LIST.put(hash, task);
             sync();
-            QbUtil.setNotDownload(task);
+            boolean setNotDownload = QbUtil.setNotDownload(task);
+            for (int i = 0; !setNotDownload && i < RETRY_TIMES; i++) {
+                setNotDownload = QbUtil.setNotDownload(task);
+            }
+            Assert.isTrue(setNotDownload, "设置不下载失败");
             QbUtil.setPrio(hash, 1, task.getTaskOrder().get(0));
             QbUtil.start(hash);
             task.setStatus(Status.DOWNLOADING);
             log.info("添加任务成功: {}", task.getName());
         } catch (Exception e) {
-            log.error("添加任务失败: {}", e.getMessage());
+            log.error("添加任务失败: {}", e.getMessage(), e);
             throw new RuntimeException(e);
         }
     }
@@ -213,18 +221,25 @@ public class TaskUtil extends Thread {
                         continue;
                     }
                     int currentPartNum = task.getCurrentPartNum();
+                    String hash = task.getHash();
+                    QbUtil.delete(hash, true);
                     if (currentPartNum < task.getTotalPartNum() - 1) {
                         task.setCurrentPartNum(currentPartNum + 1);
-                        String hash = task.getHash();
-                        QbUtil.delete(hash, true);
                         // 从缓存的种子文件中快速重新添加
                         QbUtil.add(task.getTorrentPath(), true);
-                        QbUtil.setNotDownload(task);
+                        Thread.sleep(1000);
+                        boolean setNotDownload = QbUtil.setNotDownload(task);
+                        // TODO: 处理错误的方式还待优化，现在的方法非常愚蠢
+                        // 有时候会设置失败，报 404
+                        for (int i = 0; !setNotDownload && i < RETRY_TIMES; i++) {
+                            setNotDownload = QbUtil.setNotDownload(task);
+                        }
+                        Assert.isTrue(setNotDownload, "设置不下载失败");
+
                         QbUtil.setPrio(hash, 1, task.getTaskOrder().get(currentPartNum + 1));
-                        QbUtil.removeTag(hash, Tags.NEW);
                         QbUtil.start(hash);
                         task.setStatus(Status.DOWNLOADING);
-                        log.info("[} 开始分片任务：{}", task.getName(), task.getCurrentPartNum() + 1);
+                        log.info("{} 开始分片任务：{}", task.getName(), task.getCurrentPartNum() + 1);
                     } else {
                         task.setStatus(Status.ALL_FINISHED);
                         log.info("任务: {} 全部完成", task.getName());

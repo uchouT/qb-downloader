@@ -407,13 +407,13 @@ public class QbUtil {
         try {
             HttpRequest req = HttpRequest.post(host + "/api/v2/torrents/add")
                     // 所有通过 qb-downloader 添加的种子都属于这个分类
-                    .form("category", TorrentsInfo.category)
-                    .form("tags", Tags.NEW);
+                    .form("category", TorrentsInfo.category);
             if (isFile) {
                 req.form("torrents", new File(url))
-                        .form("paused", "true");
+                        .form("stopped", "true");
             } else {
                 req.form("urls", url)
+                        .form("tags", Tags.NEW)
                         .form("stopCondition", "MetadataReceived");
             }
             return req.thenFunction(res -> {
