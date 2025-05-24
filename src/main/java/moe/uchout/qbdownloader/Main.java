@@ -2,6 +2,7 @@ package moe.uchout.qbdownloader;
 
 import lombok.extern.slf4j.Slf4j;
 import moe.uchout.qbdownloader.util.ConfigUtil;
+import moe.uchout.qbdownloader.util.TaskUtil;
 import cn.hutool.core.util.ObjectUtil;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +15,7 @@ public class Main {
         ARGS = List.of(ObjectUtil.defaultIfNull(args, new String[] {}));
         try {
             ConfigUtil.load();
+            new TaskUtil().start();
         } catch (Exception e) {
             log.error(e.getMessage());
             System.exit(1);
@@ -21,13 +23,5 @@ public class Main {
     }
 }
 
-/**
- * 编写思路：
- * 1. 加载配置文件
- * 2. 启动服务器，并监听操作
- * 3. 核心：
- * 1. qBittorrent 添加任务到列表，每个任务占用一个线程，并记录到磁盘
- * 2. 任务配置：配置下载顺序，配置分片任务（rclone 上传，Alist 上传）
- * 3. 每一片下载完成后，更新任务数据，再执行分片任务
- * 4. 任务完成后，清除线程，但是任务记录留存，（可选删除）
- */
+// TODO 日志记录需要整理
+// 所有路径末尾都没有 /

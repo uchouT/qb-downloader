@@ -30,7 +30,7 @@ public class Task implements Serializable {
     private String hash;
 
     /**
-     * 任务名称 TODO
+     * 任务名称
      */
     private String name;
 

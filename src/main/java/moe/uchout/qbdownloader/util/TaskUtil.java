@@ -258,7 +258,7 @@ public class TaskUtil extends Thread {
                         "forcedUP").contains(state)) {
                     task.setSeeding(true);
                     task.setStatus(Status.DONWLOADED);
-                } else if ("pausedUP".equals(state)) {
+                } else if ("stoppedUP".equals(state)) {
                     task.setSeeding(false);
                     task.setStatus(Status.DONWLOADED);
                 } else if (List.of(
@@ -267,8 +267,7 @@ public class TaskUtil extends Thread {
                     task.setStatus(Status.ERROR);
                 }
             } else if (task.isSeeding()) {
-                log.debug("监测做种状态");
-                if ("pausedUP".equals(torrentsInfo.getState())) {
+                if ("stoppedUP".equals(torrentsInfo.getState())) {
                     task.setSeeding(false);
                 }
             }
