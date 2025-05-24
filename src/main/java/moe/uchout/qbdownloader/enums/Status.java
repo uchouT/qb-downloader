@@ -24,5 +24,15 @@ public enum Status {
     /**
      * 整个任务完成
      */
-    ALL_FINISHED
+    ALL_FINISHED,
+
+    /**
+     * 任务出错
+     */
+    ERROR,
+
+    /**
+     * 任务暂停中
+     */
+    PAUSED
 }

@@ -4,17 +4,19 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.function.Supplier;
 import moe.uchout.qbdownloader.enums.Status;
+import cn.hutool.core.lang.Assert;
 import cn.hutool.core.thread.ExecutorBuilder;
 import lombok.Data;
 import lombok.experimental.Accessors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 任务类
  */
 @Data
 @Accessors(chain = true)
+@Slf4j
 public class Task implements Serializable {
     private static final ExecutorService EXECUTOR = ExecutorBuilder.create()
             .setCorePoolSize(1)
@@ -27,7 +29,7 @@ public class Task implements Serializable {
     private String hash;
 
     /**
-     * 任务名称
+     * 任务名称 TODO
      */
     private String name;
 
@@ -35,11 +37,6 @@ public class Task implements Serializable {
      * 种子根目录
      */
     private String rootDir;
-
-    /**
-     * 当前分片任务进度
-     */
-    transient private float currentProcess;
 
     /**
      * 任务状态
@@ -64,11 +61,6 @@ public class Task implements Serializable {
     private String uploadType;
 
     /**
-     * 分片任务剩余时间
-     */
-    transient private String eta;
-
-    /**
      * 分片任务总数
      */
     private int totalPieceNum;
@@ -89,7 +81,7 @@ public class Task implements Serializable {
     private int fileNum;
 
     /**
-     * 
+     * 需要下载的文件路径列表
      */
     private List<String> files;
 
@@ -99,55 +91,47 @@ public class Task implements Serializable {
     private String torrentPath;
 
     /**
-     * 任务总大小
+     * 做种是否还在进行
      */
-    private int totalSize;
+    private boolean isSeeding;
 
     /**
-     * 已下载大小, 不包含当前分片下载量
+     * 任务最大占用空间
      */
-    private int downloaded;
+    private int maxSize;
 
     /**
-     * 当前下载大小
-     */
-    transient private int currentDownloaded;
-
-    /**
-     * 总任务进度
-     */
-    transient private Supplier<Float> totalProcess = () -> {
-        return (float) (downloaded + currentDownloaded) / totalSize;
-    };
-
-    /**
-     * 执行间隔任务，标记状态为 ON_TASK, 完成任务后标记为 FINISHED
+     * 执行间隔任务，标记状态为 ON_TASK, 完成间隔任务后标记为 FINISHED
      */
     public void runInterval() {
         this.status = Status.ON_TASK;
         try {
             // 使用线程池执行上传任务
             EXECUTOR.execute(() -> {
-                try {
-                    // 使用工厂获取上传器并执行上传
-                    boolean success = moe.uchout.qbdownloader.util.uploader.UploaderFactory
-                            .copy(this.getUploadType(), this);
 
-                    // 根据上传结果设置状态
+                // 使用工厂获取上传器并执行上传，阻塞
+                boolean success = false;
+                for (int i = 0; i < TaskConstants.RETRY; i++) {
+                    success = moe.uchout.qbdownloader.util.uploader.UploaderFactory
+                            .copy(this.getUploadType(), this);
                     if (success) {
-                        this.setStatus(Status.FINISHED);
-                    } else {
-                        this.setStatus(Status.DONWLOADED); // 上传失败，保持下载完成状态，等待下次尝试
+                        break;
                     }
-                } catch (Exception e) {
-                    // 发生异常时记录日志并设置状态
-                    e.printStackTrace();
-                    this.setStatus(Status.DONWLOADED); // 上传发生异常，保持下载完成状态，等待下次尝试
                 }
+                // 根据上传结果设置状态
+                Assert.isTrue(success, "上传失败");
+                this.setStatus(Status.FINISHED);
             });
         } catch (Exception e) {
-            e.printStackTrace();
-            this.status = Status.DONWLOADED; // 提交任务失败，保持下载完成状态
+            log.error(e.getMessage());
+            this.status = Status.ERROR;
         }
     }
+}
+
+class TaskConstants {
+    /**
+     * 上传重试次数
+     */
+    static final int RETRY = 3;
 }

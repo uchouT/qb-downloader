@@ -5,7 +5,8 @@ import moe.uchout.qbdownloader.entity.Config;
 import java.io.FileWriter;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
-
+import java.io.FileReader;
+import java.io.File;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.introspector.BeanAccess;
@@ -32,7 +33,12 @@ public class ConfigUtil {
      * 加载配置文件
      */
     public static synchronized void load() {
-        try (java.io.FileReader reader = new java.io.FileReader("./config.yaml")) {
+        File file = new File("./config.yaml");
+        if (!file.exists()) {
+            log.debug("配置文件不存在, 使用默认配置");
+            return;
+        }
+        try (FileReader reader = new FileReader(file)) {
             TaskUtil.load();
             DumperOptions options = new DumperOptions();
             options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);

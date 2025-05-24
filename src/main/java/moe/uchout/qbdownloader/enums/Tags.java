@@ -7,19 +7,14 @@ public enum Tags {
     NEW("new_added"),
 
     /**
-     * 任务完成标签
+     * 总任务完成标签
      */
-    TASK_FINISHED_TAG("task_finished_tag"),
+    TASK_FINISHED_TAG("completed"),
 
     /**
-     * 任务下载完成标签
+     * 总任务进行中标签
      */
-    TASK_DOWNLOADED_TAG("task_downloaded_tag"),
-
-    /**
-     * 任务正在下载标签
-     */
-    TASK_DOWNLOADING_TAG("task_downloading_tag");
+    TASK_DOWNLOADING_TAG("progressing");
 
     private final String tag;
 
@@ -30,7 +25,7 @@ public enum Tags {
     public String getTag() {
         return tag;
     }
-    
+
     @Override
     public String toString() {
         return tag;

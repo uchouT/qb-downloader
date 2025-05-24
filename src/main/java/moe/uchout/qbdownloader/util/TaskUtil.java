@@ -4,7 +4,13 @@ import moe.uchout.qbdownloader.enums.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
+import java.io.File;
+import com.google.gson.reflect.TypeToken;
+import java.lang.reflect.Type;
+import java.io.InputStreamReader;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+import java.io.FileInputStream;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -18,29 +24,82 @@ import moe.uchout.qbdownloader.entity.TorrentsInfo;
 @Slf4j
 public class TaskUtil extends Thread {
 
+    private static final String TASK_FILE_PATH = "./tasks.json";
+
     /**
      * 任务列表
      */
     private static final Map<String, Task> TASK_LIST = new HashMap<>();
 
-    /** 添加任务 */
-    public static void addTask(Task task) {
-        TASK_LIST.put(task.getHash(), task);
-        sync();
+    /**
+     * 添加任务
+     * TODO:
+     */
+    public static void addTask(String url, String uploadType, String savePath, String uploadPath, int maxSize) {
+        try {
+            QbUtil.add(url, false);
+            String hash = QbUtil.getHash();
+            QbUtil.export(hash, "torrents/" + hash + ".torrent");
+            String name = QbUtil.getName(hash);
+            QbUtil.removeTag(hash, Tags.NEW);
+            Task task = new Task().setCurrentPieceNum(0).setStatus(Status.PAUSED).setName(name)
+                    .setHash(hash).setSeeding(false).setTorrentPath("torrents/" + hash + ".torrent")
+                    // 以下内容由用户设置
+                    .setUploadType(uploadType)
+                    .setSavePath(savePath)
+                    .setUploadPath(uploadPath)
+                    .setMaxSize(maxSize * 1024 * 1024);
+            List<TorrentContent> contents = QbUtil.getTorrentContentList(hash, task);
+            List<List<Integer>> order = getTaskOrder(contents, task.getMaxSize());
+            task.setTotalPieceNum(order.size());
+            task.setTaskOrder(order);
+            TASK_LIST.put(hash, task);
+            sync();
+            log.info("添加任务成功: {}", task);
+        } catch (Exception e) {
+            log.error("添加任务失败: {}", e.getMessage());
+            throw new RuntimeException(e);
+        }
     }
 
     /**
      * 从文件获取任务列表
      */
     public static synchronized void load() {
+        File taskFile = new File(TASK_FILE_PATH);
+        if (!taskFile.exists()) {
+            log.debug("任务文件不存在，无需加载");
+            return;
+        }
 
+        try (InputStreamReader reader = new InputStreamReader(
+                new FileInputStream(taskFile), "UTF-8")) {
+            Type type = new TypeToken<Map<String, Task>>() {
+            }.getType();
+            Map<String, Task> loaded = GsonStatic.gson.fromJson(reader, type);
+            if (loaded != null) {
+                TASK_LIST.clear();
+                TASK_LIST.putAll(loaded);
+                log.info("加载任务列表成功，共 {} 个任务", TASK_LIST.size());
+                log.debug(TASK_LIST.toString());
+            }
+        } catch (Exception e) {
+            log.error("加载任务列表失败", e);
+        }
     }
 
     /**
      * 同步任务列表, 将任务保存到文件中
      */
     public static synchronized void sync() {
-        
+        try (OutputStreamWriter writer = new OutputStreamWriter(
+                new FileOutputStream(TASK_FILE_PATH), "UTF-8")) {
+            String json = GsonStatic.toJson(TASK_LIST);
+            writer.write(json);
+            log.debug("任务列表已保存，共 {} 个任务", TASK_LIST.size());
+        } catch (Exception e) {
+            log.error("保存任务列表失败", e);
+        }
     }
 
     /**
@@ -49,7 +108,8 @@ public class TaskUtil extends Thread {
      * @param hash
      */
     public static void delete(String hash) {
-
+        TASK_LIST.remove(hash);
+        sync();
     }
 
     /**
@@ -83,13 +143,17 @@ public class TaskUtil extends Thread {
         List<List<Integer>> TaskOrder = new ArrayList<>();
         List<Integer> onePiece = new ArrayList<>();
         int currentSize = 0;
-        for (TorrentContent torrentContent : torrentContentList) {
+        for (int i = 0, size = torrentContentList.size(); i < size; i++) {
+            TorrentContent torrentContent = torrentContentList.get(i);
             if (currentSize + torrentContent.getSize() > maxSize) {
                 TaskOrder.add(onePiece);
                 onePiece = new ArrayList<>();
                 currentSize = 0;
             }
             onePiece.add(torrentContent.getIndex());
+            if (i == size - 1) {
+                TaskOrder.add(onePiece);
+            }
             currentSize += torrentContent.getSize();
         }
         return TaskOrder;
@@ -120,7 +184,7 @@ public class TaskUtil extends Thread {
                 Thread.currentThread().interrupt();
                 break;
             } catch (Exception e) {
-                log.error(e.getMessage());
+                log.error("任务处理出错", e);
             }
         }
         // 线程退出前的清理操作
@@ -138,14 +202,18 @@ public class TaskUtil extends Thread {
                 if (status == Status.DONWLOADED) {
                     task.runInterval();
                 } else if (status == Status.FINISHED) {
-                    if (task.getCurrentPieceNum() < task.getTotalPieceNum() - 1) {
-                        task.setCurrentPieceNum(task.getCurrentPieceNum() + 1);
+                    if (task.isSeeding()) {
+                        continue;
+                    }
+                    int currentPieceNum = task.getCurrentPieceNum();
+                    if (currentPieceNum < task.getTotalPieceNum() - 1) {
+                        task.setCurrentPieceNum(currentPieceNum + 1);
                         String hash = task.getHash();
                         QbUtil.delete(hash, true);
                         // 从缓存的种子文件中快速重新添加
                         QbUtil.add(task.getTorrentPath(), true);
                         QbUtil.setNotDownload(task);
-                        QbUtil.setPrio(hash, 1, task.getTaskOrder().get(task.getCurrentPieceNum()));
+                        QbUtil.setPrio(hash, 1, task.getTaskOrder().get(currentPieceNum + 1));
                         QbUtil.removeTag(hash, Tags.NEW);
                         QbUtil.start(hash);
                         task.setStatus(Status.DOWNLOADING);
@@ -155,7 +223,7 @@ public class TaskUtil extends Thread {
                 }
             }
         } catch (Exception e) {
-            // TODO: handle exception
+            log.error("任务处理异常", e);
         }
     }
 
@@ -173,19 +241,23 @@ public class TaskUtil extends Thread {
             Task task = TASK_LIST.get(torrentsInfo.getHash());
             if (task.getStatus() == Status.DOWNLOADING) {
                 String state = torrentsInfo.getState();
-                task.setEta(torrentsInfo.getEta());
-                task.setCurrentDownloaded(torrentsInfo.getDownloaded());
-                if (state.equals("uploading") ||
-                        state.equals("pausedUP") ||
-                        state.equals("stalledUP") ||
-                        state.equals("queuedUP") ||
-                        state.equals("checkingUP") ||
-                        state.equals("forceUP") ||
-                        state.equals("moving")) {
+                if (List.of(
+                        "uploading",
+                        "stalledUP",
+                        "queuedUP",
+                        "checkingUP",
+                        "forcedUP").contains(state)) {
+                    task.setSeeding(true);
                     task.setStatus(Status.DONWLOADED);
+                } else if ("pausedUP".equals(state)) {
+                    task.setSeeding(false);
+                    task.setStatus(Status.DONWLOADED);
+                } else if (List.of(
+                        "error",
+                        "missingFiles").contains(state)) {
+                    task.setStatus(Status.ERROR);
                 }
             }
-
         }
     }
 

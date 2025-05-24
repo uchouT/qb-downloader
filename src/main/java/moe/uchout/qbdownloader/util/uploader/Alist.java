@@ -29,7 +29,6 @@ public class Alist implements Uploader {
 
     /**
      * 使用 Alist 上传文件 TODO: 异常处理
-     * TODO: Task 中保存文件路径
      * 
      * @param task 待上传的任务
      * @param dst  远程路径

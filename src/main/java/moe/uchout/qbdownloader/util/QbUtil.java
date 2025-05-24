@@ -116,6 +116,50 @@ public class QbUtil {
     }
 
     /**
+     * 获取最新添加的种子的 hash
+     * 
+     * @return
+     */
+    public static String getHash() {
+        try {
+            return HttpRequest.get(host + "/api/v2/torrents/info")
+                    .form("category", TorrentsInfo.category)
+                    .form("tag", Tags.NEW)
+                    .thenFunction(res -> {
+                        Assert.isTrue(res.isOk(), "get Hash failed, status code: {}", res.getStatus());
+                        JsonArray jsonArray = GsonStatic.fromJson(res.body(), JsonArray.class);
+                        if (jsonArray.size() == 0) {
+                            return null;
+                        }
+                        JsonObject jsonObject = jsonArray.get(0).getAsJsonObject();
+                        return jsonObject.get("hash").getAsString();
+                    });
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            return null;
+        }
+    }
+
+    public static String getName(String hash) {
+        try {
+            return HttpRequest.get(host + "/api/v2/torrents/info")
+                    .form("hashes", hash)
+                    .thenFunction(res -> {
+                        Assert.isTrue(res.isOk(), "get Name failed, status code: {}", res.getStatus());
+                        JsonArray jsonArray = GsonStatic.fromJson(res.body(), JsonArray.class);
+                        if (jsonArray.size() == 0) {
+                            return null;
+                        }
+                        JsonObject jsonObject = jsonArray.get(0).getAsJsonObject();
+                        return jsonObject.get("name").getAsString();
+                    });
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * 设置种子的下载优先级
      * 
      * @param hash      种子的 hash
@@ -153,7 +197,7 @@ public class QbUtil {
     }
 
     /**
-     * 获取种子的内容信息，将获取到的 rootDir 应用到任务实体中，
+     * 获取种子的内容信息，将获取到的 rootDir, files, fileNum 应用到任务实体中，
      * precondition: 种子内容符合规范，只有一个根目录，里面包含所有文件
      * size 的单位是字节
      * 
@@ -168,19 +212,23 @@ public class QbUtil {
                     .thenFunction(res -> {
                         Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
                         List<TorrentContent> torrentContentList = new ArrayList<>();
+                        List<String> files = new ArrayList<>();
                         JsonArray jsonArray = GsonStatic.fromJson(res.body(), JsonArray.class);
                         int fileNum = 0;
+                        String savePath = task.getSavePath();
                         for (JsonElement jsonElement : jsonArray) {
                             JsonObject jsonObject = jsonElement.getAsJsonObject();
                             int index = jsonObject.get("index").getAsInt();
                             int size = jsonObject.get("size").getAsInt();
+                            String path = jsonObject.get("name").getAsString();
                             TorrentContent torrentContent = new TorrentContent();
                             torrentContent.setIndex(index).setSize(size);
                             torrentContentList.add(torrentContent);
+                            files.add(savePath + "/" + path);
                             fileNum++;
                         }
                         String rootDir = jsonArray.get(0).getAsJsonObject().get("name").getAsString().split("/")[0];
-                        task.setRootDir(rootDir).setFileNum(fileNum);
+                        task.setRootDir(rootDir).setFileNum(fileNum).setFiles(files);
                         return torrentContentList;
                     });
         } catch (Exception e) {
@@ -239,15 +287,15 @@ public class QbUtil {
     }
 
     /**
-     * 删除标签
      * 
      * @param hash
      * @param tag
+     * @param req
      * @return
      */
-    public static boolean removeTag(String hash, Tags tag) {
+    private static boolean tag(String hash, Tags tag, String req) {
         try {
-            return HttpRequest.post(host + "/api/v2/torrents/removeTags")
+            return HttpRequest.post(host + "/api/v2/torrents/" + req)
                     .form("hashes", hash)
                     .form("tags", tag.getTag())
                     .thenFunction(res -> {
@@ -258,6 +306,27 @@ public class QbUtil {
             log.error(e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * 删除标签
+     * 
+     * @param hash
+     * @param tag
+     * @return
+     */
+    public static boolean removeTag(String hash, Tags tag) {
+        return tag(hash, tag, "removeTags");
+    }
+
+    /**
+     * 添加标签
+     * 
+     * @param hash
+     * @param tag
+     */
+    public static boolean addTag(String hash, Tags tag) {
+        return tag(hash, tag, "addTags");
     }
 
     /**
@@ -314,12 +383,13 @@ public class QbUtil {
             HttpRequest req = HttpRequest.post(host + "/api/v2/torrents/add")
                     // 所有通过 qb-downloader 添加的种子都属于这个分类
                     .form("category", TorrentsInfo.category)
-                    .form("tags", Tags.NEW)
-                    .form("stopCondition", "MetadataReceived");
+                    .form("tags", Tags.NEW);
             if (isFile) {
-                req.form("torrents", new File(url));
+                req.form("torrents", new File(url))
+                        .form("paused", "true");
             } else {
-                req.form("urls", url);
+                req.form("urls", url)
+                        .form("stopCondition", "MetadataReceived");
             }
             return req.thenFunction(res -> {
                 Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
