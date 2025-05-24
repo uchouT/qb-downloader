@@ -69,7 +69,7 @@ public class QbUtil {
                         return true;
                     });
         } catch (Exception e) {
-            log.error("qbittorrent login error: {}", e.getMessage());
+            log.error("qbittorrent login error: {}", e.getMessage(), e);
             return false;
         }
     }
@@ -133,6 +133,25 @@ public class QbUtil {
                         }
                         JsonObject jsonObject = jsonArray.get(0).getAsJsonObject();
                         return jsonObject.get("hash").getAsString();
+                    });
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            return null;
+        }
+    }
+
+    public static String getState(String hash) {
+        try {
+            return HttpRequest.get(host + "/api/v2/torrents/info")
+                    .form("hashes", hash)
+                    .thenFunction(res -> {
+                        Assert.isTrue(res.isOk(), "get Hash failed, status code: {}", res.getStatus());
+                        JsonArray jsonArray = GsonStatic.fromJson(res.body(), JsonArray.class);
+                        if (jsonArray.size() == 0) {
+                            return null;
+                        }
+                        JsonObject jsonObject = jsonArray.get(0).getAsJsonObject();
+                        return jsonObject.get("state").getAsString();
                     });
         } catch (Exception e) {
             log.error(e.getMessage());
@@ -337,6 +356,12 @@ public class QbUtil {
      */
     public static synchronized void export(String hash, String path) {
         try {
+            String state = getState(hash);
+            // 直到元数据下载完成后，才导出种子
+            while ("metaDL".equals(state)) {
+                state = getState(hash);
+                Thread.sleep(5000);
+            }
             HttpRequest.post(host + "/api/v2/torrents/export")
                     .form("hash", hash)
                     .then(res -> {

@@ -34,7 +34,7 @@ public class Rclone implements Uploader {
         String username = ConfigUtil.CONFIG.getRcloneuserName();
         String password = ConfigUtil.CONFIG.getRclonePassword();
         String src = task.getSavePath() + "/" + task.getRootDir();
-        String dst = task.getUploadPath();
+        String dst = task.getUploadPath() + "/" + task.getRootDir();
         JsonObject obj = new JsonObject();
         obj.addProperty("srcFs", src);
         obj.addProperty("dstFs", dst);

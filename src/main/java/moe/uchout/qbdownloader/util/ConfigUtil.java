@@ -14,6 +14,7 @@ import org.yaml.snakeyaml.representer.Representer;
 
 @Slf4j
 public class ConfigUtil {
+    private static final String CONFIG_PATH = "configs/config.yaml";
     public static final Config CONFIG = new Config();
     static {
         CONFIG.setQbHost("http://localhost:8080")
@@ -33,7 +34,7 @@ public class ConfigUtil {
      * 加载配置文件
      */
     public static synchronized void load() {
-        File file = new File("./config.yaml");
+        File file = new File(CONFIG_PATH);
         if (!file.exists()) {
             log.debug("配置文件不存在, 使用默认配置");
             return;
@@ -65,7 +66,7 @@ public class ConfigUtil {
      * 保存配置文件
      */
     public static synchronized void sync() {
-        try (FileWriter writer = new FileWriter("./config.yaml")) {
+        try (FileWriter writer = new FileWriter(CONFIG_PATH)) {
             DumperOptions options = new DumperOptions();
             options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
             options.setPrettyFlow(true);

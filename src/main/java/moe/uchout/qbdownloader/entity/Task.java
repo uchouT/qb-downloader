@@ -1,5 +1,6 @@
 package moe.uchout.qbdownloader.entity;
 
+import moe.uchout.qbdownloader.util.uploader.UploaderFactory;
 import java.io.Serializable;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -63,12 +64,12 @@ public class Task implements Serializable {
     /**
      * 分片任务总数
      */
-    private int totalPieceNum;
+    private int totalPartNum;
 
     /**
      * 当前进行的分片任务序号, 从 0 开始
      */
-    private int currentPieceNum;
+    private int currentPartNum;
 
     /**
      * 分片任务下载顺序
@@ -93,7 +94,7 @@ public class Task implements Serializable {
     /**
      * 做种是否还在进行
      */
-    private boolean isSeeding;
+    private boolean seeding;
 
     /**
      * 任务最大占用空间
@@ -105,6 +106,7 @@ public class Task implements Serializable {
      */
     public void runInterval() {
         this.status = Status.ON_TASK;
+        log.info("{} 下载完成，准备上传", this.name);
         try {
             // 使用线程池执行上传任务
             EXECUTOR.execute(() -> {
@@ -112,7 +114,7 @@ public class Task implements Serializable {
                 // 使用工厂获取上传器并执行上传，阻塞
                 boolean success = false;
                 for (int i = 0; i < TaskConstants.RETRY; i++) {
-                    success = moe.uchout.qbdownloader.util.uploader.UploaderFactory
+                    success = UploaderFactory
                             .copy(this.getUploadType(), this);
                     if (success) {
                         break;
@@ -120,6 +122,7 @@ public class Task implements Serializable {
                 }
                 // 根据上传结果设置状态
                 Assert.isTrue(success, "上传失败");
+                log.info(name + " 上传完成");
                 this.setStatus(Status.FINISHED);
             });
         } catch (Exception e) {
