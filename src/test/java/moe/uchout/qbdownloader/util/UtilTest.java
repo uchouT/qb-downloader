@@ -28,9 +28,9 @@ public class UtilTest {
                                 .setRclonePassword("secret");
                 QbUtil.login();
                 TaskUtil.addTask(
-                                "magnet:?xt=urn:btih:601939063a0e74b12d0c6024cff4560d10ca76c6&dn=%E3%80%90%E5%96%B5%E8%90%8C%E5%A5%B6%E8%8C%B6%E5%B1%8B%E3%80%91%E2%98%8504%E6%9C%88%E6%96%B0%E7%95%AA%E2%98%85%5B%E6%90%9E%E7%AC%91%E6%BC%AB%E7%94%BB%E6%97%A5%E5%92%8CGO%20%2F%20%E6%90%9E%E7%AC%91%E6%BC%AB%E7%95%AB%E6%97%A5%E5%92%8CGO%20%2F%20Gyagu%20Manga%20Biyori%20GO%5D%5B03-07%5D%5B1080p%5D%5B%E7%AE%80%E7%B9%81%E4%B8%AD%E6%96%87%5D&tr=http%3A%2F%2Fnyaa.tracker.wf%3A7777%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce",
-                                "rclone", "E:\\Download", "od:/Test", 300);
-                Thread thread = new TaskUtil();
+                                "magnet:?xt=urn:btih:e4617eb881fc9f6c1f575a002e812c9d71427a72&dn=%5B%E6%BE%84%E7%A9%BA%E5%AD%A6%E5%9B%AD%26%E5%8A%A8%E6%BC%AB%E5%9B%BD%E5%AD%97%E5%B9%95%E7%BB%84%26LoliHouse%5D%20%E7%81%B0%E8%89%B2%3A%20%E5%B9%BB%E5%BD%B1%E6%89%B3%E6%9C%BA%20%2F%20%E3%82%B0%E3%83%AA%E3%82%B6%E3%82%A4%E3%82%A2%3A%20%E3%83%95%E3%82%A1%E3%83%B3%E3%83%88%E3%83%A0%E3%83%88%E3%83%AA%E3%82%AC%E3%83%BC%20%2F%20Grisaia%3A%20Phantom%20Trigger%20%5B01-13%20%E5%90%88%E9%9B%86%5D%5BWebRip%201080p%20HEVC-10bit%20AAC%5D%5B%E7%AE%80%E7%B9%81%E5%86%85%E5%B0%81%E5%AD%97%E5%B9%95%5D&tr=http%3A%2F%2Fnyaa.tracker.wf%3A7777%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce",
+                                "rclone", "E:\\Download", "od:/Test", 1000);
+                Thread thread = new TaskThread();
                 thread.start();
         }
 }
