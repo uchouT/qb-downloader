@@ -1,7 +1,7 @@
 package moe.uchout.qbdownloader.util;
 
 import com.google.gson.JsonArray;
-
+import moe.uchout.qbdownloader.exception.*;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.http.HttpRequest;
@@ -20,13 +20,16 @@ import java.util.stream.Collectors;
 
 import cn.hutool.core.util.StrUtil;
 
+// TODO: 重新设计错误处理机制
 /**
  * Qbittorrent 种子下载相关
  */
 @Slf4j
 public class QbUtil {
+    private QbUtil() {
+    }
 
-    static String host;
+    private static String host;
 
     /**
      * 获取 host
@@ -45,32 +48,36 @@ public class QbUtil {
     /**
      * @return 是否登录成功
      */
-    public static boolean login() {
+    public static void login() throws QbException {
         try {
             getHost();
-            String username = ConfigUtil.CONFIG.getQbUsername();
-            if (username == null || username.isEmpty()) {
-                throw new Exception("qbittorrent username is null");
-
-            }
-            String password = ConfigUtil.CONFIG.getQbPassword();
-            if (password == null || password.isEmpty()) {
-                throw new Exception("qbittorrent password is null");
-
-            }
-            return HttpRequest.post(host + "/api/v2/auth/login")
-                    .form("username", username)
-                    .form("password", password)
-                    .setFollowRedirects(true)
-                    .thenFunction(res -> {
-                        Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
-                        String body = res.body();
-                        Assert.isTrue("Ok.".equals(body), "body: {}", body);
-                        return true;
-                    });
         } catch (Exception e) {
-            log.error("qbittorrent login error: {}", e.getMessage(), e);
-            return false;
+            throw new QbException("qbittorrent host is null");
+        }
+        String username = ConfigUtil.CONFIG.getQbUsername();
+        if (username == null || username.isEmpty()) {
+            throw new QbException("qbittorrent username is null");
+
+        }
+        String password = ConfigUtil.CONFIG.getQbPassword();
+        if (password == null || password.isEmpty()) {
+            throw new QbException("qbittorrent password is null");
+
+        }
+        boolean logined = HttpRequest.post(host + "/api/v2/auth/login")
+                .form("username", username)
+                .form("password", password)
+                .setFollowRedirects(true)
+                .thenFunction(res -> {
+                    String body = res.body();
+                    if (res.isOk() && "Ok.".equals(body)) {
+                        log.info("qbittorrent login success");
+                        return true;
+                    }
+                    return false;
+                });
+        if (!logined) {
+            throw new QbException("qbittorrent login failed");
         }
     }
 
@@ -110,7 +117,7 @@ public class QbUtil {
                         return torrentsInfosList;
                     });
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error(e.getMessage(), e);
             return new ArrayList<>();
         }
     }
@@ -135,7 +142,7 @@ public class QbUtil {
                         return jsonObject.get("hash").getAsString();
                     });
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error(e.getMessage(), e);
             return null;
         }
     }
@@ -154,7 +161,7 @@ public class QbUtil {
                         return jsonObject.get("state").getAsString();
                     });
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error(e.getMessage(), e);
             return null;
         }
     }
@@ -173,7 +180,7 @@ public class QbUtil {
                         return jsonObject.get("name").getAsString();
                     });
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error(e.getMessage(), e);
             return null;
         }
     }
@@ -193,12 +200,12 @@ public class QbUtil {
                     .form("priority", priority.toString())
                     .form("id", id)
                     .thenFunction(res -> {
-                        Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
+                        Assert.isTrue(res.isOk(), "setPrio failed, status code: {}", res.getStatus());
                         return true;
                     });
 
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error(e.getMessage(), e);
             return false;
         }
     }
@@ -251,7 +258,7 @@ public class QbUtil {
                         return torrentContentList;
                     });
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error(e.getMessage(), e);
             return new ArrayList<>();
         }
     }
@@ -271,7 +278,7 @@ public class QbUtil {
                         return true;
                     });
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error(e.getMessage(), e);
             return false;
         }
     }
@@ -322,7 +329,7 @@ public class QbUtil {
                         return true;
                     });
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error(e.getMessage(), e);
             return false;
         }
     }
@@ -365,12 +372,12 @@ public class QbUtil {
             HttpRequest.post(host + "/api/v2/torrents/export")
                     .form("hash", hash)
                     .then(res -> {
-                        Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
+                        Assert.isTrue(res.isOk(), "export torrents failed, status code: {}", res.getStatus());
                         FileUtil.writeBytes(res.bodyBytes(), new File(path));
                         log.debug("export torrent file to {}", path);
                     });
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error(e.getMessage(), e);
         }
     }
 
@@ -386,11 +393,11 @@ public class QbUtil {
                     .form("hashes", hash)
                     .form("deleteFiles", deleteFiles.toString())
                     .thenFunction(res -> {
-                        Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
+                        Assert.isTrue(res.isOk(), "delete torrent failed, status code: {}", res.getStatus());
                         return true;
                     });
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error(e.getMessage(), e);
             return false;
         }
     }
@@ -417,12 +424,12 @@ public class QbUtil {
                         .form("stopCondition", "MetadataReceived");
             }
             return req.thenFunction(res -> {
-                Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
+                Assert.isTrue(res.isOk(), "add torrent failed, status code: {}", res.getStatus());
                 return true;
             });
 
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error(e.getMessage(), e);
             return false;
         }
     }

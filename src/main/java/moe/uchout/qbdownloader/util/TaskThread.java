@@ -1,6 +1,8 @@
 package moe.uchout.qbdownloader.util;
 
 import moe.uchout.qbdownloader.enums.*;
+import moe.uchout.qbdownloader.exception.QbException;
+
 import java.util.List;
 import cn.hutool.core.lang.Assert;
 import lombok.extern.slf4j.Slf4j;
@@ -18,19 +20,20 @@ public class TaskThread extends Thread {
 
     @Override
     public void run() {
-        boolean logined = QbUtil.login();
         while (running) {
             try {
-                if (!logined) {
-                    logined = QbUtil.login();
-                    if (!logined) {
-                        Thread.sleep(15000);
-                        continue;
-                    }
-                } else {
-                    processTask();
-                }
+                QbUtil.login();
+                processTask();
                 Thread.sleep(5000);
+            } catch (QbException e) {
+                log.warn(e.getMessage());
+                try {
+                    Thread.sleep(15000);
+                } catch (InterruptedException ex) {
+                    running = false;
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             } catch (InterruptedException e) {
                 running = false;
                 Thread.currentThread().interrupt();

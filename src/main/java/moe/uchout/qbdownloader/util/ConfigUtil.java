@@ -12,6 +12,7 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.introspector.BeanAccess;
 import org.yaml.snakeyaml.representer.Representer;
 
+// TODO: 主程序密码需要加密
 @Slf4j
 public class ConfigUtil {
     private static final String CONFIG_PATH = "configs/config.yaml";
