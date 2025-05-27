@@ -2,9 +2,20 @@ package moe.uchout.qbdownloader.util;
 
 import lombok.extern.slf4j.Slf4j;
 import moe.uchout.qbdownloader.Main;
+import moe.uchout.qbdownloader.action.BaseAction;
+import moe.uchout.qbdownloader.annotation.Auth;
+import moe.uchout.qbdownloader.annotation.Path;
+import moe.uchout.qbdownloader.auth.AuthUtil;
+import moe.uchout.qbdownloader.entity.Result;
 
+import java.net.InetSocketAddress;
 import java.util.Map;
+import java.util.Set;
 
+import cn.hutool.core.io.IoUtil;
+import cn.hutool.core.net.NetUtil;
+import cn.hutool.core.util.ClassUtil;
+import cn.hutool.core.util.ReflectUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.server.HttpServerRequest;
 import cn.hutool.http.server.HttpServerResponse;
@@ -23,18 +34,25 @@ public class ServerUtil {
      */
     public static void start() {
         setHost();
+        registerApi();
+        server.getRawServer().start();
+        InetSocketAddress address = server.getAddress();
+        log.info("Http Server listen on [{}:{}]", address.getHostName(), address.getPort());
+        for (String ip : NetUtil.localIpv4s()) {
+            log.info("http://{}:{}", ip, address.getPort());
+        }
     }
 
     /**
      * 设置服务器启动参数
      */
-    static void setHost() {
+    private static void setHost() {
         Map<String, String> env = System.getenv();
-        int i = Main.ARGS.indexOf("-port");
+        int i = Main.ARGS.indexOf("--port");
         if (i > -1) {
             PORT = Main.ARGS.get(i + 1);
         }
-        i = Main.ARGS.indexOf("-host");
+        i = Main.ARGS.indexOf("--host");
         if (i > -1) {
             HOST = Main.ARGS.get(i + 1);
         }
@@ -56,8 +74,38 @@ public class ServerUtil {
     /**
      * 注册 API
      */
-    // TODO: 学习注册 API
-    // static void registerApi() {
-    //     server.addAction("/", new RootAction());
-    // }
+    private static void registerApi() {
+        // server.addAction("/", new RootAction());
+        Set<Class<?>> classes = ClassUtil.scanPackageByAnnotation("moe.uchout.qbdownloader.action", Path.class);
+        for (Class<?> clazz : classes) {
+            Path path = clazz.getAnnotation(Path.class);
+            if (path == null) {
+                continue;
+            }
+            Object action = ReflectUtil.newInstanceIfPossible(clazz);
+            String urlPath = "/api" + path.value();
+            server.addAction(urlPath, new BaseAction() {
+                @Override
+                public void doAction(HttpServerRequest req, HttpServerResponse res) {
+                    try {
+                        Auth auth = clazz.getAnnotation(Auth.class);
+                        if (auth != null && !auth.value()) {
+                            if (!AuthUtil.authorize(req)) {
+                                return;
+                            }
+                        }
+                        BaseAction baseAction = (BaseAction) action;
+                        baseAction.doAction(req, res);
+                    } catch (Exception e) {
+                        String json = GsonStatic.toJson(Result.error().setMessage(e.getMessage()));
+                        IoUtil.writeUtf8(res.getOut(), true, json);
+                        if (!(e instanceof IllegalArgumentException)) {
+                            log.error("{} {}", urlPath, e.getMessage());
+                            log.error(e.getMessage(), e);
+                        }
+                    }
+                };
+            });
+        }
+    }
 }
