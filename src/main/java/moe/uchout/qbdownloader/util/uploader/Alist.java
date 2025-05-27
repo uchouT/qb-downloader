@@ -35,7 +35,7 @@ public class Alist implements Uploader {
      * @return 是否上传成功
      */
     @Override
-    public boolean copy(Task task) {
+    public void copy(Task task) {
         try {
             String host = ConfigUtil.CONFIG.getAlistHost();
             String alistToken = ConfigUtil.CONFIG.getAlistToken();
@@ -62,10 +62,8 @@ public class Alist implements Uploader {
                         });
             }
             log.info("Alist 上传文件: {} -> {}");
-            return true;
         } catch (Exception e) {
             log.error("Alist 上传文件失败: {}", e.getMessage(), e);
-            return false;
         }
     }
 
@@ -75,7 +73,7 @@ public class Alist implements Uploader {
      * @return 是否可用
      */
     @Override
-    public boolean check() {
+    public boolean check(Task task) {
         try {
             // TODO
             return true;

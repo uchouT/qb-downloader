@@ -101,6 +101,8 @@ public class Task implements Serializable {
      */
     private int maxSize;
 
+    private int rcloneJobId;
+
     /**
      * 执行间隔任务，标记状态为 ON_TASK, 完成间隔任务后标记为 FINISHED
      */
@@ -110,25 +112,25 @@ public class Task implements Serializable {
         try {
             // 使用线程池执行上传任务
             EXECUTOR.execute(() -> {
-
-                // 使用工厂获取上传器并执行上传，阻塞
-                boolean success = false;
-                for (int i = 0; i < TaskConstants.RETRY; i++) {
-                    success = UploaderFactory
-                            .copy(this.getUploadType(), this);
-                    if (success) {
-                        break;
-                    }
-                }
-                // 根据上传结果设置状态
-                Assert.isTrue(success, "上传失败");
-                log.info(name + " 上传完成");
-                this.setStatus(Status.FINISHED);
+                // 使用工厂获取上传器并执行上传，非阻塞
+                UploaderFactory.copy(this.getUploadType(), this);
             });
         } catch (Exception e) {
             log.error(e.getMessage());
             this.status = Status.ERROR;
         }
+    }
+
+    /**
+     * 检查间隔任务是否完成
+     */
+    public void runCheck() {
+        EXECUTOR.execute(() -> {
+            if (UploaderFactory.check(this.getUploadType(), this)) {
+                log.info("上传完成");
+                this.status = Status.FINISHED;
+            }
+        });
     }
 }
 

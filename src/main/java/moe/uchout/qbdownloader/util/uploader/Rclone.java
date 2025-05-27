@@ -27,9 +27,12 @@ public class Rclone implements Uploader {
      * @param task
      * @param dst
      * @return 是否上传成功
+     * @see <a href=
+     *      "https://rclone.org/rc/#running-asynchronous-jobs-with-async-true">rclone
+     *      async</a>
      */
     @Override
-    public boolean copy(Task task) {
+    public void copy(Task task) {
         String host = ConfigUtil.CONFIG.getRcloneHost();
         String username = ConfigUtil.CONFIG.getRcloneuserName();
         String password = ConfigUtil.CONFIG.getRclonePassword();
@@ -38,26 +41,57 @@ public class Rclone implements Uploader {
         JsonObject obj = new JsonObject();
         obj.addProperty("srcFs", src);
         obj.addProperty("dstFs", dst);
+        obj.addProperty("_async", true);
         obj.addProperty("createEmptySrcDirs", true);
         try {
-            return HttpRequest.post(host + "/sync/copy")
+            HttpRequest.post(host + "/sync/copy")
                     .basicAuth(username, password)
                     .header("Content-Type", "application/json")
                     .body(GsonStatic.toJson(obj))
-                    .thenFunction(res -> {
+                    .then(res -> {
                         Assert.isTrue(res.isOk(), res.body());
-                        log.info("rclone copied src: {}, dst: {}", src, dst);
-                        return true;
+                        JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
+                        int jobid = jsonObject.get("jobid").getAsInt();
+                        task.setRcloneJobId(jobid);
                     });
         } catch (Exception e) {
             log.error("rclone copy error: {}", e.getMessage());
-            return false;
         }
     }
 
     @Override
-    public boolean check() {
-        // TODO Auto-generated method stub
-        return false;
+    /**
+     * 检查 rclone 任务状态
+     * 
+     * @param task
+     * @return 是否上传完成
+     * @see <a href=
+     *      "https://rclone.org/rc/#job-status">rclone job status</a>
+     */
+    public boolean check(Task task) {
+        String host = ConfigUtil.CONFIG.getRcloneHost();
+        String username = ConfigUtil.CONFIG.getRcloneuserName();
+        String password = ConfigUtil.CONFIG.getRclonePassword();
+        int jobId = task.getRcloneJobId();
+        JsonObject obj = new JsonObject();
+        obj.addProperty("jobid", jobId);
+        return HttpRequest.post(host + "/job/status")
+                .basicAuth(username, password)
+                .header("Content-Type", "application/json")
+                .body(GsonStatic.toJson(obj))
+                .thenFunction(res -> {
+                    Assert.isTrue(res.isOk(), res.body());
+                    JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
+                    log.debug(jsonObject.toString());
+                    boolean success = jsonObject.get("success").getAsBoolean();
+                    boolean finished = jsonObject.get("finished").getAsBoolean();
+                    if (finished && !success) {
+                        String message = jsonObject.get("error").getAsString();
+                        log.error(message);
+                        // TODO
+                        throw new RuntimeException("Rclone 任务失败: " + message);
+                    }
+                    return success;
+                });
     }
 }

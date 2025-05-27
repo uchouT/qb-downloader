@@ -9,15 +9,13 @@ public interface Uploader {
     /**
      * 上传文件到远程存储
      * 
-     * @param task  待上传的任务
+     * @param task 待上传的任务
      * @return 上传是否成功
      */
-    boolean copy(Task task);
+    void copy(Task task);
 
     /**
      * 检查上传器状态
-     * 
-     * @return 上传器是否可用
      */
-    boolean check();
+    boolean check(Task task);
 }

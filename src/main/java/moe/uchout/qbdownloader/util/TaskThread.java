@@ -5,6 +5,7 @@ import moe.uchout.qbdownloader.exception.QbException;
 
 import java.util.List;
 import cn.hutool.core.lang.Assert;
+import cn.hutool.core.thread.ThreadUtil;
 import lombok.extern.slf4j.Slf4j;
 import moe.uchout.qbdownloader.entity.Task;
 import moe.uchout.qbdownloader.entity.TorrentsInfo;
@@ -20,20 +21,16 @@ public class TaskThread extends Thread {
 
     @Override
     public void run() {
+        try {
+            QbUtil.login();
+        } catch (QbException e) {
+            log.warn(e.getMessage());
+            ThreadUtil.sleep(10000);
+        }
         while (running) {
             try {
-                QbUtil.login();
                 processTask();
                 Thread.sleep(5000);
-            } catch (QbException e) {
-                log.warn(e.getMessage());
-                try {
-                    Thread.sleep(15000);
-                } catch (InterruptedException ex) {
-                    running = false;
-                    Thread.currentThread().interrupt();
-                    break;
-                }
             } catch (InterruptedException e) {
                 running = false;
                 Thread.currentThread().interrupt();
@@ -54,7 +51,11 @@ public class TaskThread extends Thread {
             updateTaskStatus();
             for (Task task : TaskUtil.getTaskList().values()) {
                 Status status = task.getStatus();
-                if (status == Status.DONWLOADED) {
+                if (status == Status.DOWNLOADING || status == Status.PAUSED || status == Status.ALL_FINISHED) {
+                    continue;
+                } else if (status == Status.ON_TASK) {
+                    task.runCheck();
+                } else if (status == Status.DONWLOADED) {
                     task.runInterval();
                     log.info("运行间隔任务");
                 } else if (status == Status.FINISHED) {

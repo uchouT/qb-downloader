@@ -8,6 +8,7 @@ import java.io.File;
 import com.google.gson.reflect.TypeToken;
 
 import cn.hutool.core.lang.Assert;
+import cn.hutool.core.thread.ThreadUtil;
 
 import java.lang.reflect.Type;
 import java.io.InputStreamReader;
@@ -43,6 +44,7 @@ public class TaskUtil {
     public static void addTask(String url, String uploadType, String savePath, String uploadPath, int maxSize) {
         try {
             QbUtil.add(url, false);
+            ThreadUtil.sleep(1000);
             String hash = QbUtil.getHash();
             QbUtil.export(hash, TORRENT_FILE_PATH + hash + ".torrent");
             String name = QbUtil.getName(hash);

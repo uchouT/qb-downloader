@@ -46,8 +46,19 @@ public class UploaderFactory {
      * @param remotePath 远程文件路径
      * @return 是否上传成功
      */
-    public static boolean copy(String uploadType, Task task) {
+    public static void copy(String uploadType, Task task) {
         Uploader uploader = getUploader(uploadType);
-        return uploader.copy(task);
+        uploader.copy(task);
+    }
+
+    /**
+     * 检查上传器状态
+     * 
+     * @param uploadType 上传类型
+     * @param task       任务对象
+     */
+    public static boolean check(String uploadType, Task task) {
+        Uploader uploader = getUploader(uploadType);
+        return uploader.check(task);
     }
 }
