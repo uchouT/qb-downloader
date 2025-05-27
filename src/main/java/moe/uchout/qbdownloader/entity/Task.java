@@ -100,7 +100,20 @@ public class Task implements Serializable {
      */
     private int maxSize;
 
+    /**
+     * rclone 任务 ID，用于监控状态
+     */
     private int rcloneJobId;
+
+    /**
+     * 做种时间
+     */
+    private int seedingTimeLimit;
+
+    /**
+     * 分享率
+     */
+    private double ratioLimit;
 
     /**
      * 执行间隔任务，标记状态为 ON_TASK, 完成间隔任务后标记为 FINISHED

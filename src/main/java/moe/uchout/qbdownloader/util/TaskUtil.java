@@ -41,7 +41,8 @@ public class TaskUtil {
     /**
      * 添加任务 TODO: 仅提供测试，具体添加任务要在前端交互
      */
-    public static void addTask(String url, String uploadType, String savePath, String uploadPath, int maxSize) {
+    public static void addTask(String url, String uploadType, String savePath, String uploadPath, int maxSize,
+            int seedingTimeLimit, float ratioLimit) {
         try {
             QbUtil.add(url, false);
             ThreadUtil.sleep(1000);
@@ -73,6 +74,11 @@ public class TaskUtil {
             log.error("添加任务失败: {}", e.getMessage(), e);
             throw new RuntimeException(e);
         }
+    }
+
+    public static void addTask(File file, String uploadType, String savePath, String uploadPath, int maxSize,
+            int seedingTimeLimit, float ratioLimit) {
+
     }
 
     /**

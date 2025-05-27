@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.function.Consumer;
 import cn.hutool.core.io.IoUtil;
+import cn.hutool.core.net.multipart.MultipartFormData;
 import cn.hutool.core.text.StrFormatter;
 import cn.hutool.http.server.HttpServerResponse;
 import cn.hutool.http.server.action.Action;
@@ -69,5 +70,24 @@ public interface BaseAction extends Action {
 
     default <T> void result(Result<T> result) {
         staticResult(result);
+    }
+
+    default String getRequiredParam(MultipartFormData formData, String name) throws MissingParamException {
+        String value = formData.getParam(name);
+        if (value == null || value.isBlank()) {
+            throw new MissingParamException();
+        }
+        return value;
+    }
+
+    default String getOptionalParam(MultipartFormData formData, String name, String defaultValue) {
+        String value = formData.getParam(name);
+        return (value == null || value.isBlank()) ? defaultValue : value;
+    }
+}
+
+class MissingParamException extends Exception {
+    public MissingParamException() {
+        super();
     }
 }
