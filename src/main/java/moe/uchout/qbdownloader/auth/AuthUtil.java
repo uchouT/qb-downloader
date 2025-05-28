@@ -1,152 +1,127 @@
 package moe.uchout.qbdownloader.auth;
 
-import cn.hutool.core.util.StrUtil;
-import cn.hutool.crypto.SecureUtil;
-import cn.hutool.http.server.HttpServerRequest;
-import moe.uchout.qbdownloader.action.BaseAction;
+import java.util.concurrent.TimeUnit;
+import moe.uchout.qbdownloader.util.Md5Util;
+import moe.uchout.qbdownloader.entity.Login;
+import com.sun.net.httpserver.HttpExchange;
 import moe.uchout.qbdownloader.entity.Result;
-
-import java.time.LocalDateTime;
-
+import moe.uchout.qbdownloader.api.BaseAction;
+import moe.uchout.qbdownloader.entity.Config;
+import cn.hutool.core.exceptions.ExceptionUtil;
+import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.ReflectUtil;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.core.util.RandomUtil;
+import cn.hutool.http.server.HttpServerRequest;
+import lombok.extern.slf4j.Slf4j;
+import moe.uchout.qbdownloader.util.ConfigUtil;
+import moe.uchout.qbdownloader.util.GsonStatic;
+import moe.uchout.qbdownloader.util.ServerUtil;
 
 // TODO: 理解学习
+@Slf4j
 public class AuthUtil {
-    private static String TOKEN;
-    private static LocalDateTime TOKEN_EXPIRE_TIME;
-
-    // Token 默认有效期（小时）
-    private static final int DEFAULT_EXPIRE_HOURS = 24;
-
-    // Bearer 前缀
-    private static final String BEARER_PREFIX = "Bearer ";
-
-    /**
-     * 生成新的 token
-     * @return 生成的 token
-     */
-    public static String generateToken() {
-        String tokenData = "" + System.currentTimeMillis() + Math.random();
-        TOKEN = SecureUtil.md5(tokenData);
-        TOKEN_EXPIRE_TIME = LocalDateTime.now().plusHours(DEFAULT_EXPIRE_HOURS);
-        return TOKEN;
+    private static final int loginEffectiveHours = 24;
+    private static final boolean multiLoginForbidden = false;
+    static {
+        resetKey();
     }
 
     /**
-     * 验证请求中的 token
-     * 
-     * @param req HTTP 请求
-     * @return 是否验证通过
+     * 刷新有效时间
      */
+    private static void resetTime() {
+        String key = MyCacheUtil.get("auth_key");
+        if (StrUtil.isBlank(key)) {
+            return;
+        }
+        MyCacheUtil.put("auth_key", key, TimeUnit.HOURS.toMillis(loginEffectiveHours));
+    }
+
+    /**
+     * 刷新密钥
+     */
+    public static String resetKey() {
+        String key = "123";
+        if (multiLoginForbidden) {
+            // 禁止多端登录
+            key = RandomUtil.randomString(128);
+        }
+        MyCacheUtil.put("auth_key", key, TimeUnit.HOURS.toMillis(loginEffectiveHours));
+        return key;
+    }
+
+    /**
+     * 根据登录信息生成 md5，并加上 key
+     * 
+     * @param login
+     * @return MD5:key
+     */
+    public static String getAuth(Login login) {
+        String key = MyCacheUtil.get("auth_key");
+        if (StrUtil.isBlank(key)) {
+            key = resetKey();
+        }
+        login.setKey(key);
+        return Md5Util.digestHex(GsonStatic.toJson(login)) + ":" + key;
+    }
+
+    /**
+     * 设置登录信息的 IP
+     * 
+     * @param login
+     */
+    public static void setIP(Login login) {
+        if (ConfigUtil.CONFIG.isVerifyLoginIp()) {
+            login.setIp(getIp());
+        } else {
+            login.setIp("");
+        }
+    }
+
+    /**
+     * 获取保存的登录信息
+     * 
+     * @return
+     */
+    public static Login getLogin() {
+        Config config = ConfigUtil.CONFIG;
+        Login login = ObjectUtil.clone(config.getAccount());
+        setIP(login);
+        return login;
+    }
+
     public static boolean authorize(HttpServerRequest req) {
-        String authHeader = req.getHeader("Authorization");
-
-        // 检查 Authorization header 是否存在
-        if (StrUtil.isBlank(authHeader)) {
-            sendUnauthorizedResponse("Missing Authorization header");
+        String s = req.getHeader("Authorization");
+        if (StrUtil.isBlank(s)) {
+            BaseAction.staticResult(new Result<>().setCode(403).setMessage("未登录"));
             return false;
         }
-
-        // 提取 token
-        String token = extractToken(authHeader);
-        if (StrUtil.isBlank(token)) {
-            sendUnauthorizedResponse("Invalid Authorization header format");
-            return false;
+        Login login = getLogin();
+        String auth = getAuth(login);
+        if (StrUtil.equals(auth, s)) {
+            // 刷新有效时间
+            resetTime();
+            return true;
         }
+        BaseAction.staticResult(new Result<>().setCode(403).setMessage("登录失效"));
+        return false;
+    }
 
-        // 验证 token
-        if (!isValidToken(token)) {
-            sendUnauthorizedResponse("Invalid or expired token");
-            return false;
+    /**
+     * 获取ip地址
+     *
+     * @return
+     */
+    public static String getIp() {
+        try {
+            HttpServerRequest request = ServerUtil.REQUEST.get();
+            HttpExchange httpExchange = (HttpExchange) ReflectUtil.getFieldValue(request, "httpExchange");
+            return httpExchange.getRemoteAddress().getAddress().getHostAddress();
+        } catch (Exception e) {
+            String message = ExceptionUtil.getMessage(e);
+            log.error(message, e);
         }
-
-        return true;
-    }
-
-    /**
-     * 从 Authorization header 中提取 token
-     * 
-     * @param authHeader Authorization header 值
-     * @return 提取的 token
-     */
-    private static String extractToken(String authHeader) {
-        if (authHeader.startsWith(BEARER_PREFIX)) {
-            return authHeader.substring(BEARER_PREFIX.length()).trim();
-        }
-        // 兼容直接传 token 的情况
-        return authHeader.trim();
-    }
-
-    /**
-     * 验证 token 是否有效
-     * 
-     * @param token 要验证的 token
-     * @return 是否有效
-     */
-    private static boolean isValidToken(String token) {
-        // 检查 token 是否存在
-        if (TOKEN == null || StrUtil.isBlank(TOKEN)) {
-            return false;
-        }
-
-        // 检查 token 是否匹配
-        if (!TOKEN.equals(token)) {
-            return false;
-        }
-
-        // 检查是否过期
-        if (TOKEN_EXPIRE_TIME != null && LocalDateTime.now().isAfter(TOKEN_EXPIRE_TIME)) {
-            // token 已过期，清除
-            TOKEN = null;
-            TOKEN_EXPIRE_TIME = null;
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * 撤销当前 token
-     */
-    public static void revokeToken() {
-        TOKEN = null;
-        TOKEN_EXPIRE_TIME = null;
-    }
-
-    /**
-     * 检查是否有有效的 token
-     * 
-     * @return 是否有有效 token
-     */
-    public static boolean hasValidToken() {
-        return TOKEN != null && (TOKEN_EXPIRE_TIME == null || LocalDateTime.now().isBefore(TOKEN_EXPIRE_TIME));
-    }
-
-    /**
-     * 获取当前 token（用于登录接口返回）
-     * 
-     * @return 当前 token
-     */
-    public static String getCurrentToken() {
-        return TOKEN;
-    }
-
-    /**
-     * 获取 token 过期时间
-     * 
-     * @return 过期时间
-     */
-    public static LocalDateTime getTokenExpireTime() {
-        return TOKEN_EXPIRE_TIME;
-    }
-
-    /**
-     * 发送未授权响应
-     * 
-     * @param message 错误消息
-     */
-    private static void sendUnauthorizedResponse(String message) {
-        BaseAction.staticResult(new Result<>()
-                .setCode(401)
-                .setMessage(message != null ? message : "Unauthorized"));
+        return "unknown";
     }
 }

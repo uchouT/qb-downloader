@@ -1,18 +1,12 @@
 package moe.uchout.qbdownloader.util;
 
-import lombok.extern.slf4j.Slf4j;
-import moe.uchout.qbdownloader.Main;
-import moe.uchout.qbdownloader.action.BaseAction;
-import moe.uchout.qbdownloader.annotation.Auth;
-import moe.uchout.qbdownloader.annotation.Path;
-import moe.uchout.qbdownloader.auth.AuthUtil;
-import moe.uchout.qbdownloader.entity.Result;
-
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.Set;
-
+import moe.uchout.qbdownloader.entity.Config;
 import cn.hutool.core.io.IoUtil;
+import cn.hutool.core.lang.PatternPool;
+import cn.hutool.core.net.Ipv4Util;
 import cn.hutool.core.net.NetUtil;
 import cn.hutool.core.util.ClassUtil;
 import cn.hutool.core.util.ReflectUtil;
@@ -20,6 +14,14 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.server.HttpServerRequest;
 import cn.hutool.http.server.HttpServerResponse;
 import cn.hutool.http.server.SimpleServer;
+import lombok.extern.slf4j.Slf4j;
+import moe.uchout.qbdownloader.Main;
+import moe.uchout.qbdownloader.annotation.Auth;
+import moe.uchout.qbdownloader.annotation.Path;
+import moe.uchout.qbdownloader.api.BaseAction;
+import moe.uchout.qbdownloader.auth.AuthUtil;
+import moe.uchout.qbdownloader.entity.Result;
+import static moe.uchout.qbdownloader.auth.AuthUtil.getIp;
 
 @Slf4j
 public class ServerUtil {
@@ -34,6 +36,32 @@ public class ServerUtil {
      */
     public static void start() {
         setHost();
+
+        server.addFilter((req, res, chain) -> {
+            REQUEST.set(req);
+            RESPONSE.set(res);
+            Config config = ConfigUtil.CONFIG;
+            Boolean onlyInnerIP = config.isOnlyInnerIP();
+            try {
+                String ip = getIp();
+
+                // 仅允许内网ip访问
+                if (onlyInnerIP) {
+                    if (!PatternPool.IPV4.matcher(ip).matches()) {
+                        res.send404("404 Not Found");
+                        return;
+                    }
+                    if (!Ipv4Util.isInnerIP(ip)) {
+                        res.send404("404 Not Found");
+                        return;
+                    }
+                }
+                chain.doFilter(req.getHttpExchange());
+            } finally {
+                REQUEST.remove();
+                RESPONSE.remove();
+            }
+        });
         registerApi();
         server.getRawServer().start();
         InetSocketAddress address = server.getAddress();

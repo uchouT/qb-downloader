@@ -2,6 +2,7 @@ package moe.uchout.qbdownloader;
 
 import lombok.extern.slf4j.Slf4j;
 import moe.uchout.qbdownloader.util.ConfigUtil;
+import moe.uchout.qbdownloader.util.ServerUtil;
 import moe.uchout.qbdownloader.util.TaskThread;
 import cn.hutool.core.util.ObjectUtil;
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ public class Main {
         ARGS = List.of(ObjectUtil.defaultIfNull(args, new String[] {}));
         try {
             ConfigUtil.load();
+            ServerUtil.start();
             new TaskThread().start();
             ;
         } catch (Exception e) {

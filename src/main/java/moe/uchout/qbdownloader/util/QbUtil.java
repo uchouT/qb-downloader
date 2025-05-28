@@ -48,36 +48,26 @@ public class QbUtil {
     /**
      * @return 是否登录成功
      */
-    public static void login() throws QbException {
+    public static boolean login() {
         try {
             getHost();
-        } catch (Exception e) {
-            throw new QbException("qbittorrent host is null");
-        }
-        String username = ConfigUtil.CONFIG.getQbUsername();
-        if (username == null || username.isEmpty()) {
-            throw new QbException("qbittorrent username is null");
-
-        }
-        String password = ConfigUtil.CONFIG.getQbPassword();
-        if (password == null || password.isEmpty()) {
-            throw new QbException("qbittorrent password is null");
-
-        }
-        boolean logined = HttpRequest.post(host + "/api/v2/auth/login")
-                .form("username", username)
-                .form("password", password)
-                .setFollowRedirects(true)
-                .thenFunction(res -> {
-                    String body = res.body();
-                    if (res.isOk() && "Ok.".equals(body)) {
+            String username = ConfigUtil.CONFIG.getQbUsername();
+            Assert.notBlank(username);
+            String password = ConfigUtil.CONFIG.getQbPassword();
+            Assert.notBlank(password);
+            return HttpRequest.post(host + "/api/v2/auth/login")
+                    .form("username", username)
+                    .form("password", password)
+                    .setFollowRedirects(true)
+                    .thenFunction(res -> {
+                        String body = res.body();
+                        Assert.isTrue(res.isOk() && "Ok.".equals(body));
                         log.info("qbittorrent login success");
                         return true;
-                    }
-                    return false;
-                });
-        if (!logined) {
-            throw new QbException("qbittorrent login failed");
+                    });
+        } catch (Exception e) {
+            log.warn("qbittorrent login failed.");
+            return false;
         }
     }
 

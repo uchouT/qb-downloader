@@ -1,4 +1,4 @@
-package moe.uchout.qbdownloader.action;
+package moe.uchout.qbdownloader.api;
 
 import java.util.Objects;
 
@@ -6,8 +6,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.function.Consumer;
 import cn.hutool.core.io.IoUtil;
-import cn.hutool.core.net.multipart.MultipartFormData;
+import cn.hutool.core.lang.Assert;
 import cn.hutool.core.text.StrFormatter;
+import cn.hutool.http.server.HttpServerRequest;
 import cn.hutool.http.server.HttpServerResponse;
 import cn.hutool.http.server.action.Action;
 import moe.uchout.qbdownloader.util.GsonStatic;
@@ -17,6 +18,9 @@ import moe.uchout.qbdownloader.entity.Result;
 public interface BaseAction extends Action {
     Logger logger = LoggerFactory.getLogger(BaseAction.class);
 
+    /**
+     * 返回都是 JSON 格式的结果
+     */
     static <T> void staticResult(Result<T> result) {
         HttpServerResponse httpServerResponse = ServerUtil.RESPONSE.get();
         if (Objects.isNull(httpServerResponse)) {
@@ -72,16 +76,18 @@ public interface BaseAction extends Action {
         staticResult(result);
     }
 
-    default String getRequiredParam(MultipartFormData formData, String name) throws MissingParamException {
-        String value = formData.getParam(name);
-        if (value == null || value.isBlank()) {
+    default String getRequiredParam(HttpServerRequest req, String name) throws MissingParamException {
+        String value = req.getParam(name);
+        try {
+            Assert.notBlank(value);
+        } catch (Exception e) {
             throw new MissingParamException();
         }
         return value;
     }
 
-    default String getOptionalParam(MultipartFormData formData, String name, Default defaultValue) {
-        String value = formData.getParam(name);
+    default String getOptionalParam(HttpServerRequest req, String name, Default defaultValue) {
+        String value = req.getParam(name);
         return (value == null || value.isBlank()) ? defaultValue.getValue() : value;
     }
 }

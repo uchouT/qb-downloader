@@ -42,7 +42,7 @@ public class Config implements Serializable {
     private String alistToken;
 
     /**
-     * 是否自定义下载顺序
+     * 是否自定义下载顺序 TODO
      */
     private boolean customDownloadOrder;
 
@@ -60,4 +60,19 @@ public class Config implements Serializable {
      * rclone rcd 密码
      */
     private String rclonePassword;
+
+    /**
+     * 仅允许内网
+     */
+    private boolean onlyInnerIP;
+
+    /**
+     * 是否校验 IP
+     */
+    private boolean verifyLoginIp;
+
+    /**
+     * 登录信息
+     */
+    private Login account;
 }

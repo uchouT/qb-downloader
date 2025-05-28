@@ -2,6 +2,8 @@ package moe.uchout.qbdownloader.util;
 
 import lombok.extern.slf4j.Slf4j;
 import moe.uchout.qbdownloader.entity.Config;
+import moe.uchout.qbdownloader.entity.Login;
+
 import java.io.FileWriter;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
@@ -18,6 +20,7 @@ public class ConfigUtil {
     private static final String CONFIG_PATH = "configs/config.yaml";
     public static final Config CONFIG = new Config();
     static {
+        String password = Md5Util.digestHex("adminadmin");
         CONFIG.setQbHost("http://localhost:8080")
                 .setQbUsername("admin")
                 .setQbPassword("adminadmin")
@@ -27,7 +30,10 @@ public class ConfigUtil {
                 .setRcloneHost("http://localhost:5572")
                 .setRclonePassword("secret")
                 .setRcloneuserName("admin")
-                .setTotalSizeLimit(0L);
+                .setTotalSizeLimit(0L)
+                .setOnlyInnerIP(false)
+                .setVerifyLoginIp(false)
+                .setAccount(new Login().setUsername("admin").setPassword(password));
     }
 
     // TODO: filename 还待考虑

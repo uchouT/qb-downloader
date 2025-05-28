@@ -21,10 +21,7 @@ public class TaskThread extends Thread {
 
     @Override
     public void run() {
-        try {
-            QbUtil.login();
-        } catch (QbException e) {
-            log.warn(e.getMessage());
+        while (!QbUtil.login() && running) {
             ThreadUtil.sleep(10000);
         }
         while (running) {
