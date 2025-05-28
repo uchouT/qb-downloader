@@ -7,6 +7,7 @@ import java.util.Map;
 import java.io.File;
 import com.google.gson.reflect.TypeToken;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.thread.ThreadUtil;
 
@@ -39,46 +40,77 @@ public class TaskUtil {
     }
 
     /**
-     * 添加任务 TODO: 仅提供测试，具体添加任务要在前端交互
+     * 通过文件添加种子任务
+     * 
+     * @param file
+     * @param fileName
+     * @param uploadType
+     * @param savePath
+     * @param uploadPath
+     * @param maxSize
+     * @param seedingTimeLimit
+     * @param ratioLimit
      */
-    public static void addTask(String url, String uploadType, String savePath, String uploadPath, int maxSize,
-            int seedingTimeLimit, float ratioLimit) {
-        try {
-            QbUtil.add(url, false);
-            ThreadUtil.sleep(1000);
-            String hash = QbUtil.getHash();
-            QbUtil.export(hash, TORRENT_FILE_PATH + hash + ".torrent");
-            String name = QbUtil.getName(hash);
-            QbUtil.removeTag(hash, Tags.NEW);
-            Task task = new Task().setCurrentPartNum(0).setStatus(Status.PAUSED).setName(name)
-                    .setHash(hash).setSeeding(false).setTorrentPath(TORRENT_FILE_PATH + hash + ".torrent")
-                    // 以下内容由用户设置
-                    .setUploadType(uploadType)
-                    .setSavePath(savePath) // savePath 需要去除末尾 /
-                    .setUploadPath(uploadPath)
-                    .setMaxSize(maxSize * 1024 * 1024);
-            List<TorrentContent> contents = QbUtil.getTorrentContentList(hash, task);
-            List<List<Integer>> order = getTaskOrder(contents, task.getMaxSize());
-            task.setTotalPartNum(order.size());
-            task.setTaskOrder(order);
-            TASK_LIST.put(hash, task);
-            sync();
-            Thread.sleep(1000);
-            boolean setNotDownload = QbUtil.setNotDownload(task);
-            Assert.isTrue(setNotDownload, "设置不下载失败");
-            QbUtil.setPrio(hash, 1, task.getTaskOrder().get(0));
-            QbUtil.start(hash);
-            task.setStatus(Status.DOWNLOADING);
-            log.info("添加任务成功: {}", task.getName());
-        } catch (Exception e) {
-            log.error("添加任务失败: {}", e.getMessage(), e);
-            throw new RuntimeException(e);
-        }
+    public static void addTask(byte[] file, String fileName, String uploadType, String savePath,
+            String uploadPath, int maxSize, int seedingTimeLimit, float ratioLimit) {
+        baseAddTask(true, file, fileName, uploadType, savePath, uploadPath, maxSize, seedingTimeLimit, ratioLimit);
     }
 
-    public static void addTask(File file, String uploadType, String savePath, String uploadPath, int maxSize,
-            int seedingTimeLimit, float ratioLimit) {
+    /**
+     * 通过 URL 添加种子任务
+     * 
+     * @param url
+     * @param uploadType
+     * @param savePath
+     * @param uploadPath
+     * @param maxSize
+     * @param seedingTimeLimit
+     * @param ratioLimit
+     */
+    public static void addTask(String url, String uploadType, String savePath,
+            String uploadPath, int maxSize, int seedingTimeLimit, float ratioLimit) {
+        baseAddTask(false, null, url, uploadType, savePath, uploadPath, maxSize, seedingTimeLimit, ratioLimit);
+    }
 
+    private static void baseAddTask(boolean isFile, byte[] file, String url, String uploadType,
+            String savePath, String uploadPath, int maxSize, int seedingTimeLimit, float ratioLimit) {
+        synchronized (TASK_LIST) {
+            try {
+                if (isFile) {
+                    QbUtil.add(file, url);
+                } else {
+                    QbUtil.add(url);
+                }
+                ThreadUtil.sleep(500);
+                String hash = QbUtil.getHash();
+                QbUtil.export(hash, TORRENT_FILE_PATH + hash + ".torrent");
+                String name = QbUtil.getName(hash);
+                QbUtil.removeTag(hash, Tags.NEW);
+                Task task = new Task().setCurrentPartNum(0).setStatus(Status.PAUSED).setName(name)
+                        .setHash(hash).setSeeding(false).setTorrentPath(TORRENT_FILE_PATH + hash + ".torrent")
+                        // 以下内容由用户设置
+                        .setUploadType(uploadType)
+                        .setSavePath(savePath) // savePath 需要去除末尾 /
+                        .setUploadPath(uploadPath)
+                        .setMaxSize(maxSize * 1024 * 1024);
+                List<TorrentContent> contents = QbUtil.getTorrentContentList(hash, task);
+                List<List<Integer>> order = getTaskOrder(contents, task.getMaxSize());
+                task.setTotalPartNum(order.size());
+                task.setTaskOrder(order);
+                TASK_LIST.put(hash, task);
+                sync();
+                Thread.sleep(1000);
+                boolean setNotDownload = QbUtil.setNotDownload(task);
+                Assert.isTrue(setNotDownload, "设置不下载失败");
+                QbUtil.setPrio(hash, 1, task.getTaskOrder().get(0));
+                QbUtil.start(hash);
+                task.setStatus(Status.DOWNLOADING);
+                log.info("添加任务成功: {}", task.getName());
+            } catch (Exception e) {
+                log.error("添加任务失败: {}", e.getMessage(), e);
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     /**
@@ -130,6 +162,8 @@ public class TaskUtil {
      */
     public static void delete(String hash) {
         TASK_LIST.remove(hash);
+        FileUtil.del(TORRENT_FILE_PATH + hash + ".torrent");
+        QbUtil.delete(hash, true);
         sync();
     }
 

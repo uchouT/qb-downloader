@@ -367,7 +367,7 @@ public class QbUtil {
             // 直到元数据下载完成后，才导出种子
             while ("metaDL".equals(state)) {
                 state = getState(hash);
-                Thread.sleep(5000);
+                Thread.sleep(1000);
             }
             HttpRequest.post(host + "/api/v2/torrents/export")
                     .form("hash", hash)
@@ -410,23 +410,36 @@ public class QbUtil {
      * @param url 磁力链接
      * @return 是否添加成功
      */
-    public static boolean add(String url, boolean isFile) {
+    public static boolean add(String url) {
         try {
-            HttpRequest req = HttpRequest.post(host + "/api/v2/torrents/add")
+            return HttpRequest.post(host + "/api/v2/torrents/add")
                     // 所有通过 qb-downloader 添加的种子都属于这个分类
-                    .form("category", TorrentsInfo.category);
-            if (isFile) {
-                req.form("torrents", new File(url))
-                        .form("stopped", "true");
-            } else {
-                req.form("urls", url)
-                        .form("tags", Tags.NEW)
-                        .form("stopCondition", "MetadataReceived");
-            }
-            return req.thenFunction(res -> {
-                Assert.isTrue(res.isOk(), "add torrent failed, status code: {}", res.getStatus());
-                return true;
-            });
+                    .form("category", TorrentsInfo.category)
+                    .form("urls", url)
+                    .form("tags", Tags.NEW)
+                    .form("stopCondition", "MetadataReceived")
+                    .thenFunction(res -> {
+                        Assert.isTrue(res.isOk(), "add torrent failed, status code: {}", res.getStatus());
+                        return true;
+                    });
+
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            return false;
+        }
+    }
+
+    public static boolean add(byte[] torrentFile, String fileName) {
+        try {
+            return HttpRequest.post(host + "/api/v2/torrents/add")
+                    // 所有通过 qb-downloader 添加的种子都属于这个分类
+                    .form("category", TorrentsInfo.category)
+                    .form("torrents", torrentFile, fileName)
+                    .form("stopped", "true")
+                    .thenFunction(res -> {
+                        Assert.isTrue(res.isOk(), "add torrent failed, status code: {}", res.getStatus());
+                        return true;
+                    });
 
         } catch (Exception e) {
             log.error(e.getMessage(), e);

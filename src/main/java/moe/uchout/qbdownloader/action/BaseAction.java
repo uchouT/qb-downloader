@@ -80,14 +80,33 @@ public interface BaseAction extends Action {
         return value;
     }
 
-    default String getOptionalParam(MultipartFormData formData, String name, String defaultValue) {
+    default String getOptionalParam(MultipartFormData formData, String name, Default defaultValue) {
         String value = formData.getParam(name);
-        return (value == null || value.isBlank()) ? defaultValue : value;
+        return (value == null || value.isBlank()) ? defaultValue.getValue() : value;
     }
 }
 
 class MissingParamException extends Exception {
     public MissingParamException() {
         super();
+    }
+}
+
+enum Default {
+    seedingTimeLimit("1440"),
+    ratioLimit("1.0f");
+
+    private final String value;
+
+    private Default(String value) {
+        this.value = value;
+    }
+
+    public String getValue() {
+        return this.value;
+    }
+
+    public String toString() {
+        return this.getValue();
     }
 }
