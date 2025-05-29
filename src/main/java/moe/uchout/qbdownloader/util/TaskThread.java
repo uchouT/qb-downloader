@@ -24,6 +24,7 @@ public class TaskThread extends Thread {
         while (!QbUtil.login() && running) {
             ThreadUtil.sleep(10000);
         }
+        log.info("qBittorrent login success.");
         while (running) {
             try {
                 processTask();
@@ -36,7 +37,6 @@ public class TaskThread extends Thread {
                 log.error("任务处理出错", e);
             }
         }
-        // 线程退出前的清理操作
         cleanupBeforeExit();
     }
 
@@ -64,8 +64,8 @@ public class TaskThread extends Thread {
                     QbUtil.delete(hash, true);
                     if (currentPartNum < task.getTotalPartNum() - 1) {
                         task.setCurrentPartNum(currentPartNum + 1);
-                        // 从缓存的种子文件中快速重新添加
-                        QbUtil.add(task.getTorrentPath());
+                        // 从保存的种子文件中快速重新添加
+                        QbUtil.add(task.getTorrentPath(), task.getSavePath(), true);
                         Thread.sleep(1000);
                         boolean setNotDownload = QbUtil.setNotDownload(task);
                         for (int i = 0; !setNotDownload && i < TaskConstants.RETRY_TIMES; i++) {
@@ -76,9 +76,11 @@ public class TaskThread extends Thread {
                         QbUtil.setPrio(hash, 1, task.getTaskOrder().get(currentPartNum + 1));
                         QbUtil.start(hash);
                         task.setStatus(Status.DOWNLOADING);
+                        TaskUtil.sync();
                         log.info("{} 开始分片任务：{}", task.getName(), task.getCurrentPartNum() + 1);
                     } else {
                         task.setStatus(Status.ALL_FINISHED);
+                        TaskUtil.sync();
                         log.info("任务: {} 全部完成", task.getName());
                     }
                 }
@@ -100,6 +102,10 @@ public class TaskThread extends Thread {
         List<TorrentsInfo> torrentsInfos = QbUtil.getTorrentsInfo();
         for (TorrentsInfo torrentsInfo : torrentsInfos) {
             Task task = TaskUtil.getTaskList().get(torrentsInfo.getHash());
+            // 发生在 Qbittorrent 添加，但是任务还没创建完成的时候
+            if (task == null) {
+                continue;
+            }
             if (task.getStatus() == Status.DOWNLOADING) {
                 String state = torrentsInfo.getState();
                 if (List.of(
@@ -126,29 +132,17 @@ public class TaskThread extends Thread {
         }
     }
 
-    /**
-     * 线程退出前执行的清理操作 TODO
-     */
     private void cleanupBeforeExit() {
         TaskUtil.sync();
     }
 
-    /**
-     * 停止任务线程，优雅退出
-     */
     public void stopTask() {
-
-        // 2. 设置停止标志
         running = false;
-
-        // 3. 发送中断信号，确保线程能立即从 sleep 等待状态退出
         this.interrupt();
-
-        // 4. 等待线程结束（可选，视需求而定）
         try {
-            this.join(10000); // 最多等待10秒
+            this.join(10000);
             if (this.isAlive()) {
-                log.error("任务线程未能在规定时间内结束，强制退出");
+                log.error("forcefully stopping task thread");
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

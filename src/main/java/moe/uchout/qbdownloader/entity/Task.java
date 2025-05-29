@@ -1,5 +1,6 @@
 package moe.uchout.qbdownloader.entity;
 
+import moe.uchout.qbdownloader.util.TaskUtil;
 import moe.uchout.qbdownloader.util.uploader.UploaderFactory;
 import java.io.Serializable;
 import java.util.List;
@@ -120,6 +121,7 @@ public class Task implements Serializable {
      */
     public void runInterval() {
         this.status = Status.ON_TASK;
+        TaskUtil.sync();
         log.info("{} 下载完成，准备上传", this.name);
         try {
             // 使用线程池执行上传任务
@@ -140,6 +142,7 @@ public class Task implements Serializable {
         EXECUTOR.execute(() -> {
             if (UploaderFactory.check(this.getUploadType(), this)) {
                 log.info("上传完成");
+                TaskUtil.sync();
                 this.status = Status.FINISHED;
             }
         });

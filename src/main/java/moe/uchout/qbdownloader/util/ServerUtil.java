@@ -2,6 +2,7 @@ package moe.uchout.qbdownloader.util;
 
 import java.net.InetSocketAddress;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import moe.uchout.qbdownloader.entity.Config;
 import cn.hutool.core.io.IoUtil;
@@ -134,6 +135,20 @@ public class ServerUtil {
                     }
                 };
             });
+        }
+    }
+
+    /**
+     * 停止服务器
+     */
+    public static void stop() {
+        if (Objects.isNull(server)) {
+            return;
+        }
+        try {
+            server.getRawServer().stop(0);
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
         }
     }
 }

@@ -8,8 +8,7 @@ import lombok.experimental.Accessors;
 @Data
 @Accessors(chain = true)
 public class TaskReq implements Serializable {
-    private String url;
-    private String savePath;
+    private TorrentRes torrentRes;
     private String uploadType;
     private String uploadPath;
     private int maxSize;

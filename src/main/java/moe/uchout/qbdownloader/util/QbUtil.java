@@ -32,25 +32,11 @@ public class QbUtil {
     private static String host;
 
     /**
-     * 获取 host
-     * TODO: 在配置 config 时，就把 / 去掉
-     */
-    static void getHost() throws Exception {
-        host = ConfigUtil.CONFIG.getQbHost();
-        if (host == null || host.isEmpty()) {
-            throw new Exception("qbittorrent host is null");
-        }
-        if (host.endsWith("/")) {
-            host = host.substring(0, host.length() - 1);
-        }
-    }
-
-    /**
      * @return 是否登录成功
      */
     public static boolean login() {
         try {
-            getHost();
+            host = ConfigUtil.CONFIG.getQbHost();
             String username = ConfigUtil.CONFIG.getQbUsername();
             Assert.notBlank(username);
             String password = ConfigUtil.CONFIG.getQbPassword();
@@ -62,7 +48,6 @@ public class QbUtil {
                     .thenFunction(res -> {
                         String body = res.body();
                         Assert.isTrue(res.isOk() && "Ok.".equals(body));
-                        log.info("qbittorrent login success");
                         return true;
                     });
         } catch (Exception e) {
@@ -393,37 +378,52 @@ public class QbUtil {
     }
 
     /**
-     * 根据磁力链接添加种子，获取到 metadata 后暂停;
-     * 会打上 "new" 标签，在处理完成后需要删除该标签
-     * NOTE:刚添加后，所有文件默认都下载
+     * 根据链接添加种子，可以是磁力链接，也可以是本地文件路径链接
      * 
-     * @param url 磁力链接
+     * @param url      链接
+     * @param savePath 保存路径
+     * @param isFile   是否是本地文件路径
      * @return 是否添加成功
      */
-    public static boolean add(String url) {
+    public static void add(String url, String savePath, boolean isFile) {
+        HttpRequest req = HttpRequest.post(host + "/api/v2/torrents/add")
+                // 所有通过 qb-downloader 添加的种子都属于这个分类
+                .form("category", TorrentsInfo.category)
+                .form("savepath", savePath);
         try {
-            return HttpRequest.post(host + "/api/v2/torrents/add")
-                    // 所有通过 qb-downloader 添加的种子都属于这个分类
-                    .form("category", TorrentsInfo.category)
-                    .form("urls", url)
-                    .form("tags", Tags.NEW)
-                    .form("stopCondition", "MetadataReceived")
-                    .thenFunction(res -> {
-                        Assert.isTrue(res.isOk(), "add torrent failed, status code: {}", res.getStatus());
-                        return true;
-                    });
-
+            if (isFile) {
+                req.form("torrents", new File(url))
+                        .form("stopped", "true")
+                        .then(res -> {
+                            Assert.isTrue(res.isOk(), "add torrent failed, status code: {}", res.getStatus());
+                        });
+            } else {
+                req.form("urls", url)
+                        .form("tags", Tags.NEW)
+                        .form("stopCondition", "MetadataReceived")
+                        .then(res -> {
+                            Assert.isTrue(res.isOk(), "add torrent failed, status code: {}", res.getStatus());
+                        });
+            }
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            return false;
         }
     }
 
-    public static boolean add(byte[] torrentFile, String fileName) {
+    /**
+     * 根据文件内容添加种子
+     * 
+     * @param torrentFile
+     * @param fileName
+     * @param savePath
+     * @return
+     */
+    public static boolean add(byte[] torrentFile, String fileName, String savePath) {
         try {
             return HttpRequest.post(host + "/api/v2/torrents/add")
                     // 所有通过 qb-downloader 添加的种子都属于这个分类
                     .form("category", TorrentsInfo.category)
+                    .form("savepath", savePath)
                     .form("torrents", torrentFile, fileName)
                     .form("stopped", "true")
                     .thenFunction(res -> {

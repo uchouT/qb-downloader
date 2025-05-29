@@ -21,6 +21,8 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
+
+import moe.uchout.qbdownloader.api.entity.TorrentRes;
 import moe.uchout.qbdownloader.entity.Task;
 import moe.uchout.qbdownloader.entity.TorrentContent;
 
@@ -74,60 +76,51 @@ public class TaskUtil {
     }
 
     /**
-     * 通过文件添加种子任务
+     * 添加种子任务，不下载
      * 
+     * @param isFile
      * @param file
-     * @param fileName
-     * @param uploadType
+     * @param url
      * @param savePath
-     * @param uploadPath
-     * @param maxSize
-     * @param seedingTimeLimit
-     * @param ratioLimit
+     * @return 种子 hash 值
      */
-    public static void addTask(byte[] file, String fileName, String uploadType, String savePath,
-            String uploadPath, int maxSize, int seedingTimeLimit, float ratioLimit) {
-        baseAddTask(true, file, fileName, uploadType, savePath, uploadPath, maxSize, seedingTimeLimit, ratioLimit);
+    public static String addTorrent(boolean isFile, byte[] file, String url, String savePath) {
+        if (isFile) {
+            QbUtil.add(file, url, savePath);
+        } else {
+            QbUtil.add(url, savePath, false);
+        }
+        ThreadUtil.sleep(500);
+        String hash = QbUtil.getHash();
+        return hash;
     }
 
     /**
-     * 通过 URL 添加种子任务
+     * TODO: 添加前查重，添加下载内容可选
+     * 根据种子的响应添加任务
      * 
-     * @param url
-     * @param uploadType
-     * @param savePath
-     * @param uploadPath
-     * @param maxSize
+     * @param torrentRes       种子响应对象
+     * @param uploadType       上传类型 "rclone" or "alist"
+     * @param uploadPath       上传路径
+     * @param maxSize          最大分片大小，单位为 MB
      * @param seedingTimeLimit
      * @param ratioLimit
      */
-    public static void addTask(String url, String uploadType, String savePath,
-            String uploadPath, int maxSize, int seedingTimeLimit, float ratioLimit) {
-        baseAddTask(false, null, url, uploadType, savePath, uploadPath, maxSize, seedingTimeLimit, ratioLimit);
-    }
-
     @Synchronized("TASK_LIST")
-    private static void baseAddTask(boolean isFile, byte[] file, String url, String uploadType,
-            String savePath, String uploadPath, int maxSize, int seedingTimeLimit, float ratioLimit) {
+    public static void addTask(TorrentRes torrentRes, String uploadType,
+            String uploadPath, int maxSize, int seedingTimeLimit, float ratioLimit) {
         try {
-            if (isFile) {
-                QbUtil.add(file, url);
-            } else {
-                QbUtil.add(url);
-            }
-            ThreadUtil.sleep(500);
-            String hash = QbUtil.getHash();
+            String savePath = torrentRes.getSavePath();
+            String hash = torrentRes.getHash();
             QbUtil.export(hash, TORRENT_FILE_PATH + hash + ".torrent");
             String name = QbUtil.getName(hash);
             QbUtil.removeTag(hash, Tags.NEW);
             Task task = new Task().setCurrentPartNum(0).setStatus(Status.PAUSED).setName(name)
                     .setHash(hash).setSeeding(false).setTorrentPath(TORRENT_FILE_PATH + hash + ".torrent")
-                    // 以下内容由用户设置
                     .setUploadType(uploadType)
                     .setSavePath(savePath) // savePath 需要去除末尾 /
                     .setUploadPath(uploadPath)
-                    // 单位为 MB
-                    .setMaxSize(maxSize * 1024 * 1024);
+                    .setMaxSize(maxSize * 1024 * 1024); // 单位为 MB
             List<TorrentContent> contents = QbUtil.getTorrentContentList(hash, task);
             List<List<Integer>> order = getTaskOrder(contents, task.getMaxSize());
             task.setTotalPartNum(order.size());

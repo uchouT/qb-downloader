@@ -75,4 +75,9 @@ public class Config implements Serializable {
      * 登录信息
      */
     private Login account;
+
+    /**
+     * 默认保存路径
+     */
+    private String defaultSavePath;
 }

@@ -1,21 +1,20 @@
 package moe.uchout.qbdownloader.api;
 
+import static moe.uchout.qbdownloader.api.ConfigAction.rectifyHost;
 import java.io.IOException;
 
 import cn.hutool.core.lang.Assert;
-import cn.hutool.core.net.multipart.MultipartFormData;
-import cn.hutool.core.net.multipart.UploadFile;
-import cn.hutool.core.thread.ThreadUtil;
 import cn.hutool.http.server.HttpServerRequest;
 import cn.hutool.http.server.HttpServerResponse;
 import lombok.extern.slf4j.Slf4j;
 import moe.uchout.qbdownloader.annotation.Auth;
 import moe.uchout.qbdownloader.annotation.Path;
 import moe.uchout.qbdownloader.api.entity.TaskReq;
+import moe.uchout.qbdownloader.util.QbUtil;
 import moe.uchout.qbdownloader.util.TaskUtil;
 
 @Slf4j
-@Auth
+@Auth(value = false) // TODO: 仅测试阶段解除验证
 @Path("/task")
 /**
  * GET 获取任务状态
@@ -49,6 +48,8 @@ public class TaskAction implements BaseAction {
 		} catch (MissingParamException e) {
 			resultErrorMsg("missing parameter" + e.getMessage());
 			return;
+		} catch (TaskException e) {
+			resultErrorMsg("Task add failed." + e.getMessage());
 		}
 	}
 
@@ -57,7 +58,7 @@ public class TaskAction implements BaseAction {
 	 * 
 	 * @param req
 	 */
-	private void post(HttpServerRequest req) throws MissingParamException {
+	private void put(HttpServerRequest req) throws MissingParamException {
 		String type = getRequiredParam(req, "type");
 		String hash = getRequiredParam(req, "hash");
 		switch (type) {
@@ -78,41 +79,25 @@ public class TaskAction implements BaseAction {
 	 * 
 	 * @param req
 	 */
-	private void put(HttpServerRequest req) throws IOException, MissingParamException {
-		if (req.isMultipart()) {
-			MultipartFormData formData = req.getMultipart();
-			UploadFile file = formData.getFile("torrent");
-			try {
-				Assert.notNull(file);
-			} catch (Exception e) {
-				throw new MissingParamException();
-			}
-			while (!file.isUploaded()) {
-				ThreadUtil.sleep(500);
-			}
-			String uploadType = getRequiredParam(formData, "uploadType");
-			String savePath = getRequiredParam(formData, "savePath");
-			String uploadPath = getRequiredParam(formData, "uploadPath");
-			int maxSize = Integer.parseInt(getRequiredParam(formData, "maxSize"));
-			int seedingTimeLimit = Integer
-					.parseInt(getOptionalParam(formData, "seedingTimeLimit", Default.seedingTimeLimit));
-			float ratioLimit = Float.parseFloat(getOptionalParam(formData, "ratioLimit", Default.ratioLimit));
-			TaskUtil.addTask(file.getFileContent(), file.getFileName(), uploadType, savePath, uploadPath, maxSize,
-					seedingTimeLimit, ratioLimit);
-		} else {
-			TaskReq taskReq = getBody(TaskReq.class);
-			try {
-				Assert.notNull(taskReq.getUrl());
-				Assert.notNull(taskReq.getUploadType());
-				Assert.notNull(taskReq.getSavePath());
-				Assert.notNull(taskReq.getUploadPath());
-				Assert.isTrue(taskReq.getMaxSize() > 0);
-			} catch (Exception e) {
-				throw new MissingParamException();
-			}
-			TaskUtil.addTask(taskReq.getUrl(), taskReq.getUploadType(), taskReq.getSavePath(), taskReq.getUploadPath(),
-					taskReq.getMaxSize(), taskReq.getSeedingTimeLimit(), taskReq.getRatioLimit());
+	private void post(HttpServerRequest req) throws IOException, MissingParamException, TaskException {
+		try {
+			Assert.isTrue(QbUtil.login());
+		} catch (Exception e) {
+			log.error("Qb not login");
+			throw new TaskException("Qb not login");
 		}
+		TaskReq taskReq = getBody(TaskReq.class);
+		try {
+			Assert.notNull(taskReq.getUploadType());
+			Assert.notNull(taskReq.getTorrentRes().getSavePath());
+			Assert.notNull(taskReq.getUploadPath());
+			Assert.isTrue(taskReq.getMaxSize() > 0);
+		} catch (Exception e) {
+			throw new MissingParamException();
+		}
+		taskReq.setUploadPath(rectifyHost(taskReq.getUploadPath()));
+		TaskUtil.addTask(taskReq.getTorrentRes(), taskReq.getUploadType(), taskReq.getUploadPath(),
+				taskReq.getMaxSize(), taskReq.getSeedingTimeLimit(), taskReq.getRatioLimit());
 	}
 
 	private void delete(HttpServerRequest req) throws MissingParamException {
