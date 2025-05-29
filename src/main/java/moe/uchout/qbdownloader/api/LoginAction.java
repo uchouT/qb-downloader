@@ -1,7 +1,5 @@
 package moe.uchout.qbdownloader.api;
 
-import static moe.uchout.qbdownloader.auth.AuthUtil.setIP;
-
 import java.io.IOException;
 
 import cn.hutool.core.lang.Assert;
@@ -24,7 +22,7 @@ public class LoginAction implements BaseAction {
         Assert.notBlank(newLogin.getUsername(), "用户名不能为空");
         Assert.notBlank(newLogin.getPassword(), "密码不能为空");
         Login account = AuthUtil.getLogin();
-        setIP(newLogin);
+        AuthUtil.setIP(newLogin);
         String username = newLogin.getUsername();
         String password = newLogin.getPassword();
         String accountUsername = account.getUsername();
@@ -32,12 +30,12 @@ public class LoginAction implements BaseAction {
 
         if (username.equals(accountUsername) && password.equals(accountPassword)) {
             AuthUtil.resetKey();
-            log.info("登录成功 {}, ip: {}", username, newLogin.getIp());
+            log.info("登录成功");
             String s = AuthUtil.getAuth(newLogin);
             resultSuccess(s);
             return;
         }
-        log.warn("登陆失败 {}, ip: {}", accountUsername, newLogin.getIp());
+        log.warn("登陆失败 {}, ip: {}", accountUsername, AuthUtil.getIp());
         ThreadUtil.sleep(4000);
         resultErrorMsg("用户名或密码错误");
     }

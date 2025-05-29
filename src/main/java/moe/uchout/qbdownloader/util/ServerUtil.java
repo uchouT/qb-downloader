@@ -104,7 +104,7 @@ public class ServerUtil {
      */
     private static void registerApi() {
         // server.addAction("/", new RootAction());
-        Set<Class<?>> classes = ClassUtil.scanPackageByAnnotation("moe.uchout.qbdownloader.action", Path.class);
+        Set<Class<?>> classes = ClassUtil.scanPackageByAnnotation("moe.uchout.qbdownloader.api", Path.class);
         for (Class<?> clazz : classes) {
             Path path = clazz.getAnnotation(Path.class);
             if (path == null) {
@@ -117,7 +117,7 @@ public class ServerUtil {
                 public void doAction(HttpServerRequest req, HttpServerResponse res) {
                     try {
                         Auth auth = clazz.getAnnotation(Auth.class);
-                        if (auth != null && !auth.value()) {
+                        if (auth != null && auth.value()) {
                             if (!AuthUtil.authorize(req)) {
                                 return;
                             }

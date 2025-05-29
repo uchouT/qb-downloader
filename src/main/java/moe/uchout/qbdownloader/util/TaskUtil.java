@@ -16,6 +16,8 @@ import java.io.InputStreamReader;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.FileInputStream;
+
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -37,6 +39,38 @@ public class TaskUtil {
 
     public static Map<String, Task> getTaskList() {
         return TASK_LIST;
+    }
+
+    public static void start(String hash) {
+        Task task = TASK_LIST.get(hash);
+        if (task == null) {
+            throw new IllegalArgumentException("Task not found: " + hash);
+        }
+        try {
+            QbUtil.start(hash);
+            task.setStatus(Status.DOWNLOADING);
+            sync();
+            log.info("任务开始: {}", task.getName());
+        } catch (Exception e) {
+            log.error("启动任务失败: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to start task: " + e.getMessage(), e);
+        }
+    }
+
+    public static void stop(String hash) {
+        Task task = TASK_LIST.get(hash);
+        if (task == null) {
+            throw new IllegalArgumentException("Task not found: " + hash);
+        }
+        try {
+            QbUtil.pause(hash);
+            task.setStatus(Status.PAUSED);
+            sync();
+            log.info("任务暂停: {}", task.getName());
+        } catch (Exception e) {
+            log.error("暂停任务失败: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to stop task: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -72,51 +106,52 @@ public class TaskUtil {
         baseAddTask(false, null, url, uploadType, savePath, uploadPath, maxSize, seedingTimeLimit, ratioLimit);
     }
 
+    @Synchronized("TASK_LIST")
     private static void baseAddTask(boolean isFile, byte[] file, String url, String uploadType,
             String savePath, String uploadPath, int maxSize, int seedingTimeLimit, float ratioLimit) {
-        synchronized (TASK_LIST) {
-            try {
-                if (isFile) {
-                    QbUtil.add(file, url);
-                } else {
-                    QbUtil.add(url);
-                }
-                ThreadUtil.sleep(500);
-                String hash = QbUtil.getHash();
-                QbUtil.export(hash, TORRENT_FILE_PATH + hash + ".torrent");
-                String name = QbUtil.getName(hash);
-                QbUtil.removeTag(hash, Tags.NEW);
-                Task task = new Task().setCurrentPartNum(0).setStatus(Status.PAUSED).setName(name)
-                        .setHash(hash).setSeeding(false).setTorrentPath(TORRENT_FILE_PATH + hash + ".torrent")
-                        // 以下内容由用户设置
-                        .setUploadType(uploadType)
-                        .setSavePath(savePath) // savePath 需要去除末尾 /
-                        .setUploadPath(uploadPath)
-                        .setMaxSize(maxSize * 1024 * 1024);
-                List<TorrentContent> contents = QbUtil.getTorrentContentList(hash, task);
-                List<List<Integer>> order = getTaskOrder(contents, task.getMaxSize());
-                task.setTotalPartNum(order.size());
-                task.setTaskOrder(order);
-                TASK_LIST.put(hash, task);
-                sync();
-                Thread.sleep(1000);
-                boolean setNotDownload = QbUtil.setNotDownload(task);
-                Assert.isTrue(setNotDownload, "设置不下载失败");
-                QbUtil.setPrio(hash, 1, task.getTaskOrder().get(0));
-                QbUtil.start(hash);
-                task.setStatus(Status.DOWNLOADING);
-                log.info("添加任务成功: {}", task.getName());
-            } catch (Exception e) {
-                log.error("添加任务失败: {}", e.getMessage(), e);
-                throw new RuntimeException(e);
+        try {
+            if (isFile) {
+                QbUtil.add(file, url);
+            } else {
+                QbUtil.add(url);
             }
+            ThreadUtil.sleep(500);
+            String hash = QbUtil.getHash();
+            QbUtil.export(hash, TORRENT_FILE_PATH + hash + ".torrent");
+            String name = QbUtil.getName(hash);
+            QbUtil.removeTag(hash, Tags.NEW);
+            Task task = new Task().setCurrentPartNum(0).setStatus(Status.PAUSED).setName(name)
+                    .setHash(hash).setSeeding(false).setTorrentPath(TORRENT_FILE_PATH + hash + ".torrent")
+                    // 以下内容由用户设置
+                    .setUploadType(uploadType)
+                    .setSavePath(savePath) // savePath 需要去除末尾 /
+                    .setUploadPath(uploadPath)
+                    // 单位为 MB
+                    .setMaxSize(maxSize * 1024 * 1024);
+            List<TorrentContent> contents = QbUtil.getTorrentContentList(hash, task);
+            List<List<Integer>> order = getTaskOrder(contents, task.getMaxSize());
+            task.setTotalPartNum(order.size());
+            task.setTaskOrder(order);
+            TASK_LIST.put(hash, task);
+            sync();
+            Thread.sleep(1000);
+            boolean setNotDownload = QbUtil.setNotDownload(task);
+            Assert.isTrue(setNotDownload, "设置不下载失败");
+            QbUtil.setPrio(hash, 1, task.getTaskOrder().get(0));
+            QbUtil.start(hash);
+            task.setStatus(Status.DOWNLOADING);
+            log.info("添加任务成功: {}", task.getName());
+        } catch (Exception e) {
+            log.error("添加任务失败: {}", e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
     /**
      * 从文件获取任务列表
      */
-    public static synchronized void load() {
+    @Synchronized("TASK_LIST")
+    public static void load() {
         File taskFile = new File(TASK_FILE_PATH);
         if (!taskFile.exists()) {
             log.debug("任务文件不存在，无需加载");
@@ -140,7 +175,8 @@ public class TaskUtil {
     /**
      * 同步任务列表, 将任务保存到文件中
      */
-    public static synchronized void sync() {
+    @Synchronized("TASK_LIST")
+    public static void sync() {
         if (TASK_LIST.isEmpty()) {
             log.debug("任务列表为空，无需保存");
             return;
@@ -160,6 +196,7 @@ public class TaskUtil {
      * 
      * @param hash
      */
+    @Synchronized("TASK_LIST")
     public static void delete(String hash) {
         TASK_LIST.remove(hash);
         FileUtil.del(TORRENT_FILE_PATH + hash + ".torrent");

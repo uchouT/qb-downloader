@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.util.function.Consumer;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.lang.Assert;
+import cn.hutool.core.net.multipart.MultipartFormData;
 import cn.hutool.core.text.StrFormatter;
 import cn.hutool.http.server.HttpServerRequest;
 import cn.hutool.http.server.HttpServerResponse;
@@ -90,11 +91,30 @@ public interface BaseAction extends Action {
         String value = req.getParam(name);
         return (value == null || value.isBlank()) ? defaultValue.getValue() : value;
     }
+
+    default String getRequiredParam(MultipartFormData formData, String name) throws MissingParamException {
+        String value = formData.getParam(name);
+        try {
+            Assert.notBlank(value);
+        } catch (Exception e) {
+            throw new MissingParamException();
+        }
+        return value;
+    }
+
+    default String getOptionalParam(MultipartFormData formData, String name, Default defaultValue) {
+        String value = formData.getParam(name);
+        return (value == null || value.isBlank()) ? defaultValue.getValue() : value;
+    }
 }
 
 class MissingParamException extends Exception {
     public MissingParamException() {
         super();
+    }
+
+    public MissingParamException(String message) {
+        super(message);
     }
 }
 
