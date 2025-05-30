@@ -42,7 +42,7 @@ public class ConfigUtil {
      * 加载配置文件
      */
     public static synchronized void load() {
-        File file = new File(CONFIG_PATH);
+        File file = new File(CONFIG_PATH + "/config.yaml");
         if (!file.exists()) {
             log.debug("配置文件不存在, 使用默认配置");
             return;

@@ -120,6 +120,8 @@ public class TaskUtil {
                     .setUploadType(uploadType)
                     .setSavePath(savePath) // savePath 需要去除末尾 /
                     .setUploadPath(uploadPath)
+                    .setRatioLimit(ratioLimit)
+                    .setSeedingTimeLimit(seedingTimeLimit)
                     .setMaxSize(maxSize * 1024 * 1024); // 单位为 MB
             List<TorrentContent> contents = QbUtil.getTorrentContentList(hash, task);
             List<List<Integer>> order = getTaskOrder(contents, task.getMaxSize());
@@ -131,6 +133,7 @@ public class TaskUtil {
             boolean setNotDownload = QbUtil.setNotDownload(task);
             Assert.isTrue(setNotDownload, "设置不下载失败");
             QbUtil.setPrio(hash, 1, task.getTaskOrder().get(0));
+            QbUtil.setShareLimit(hash, ratioLimit, seedingTimeLimit);
             QbUtil.start(hash);
             task.setStatus(Status.DOWNLOADING);
             log.info("添加任务成功: {}", task.getName());

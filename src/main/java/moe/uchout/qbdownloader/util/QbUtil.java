@@ -277,14 +277,23 @@ public class QbUtil {
         return manage(hash, "stop");
     }
 
-    /**
-     * TODO: 可能用不上了，需要删除
-     * 重新校验种子，涉及到文件内容删改的都应该 recheck
-     * 
-     * @param hash 种子 hash
-     */
-    public static boolean recheck(String hash) {
-        return manage(hash, "recheck");
+    public static void setShareLimit(String hash, float ratioLimit, int seedingTimeLimit) throws QbException {
+        try {
+            HttpRequest.post(host + "/api/v2/torrents/setShareLimits")
+                    .form("hashes", hash)
+                    .form("ratioLimit", ratioLimit)
+                    .form("seedingTimeLimit", seedingTimeLimit)
+                    .form("inactiveSeedingTimeLimit", -2)
+                    .then(res -> {
+                        Assert.isTrue(res.isOk(), "set share limit failed, status code: {}", res.getStatus());
+                        log.debug("set share limit for hash: {}, ratioLimit: {}, seedingTimeLimit: {}", hash,
+                                ratioLimit,
+                                seedingTimeLimit);
+                    });
+        } catch (Exception e) {
+            log.error("set share limit failed: {}", e.getMessage(), e);
+            throw new QbException(e.getMessage());
+        }
     }
 
     /**
@@ -362,11 +371,11 @@ public class QbUtil {
      * @param hash        种子 hash
      * @param deleteFiles 是否删除种子文件
      */
-    public static boolean delete(String hash, Boolean deleteFiles) {
+    public static boolean delete(String hash, boolean deleteFiles) {
         try {
             return HttpRequest.post(host + "/api/v2/torrents/delete")
                     .form("hashes", hash)
-                    .form("deleteFiles", deleteFiles.toString())
+                    .form("deleteFiles", deleteFiles)
                     .thenFunction(res -> {
                         Assert.isTrue(res.isOk(), "delete torrent failed, status code: {}", res.getStatus());
                         return true;
