@@ -9,7 +9,7 @@
                                 <el-input v-model="config.qbHost" placeholder="http://localhost:8080" />
                             </el-form-item>
                             <el-form-item label="QB 用户名">
-                                <el-input v-model="config.qbUserName" placeholder="admin" />
+                                <el-input v-model="config.qbUsername" placeholder="admin" />
                             </el-form-item>
                             <el-form-item label="QB 密码">
                                 <el-input v-model="config.qbPassword" type="password" placeholder="password" />
@@ -100,7 +100,7 @@ const dialogVisible = ref(false)
 const activeName = ref('first')
 const config = ref({
     qbHost: "",
-    qbUserName: "",
+    qbUsername: "",
     qbPassword: '',
     alistHost: '',
     alistToken: '',

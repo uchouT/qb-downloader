@@ -13,6 +13,7 @@ import moe.uchout.qbdownloader.annotation.Auth;
 import moe.uchout.qbdownloader.annotation.Path;
 import moe.uchout.qbdownloader.api.entity.TorrentReq;
 import moe.uchout.qbdownloader.api.entity.TorrentRes;
+import moe.uchout.qbdownloader.util.ConfigUtil;
 import moe.uchout.qbdownloader.util.QbUtil;
 import moe.uchout.qbdownloader.util.TaskUtil;
 import static moe.uchout.qbdownloader.api.ConfigAction.rectifyHost;
@@ -31,30 +32,59 @@ import static moe.uchout.qbdownloader.api.ConfigAction.rectifyPathAndHost;
 public class TorrentActon implements BaseAction {
     @Override
     public void doAction(HttpServerRequest req, HttpServerResponse res) throws IOException {
-        String method = req.getMethod();
+        Assert.isTrue(QbUtil.login(), "Qb not login");
+
         try {
-            Assert.isTrue("POST".equalsIgnoreCase(method));
-            Assert.isTrue(QbUtil.login(), "Qb not login");
-            if (req.isMultipart()) {
-                Assert.isTrue(req.isMultipart());
-                MultipartFormData formData = req.getMultipart();
-                UploadFile file = formData.getFile("torrent");
-                Assert.notNull(file);
-                while (!file.isUploaded()) {
-                    ThreadUtil.sleep(500);
-                }
-                String savePath = rectifyHost(getRequiredParam(formData, "savePath"));
-                String hash = TaskUtil.addTorrent(true, file.getFileContent(), file.getFileName(), savePath);
-                resultSuccess(new TorrentRes().setHash(hash).setSavePath(savePath));
+            String method = req.getMethod();
+            if ("POST".equalsIgnoreCase(method)) {
+                post(req);
+            } else if ("DELETE".equalsIgnoreCase(method)) {
+                delete(req);
             } else {
-                TorrentReq torrentReq = getBody(TorrentReq.class);
-                rectifyPathAndHost(torrentReq);
-                String hash = TaskUtil.addTorrent(false, null, torrentReq.getUrl(), torrentReq.getSavePath());
-                resultSuccess(new TorrentRes().setHash(hash).setSavePath(torrentReq.getSavePath()));
+                resultErrorMsg("Unsupported method: " + method);
+                return;
             }
         } catch (Exception e) {
             log.error("Error processing request: {}", e.getMessage(), e);
             resultErrorMsg(e.getMessage());
         }
+    }
+
+    /**
+     * 处理种子任务添加
+     * 
+     * @param req
+     * @throws IOException
+     */
+    private void post(HttpServerRequest req) throws IOException {
+        if (req.isMultipart()) {
+            Assert.isTrue(req.isMultipart());
+            MultipartFormData formData = req.getMultipart();
+            UploadFile file = formData.getFile("torrent");
+            Assert.notNull(file);
+            while (!file.isUploaded()) {
+                ThreadUtil.sleep(500);
+            }
+            String savePath = rectifyHost(
+                    getOptionalParam(formData, "savePath", ConfigUtil.CONFIG.getDefaultSavePath()));
+            String hash = TaskUtil.addTorrent(true, file.getFileContent(), file.getFileName(), savePath);
+            resultSuccess(new TorrentRes().setHash(hash).setSavePath(savePath));
+        } else {
+            TorrentReq torrentReq = getBody(TorrentReq.class);
+            rectifyPathAndHost(torrentReq);
+            String hash = TaskUtil.addTorrent(false, null, torrentReq.getUrl(), torrentReq.getSavePath());
+            resultSuccess(new TorrentRes().setHash(hash).setSavePath(torrentReq.getSavePath()));
+        }
+    }
+
+    /**
+     * 删除种子
+     * 
+     * @param req
+     * @throws MissingParamException
+     */
+    private void delete(HttpServerRequest req) throws MissingParamException {
+        String hash = getRequiredParam(req, "hash");
+        QbUtil.delete(hash, true);
     }
 }

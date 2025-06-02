@@ -1,6 +1,6 @@
 <template>
-    <el-dialog v-model="dialogVisible" :close-on-click-modal="!metadataDownloading"
-        :close-on-press-escape="!metadataDownloading" title="任务添加" width="50%">
+    <el-dialog v-model="dialogVisible" :close-on-click-modal="!metadataDownloading || !torrentParsed"
+        :close-on-press-escape="!metadataDownloading || !torrentParsed" title="任务添加" width="50%">
         <div v-show="!torrentParsed">
             <el-tabs v-model="activeTab" tab-position="top" style="height: 200px">
                 <el-tab-pane label="Url" name="url">
@@ -16,17 +16,17 @@
                     </el-form>
                 </el-tab-pane>
                 <el-tab-pane label="File" name="file">
-                    <el-upload ref="upload" action="/api/torrent" :limit="1" :auto-upload="false"
-                        :data="torrentFile.value" name="torrent" :headers="uploadHeaders"
-                        :on-success="handleUploadSuccess" :on-error="handleUploadError" :on-change="handleFileChange">
+                    <el-upload ref="upload" action="/api/torrent" :limit="1" :auto-upload="false" :data="uploadData"
+                        name="torrent" :headers="uploadHeaders" :on-success="handleUploadSuccess"
+                        :on-error="handleUploadError" :on-change="handleFileChange">
                         <template #trigger>
                             <el-button type="primary">选择文件</el-button>
                         </template>
                     </el-upload>
 
                     <el-form-item label="保存路径" style="margin-top: 16px;">
-                        <el-input v-model:model-value="torrentFile.savePath" placeholder="/home/user/downloads"
-                            :disabled="metadataDownloading" />
+                        <el-input v-model:model-value="torrentFile.savePath" type="textarea"
+                            placeholder="/home/user/downloads" :disabled="metadataDownloading" />
                     </el-form-item>
                     <template #tip>
                         <div class="el-upload__tip text-red">
@@ -35,9 +35,9 @@
                     </template>
                 </el-tab-pane>
             </el-tabs>
-        </div>
-        <template #footer v-if="!torrentParsed">
+        </div> <template #footer v-if="!torrentParsed">
             <span class="dialog-footer">
+                <el-button @click="handleCancel">取消</el-button>
                 <el-button type="primary" @click="handleConfirm" :loading="metadataDownloading" :disabled="!canConfirm">
                     {{ getConfirmButtonText() }}
                 </el-button>
@@ -75,7 +75,10 @@ const rules = ref({
 })
 
 const taskAdd = ref({
-    torrentRes: null,
+    torrentRes: {
+        savePath: '',
+        hash: ''
+    },
     uploadType: 'rclone',
     uploadPath: null,
     maxSize: null,
@@ -86,16 +89,22 @@ const taskAdd = ref({
 const addTask = (fun) => {
     api.post('/api/task', taskAdd.value)
         .then(res => {
-            if (res.code === 200) {
-                ElMessage.success("任务添加成功")
-                dialogVisible.value = false
-            }
+            ElMessage.success("任务添加成功")
+            dialogVisible.value = false
+            torrentParsed.value = false
+            // 触发任务列表刷新
+            emit('load')
         }).finally(fun)
 }
 // 上传相关配置
 const uploadHeaders = ref({
     'Authorization': window.authorization || ''
 })
+
+// 计算属性：上传数据
+const uploadData = computed(() => ({
+    savePath: torrentFile.value.savePath
+}))
 
 // 计算属性：是否可以确认
 const canConfirm = computed(() => {
@@ -120,7 +129,10 @@ const show = () => {
     activeTab.value = 'url'
     fileSelected.value = false
     taskAdd.value = {
-        torrentRes: null,
+        torrentRes: {
+            savePath: '',
+            hash: ''
+        },
         uploadType: 'rclone',
         uploadPath: null,
         maxSize: null,
@@ -154,7 +166,7 @@ const handleUrlConfirm = async () => {
     // 调用API添加URL
     api.post('/api/torrent', torrentUrl.value)
         .then(res => {
-            taskAdd.torrentRes = res['data']
+            taskAdd.value.torrentRes = res['data']
             torrentParsed.value = true
         })
         .finally(() => {
@@ -185,11 +197,17 @@ const handleUploadSuccess = (res, file) => {
     metadataDownloading.value = false
 
     if (res.code >= 200 && res.code < 300) {
-        taskAdd.torrentRes = res['data'];
+        taskAdd.value.torrentRes = res['data'];
         ElMessage.success('种子上传成功')
         torrentParsed.value = true
     } else {
         ElMessage.error(res.message || '上传失败')
+        if (res.code === 403) {
+            localStorage.removeItem("authorization")
+            setTimeout(() => {
+                location.reload()
+            }, 1000)
+        }
     }
 }
 
@@ -198,24 +216,35 @@ const handleUploadError = (error, file) => {
     metadataDownloading.value = false
 
     let errorMessage = '上传失败'
-    if (error && error.response) {
-        try {
-            const errorData = JSON.parse(error.response)
-            if (errorData.message) {
-                errorMessage = errorData.message
-            }
-            if (errorData.code === 403) {
-                localStorage.removeItem("authorization")
-                setTimeout(() => {
-                    location.reload()
-                }, 1000)
-            }
-        } catch (e) {
-            console.warn('无法解析错误响应:', e)
-        }
+    if (error && error.message) {
+        errorMessage = error.message
     }
 
     ElMessage.error(errorMessage)
+}
+
+const deleteTorrent = () => {
+    let hash = taskAdd.value.torrentRes.hash;
+    api.del(`/api/torrent/?hash=${hash}`)
+        .then(res => {
+            ElMessage.success("种子删除成功")
+        })
+}
+
+const handleCancel = () => {
+    if (metadataDownloading.value) {
+        deleteTorrent();
+        //TODO:
+        //  如果是 url，中断 export。
+        // 如果是 File，中断上传
+        metadataDownloading.value = false
+    } else if (torrentParsed.value) {
+        deleteTorrent();
+        // 删除 torrents/hash.torrent
+        torrentParsed.value = false
+    }
+    dialogVisible.value = false;
+
 }
 
 defineExpose({ show })

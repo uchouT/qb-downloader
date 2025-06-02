@@ -87,9 +87,9 @@ public interface BaseAction extends Action {
         return value;
     }
 
-    default String getOptionalParam(HttpServerRequest req, String name, Default defaultValue) {
+    default String getOptionalParam(HttpServerRequest req, String name, String defaultValue) {
         String value = req.getParam(name);
-        return (value == null || value.isBlank()) ? defaultValue.getValue() : value;
+        return (value == null || value.isBlank()) ? defaultValue : value;
     }
 
     default String getRequiredParam(MultipartFormData formData, String name) throws MissingParamException {
@@ -102,9 +102,9 @@ public interface BaseAction extends Action {
         return value;
     }
 
-    default String getOptionalParam(MultipartFormData formData, String name, Default defaultValue) {
+    default String getOptionalParam(MultipartFormData formData, String name, String defaultValue) {
         String value = formData.getParam(name);
-        return (value == null || value.isBlank()) ? defaultValue.getValue() : value;
+        return (value == null || value.isBlank()) ? defaultValue : value;
     }
 }
 
@@ -118,24 +118,6 @@ class MissingParamException extends Exception {
     }
 }
 
-enum Default {
-    seedingTimeLimit("1440"),
-    ratioLimit("1.0f");
-
-    private final String value;
-
-    private Default(String value) {
-        this.value = value;
-    }
-
-    public String getValue() {
-        return this.value;
-    }
-
-    public String toString() {
-        return this.getValue();
-    }
-}
 
 class TaskException extends Exception {
     public TaskException() {

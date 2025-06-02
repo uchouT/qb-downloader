@@ -1,6 +1,7 @@
 <template>
     <div class="task-form">
-        <el-form :rules="rules" label-position="right" label-width="140px" class="aligned-form">
+        <el-form ref="formRef" :model="props.taskData" :rules="rules" label-position="right" label-width="140px"
+            class="aligned-form">
             <el-form-item label="upload path" prop="uploadPath">
                 <el-input v-model="props.taskData.uploadPath" placeholder="输入上传路径" />
             </el-form-item>
@@ -9,7 +10,7 @@
                     <template #suffix>GB</template>
                 </el-input-number>
             </el-form-item>
-            <el-form-item label="uploader" prop="uploader">
+            <el-form-item label="uploader" prop="uploadType">
                 <el-radio-group v-model="props.taskData.uploadType">
                     <el-radio value="rclone">Rclone</el-radio>
                     <el-radio value="alist">Alist</el-radio>
@@ -28,27 +29,39 @@
             </el-form-item>
         </el-form>
         <div class="form-actions">
-            <el-button type="primary" :loading="loading" @click="async () => {
-                loading = true
-                emit('ok', () => {
-                    loading = false
-                })
-            }">完成</el-button>
+            <el-button type="primary" :loading="loading" @click="handleSubmit">完成</el-button>
         </div>
     </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps(['taskData'])
 const emit = defineEmits(['ok'])
 const loading = ref(false)
+const formRef = ref(null)
+
 const rules = ref({
-    uploader: [{ required: true, message: '请选择上传方式', trigger: 'blur' }],
+    uploadType: [{ required: true, message: '请选择上传方式', trigger: 'change' }],
     uploadPath: [{ required: true, message: '请输入上传路径', trigger: 'blur' }],
     maxSize: [{ required: true, message: '请输入最大大小', trigger: 'blur' }]
 })
+
+const handleSubmit = async () => {
+    if (!formRef.value) return
+
+    try {
+        await formRef.value.validate()
+        loading.value = true
+        emit('ok', () => {
+            loading.value = false
+        })
+    } catch (error) {
+        ElMessage.warning('请填写完整的信息')
+    }
+}
 
 </script>
 

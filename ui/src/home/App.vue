@@ -1,5 +1,5 @@
 <template>
-  <Torrent ref="torrent"></Torrent>
+  <Torrent ref="torrent" @load="handleTaskAdded"></Torrent>
   <Config ref="config"></Config>
   <div style="height: 100%; display: flex; flex-direction: column;">
     <div id="header">
@@ -22,7 +22,7 @@
       </div>
     </div>
     <div style="flex: 1; overflow: hidden; padding: 16px;">
-      <el-empty description="当前任务为空" />
+      <List ref="taskList" />
     </div>
   </div>
 </template>
@@ -33,11 +33,13 @@ import { useWindowSize } from "@vueuse/core";
 import { Fold, Plus, Setting, Tickets } from "@element-plus/icons-vue"
 import Torrent from "./Torrent.vue";
 import Config from "./Config.vue";
+import List from "./List.vue";
+
 // 响应式数据
 const { width, height } = useWindowSize();
 const torrent = ref()
 const config = ref()
-
+const taskList = ref()
 
 // 方法定义
 const elIconClass = () => {
@@ -46,6 +48,11 @@ const elIconClass = () => {
 
 const isNotMobile = () => {
   return width.value > 800;
+}
+
+// 当任务添加成功时刷新任务列表
+const handleTaskAdded = () => {
+  taskList.value?.refreshTasks()
 }
 </script>
 

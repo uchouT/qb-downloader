@@ -43,6 +43,7 @@ public class TaskUtil {
         return TASK_LIST;
     }
 
+    //TODO
     public static void start(String hash) {
         Task task = TASK_LIST.get(hash);
         if (task == null) {
@@ -114,7 +115,6 @@ public class TaskUtil {
             String hash = torrentRes.getHash();
             QbUtil.export(hash, TORRENT_FILE_PATH + hash + ".torrent");
             String name = QbUtil.getName(hash);
-            QbUtil.removeTag(hash, Tags.NEW);
             Task task = new Task().setCurrentPartNum(0).setStatus(Status.PAUSED).setName(name)
                     .setHash(hash).setSeeding(false).setTorrentPath(TORRENT_FILE_PATH + hash + ".torrent")
                     .setUploadType(uploadType)
@@ -128,7 +128,6 @@ public class TaskUtil {
             task.setTotalPartNum(order.size());
             task.setTaskOrder(order);
             TASK_LIST.put(hash, task);
-            sync();
             Thread.sleep(1000);
             boolean setNotDownload = QbUtil.setNotDownload(task);
             Assert.isTrue(setNotDownload, "设置不下载失败");
@@ -137,6 +136,7 @@ public class TaskUtil {
             QbUtil.start(hash);
             task.setStatus(Status.DOWNLOADING);
             log.info("添加任务成功: {}", task.getName());
+            sync();
         } catch (Exception e) {
             log.error("添加任务失败: {}", e.getMessage(), e);
             throw new RuntimeException(e);

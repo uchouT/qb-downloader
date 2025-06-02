@@ -46,6 +46,7 @@ public class QbUtil {
                     .form("password", password)
                     .setFollowRedirects(true)
                     .thenFunction(res -> {
+                        log.debug(res.body());
                         String body = res.body();
                         Assert.isTrue(res.isOk() && "Ok.".equals(body));
                         return true;
@@ -114,7 +115,9 @@ public class QbUtil {
                             return null;
                         }
                         JsonObject jsonObject = jsonArray.get(0).getAsJsonObject();
-                        return jsonObject.get("hash").getAsString();
+                        String hash = jsonObject.get("hash").getAsString();
+                        QbUtil.removeTag(hash, Tags.NEW);
+                        return hash;
                     });
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -433,6 +436,7 @@ public class QbUtil {
                     // 所有通过 qb-downloader 添加的种子都属于这个分类
                     .form("category", TorrentsInfo.category)
                     .form("savepath", savePath)
+                    .form("tags", Tags.NEW)
                     .form("torrents", torrentFile, fileName)
                     .form("stopped", "true")
                     .thenFunction(res -> {

@@ -35,7 +35,7 @@ public class TaskAction implements BaseAction {
 			String method = req.getMethod();
 			switch (method.toUpperCase()) {
 				case "GET":
-
+					get();
 					return;
 				case "POST":
 					post(req);
@@ -103,5 +103,17 @@ public class TaskAction implements BaseAction {
 	private void delete(HttpServerRequest req) throws MissingParamException {
 		String hash = getRequiredParam(req, "hash");
 		TaskUtil.delete(hash);
+	}
+
+	/**
+	 * 返回任务列表
+	 */
+	private void get() {
+		if (TaskUtil.getTaskList().isEmpty()) {
+			resultSuccess();
+		} else {
+			resultSuccess(TaskUtil.getTaskList());
+
+		}
 	}
 }
