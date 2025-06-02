@@ -14,7 +14,7 @@ import moe.uchout.qbdownloader.util.QbUtil;
 import moe.uchout.qbdownloader.util.TaskUtil;
 
 @Slf4j
-@Auth(value = false) // TODO: 仅测试阶段解除验证
+@Auth
 @Path("/task")
 /**
  * GET 获取任务状态

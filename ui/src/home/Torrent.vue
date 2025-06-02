@@ -1,0 +1,222 @@
+<template>
+    <el-dialog v-model="dialogVisible" :close-on-click-modal="!metadataDownloading"
+        :close-on-press-escape="!metadataDownloading" title="任务添加" width="50%">
+        <div v-show="!torrentParsed">
+            <el-tabs v-model="activeTab" tab-position="top" style="height: 200px">
+                <el-tab-pane label="Url" name="url">
+                    <el-form :model="torrentUrl" :rules="rules">
+                        <el-form-item label="链接" prop="url">
+                            <el-input v-model:model-value="torrentUrl.url" placeholder=" torrent url..."
+                                :autosize="{ minRows: 2 }" type="textarea" :disabled="metadataDownloading" />
+                        </el-form-item>
+                        <el-form-item label="保存路径" prop="savePath">
+                            <el-input v-model:model-value="torrentUrl.savePath" type="textarea"
+                                :autosize="{ minRows: 1 }" :disabled="metadataDownloading" placeholder="保存路径" />
+                        </el-form-item>
+                    </el-form>
+                </el-tab-pane>
+                <el-tab-pane label="File" name="file">
+                    <el-upload ref="upload" action="/api/torrent" :limit="1" :auto-upload="false"
+                        :data="torrentFile.value" name="torrent" :headers="uploadHeaders"
+                        :on-success="handleUploadSuccess" :on-error="handleUploadError" :on-change="handleFileChange">
+                        <template #trigger>
+                            <el-button type="primary">选择文件</el-button>
+                        </template>
+                    </el-upload>
+
+                    <el-form-item label="保存路径" style="margin-top: 16px;">
+                        <el-input v-model:model-value="torrentFile.savePath" placeholder="/home/user/downloads"
+                            :disabled="metadataDownloading" />
+                    </el-form-item>
+                    <template #tip>
+                        <div class="el-upload__tip text-red">
+                            限制上传1个文件，新文件将覆盖旧文件
+                        </div>
+                    </template>
+                </el-tab-pane>
+            </el-tabs>
+        </div>
+        <template #footer v-if="!torrentParsed">
+            <span class="dialog-footer">
+                <el-button type="primary" @click="handleConfirm" :loading="metadataDownloading" :disabled="!canConfirm">
+                    {{ getConfirmButtonText() }}
+                </el-button>
+            </span>
+        </template>
+        <div v-if="torrentParsed">
+            <Task v-model:taskData="taskAdd" @ok="addTask" />
+        </div>
+    </el-dialog>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import { ElMessage } from 'element-plus'
+import api from '../api'
+import Task from './Task.vue'
+
+const emit = defineEmits(['load'])
+const dialogVisible = ref(false)
+const metadataDownloading = ref(false)
+const activeTab = ref('url') // 当前激活的标签页
+const fileSelected = ref(false) // 文件是否已选择
+const torrentParsed = ref(false)
+const torrentUrl = ref({
+    url: '',
+    savePath: null,
+})
+const torrentFile = ref({
+    savePath: ''
+})
+
+const upload = ref(null)
+const rules = ref({
+    url: [{ required: true, message: '请输入 torrent 链接', trigger: 'blur' }]
+})
+
+const taskAdd = ref({
+    torrentRes: null,
+    uploadType: 'rclone',
+    uploadPath: null,
+    maxSize: null,
+    seedingTimeLimit: -2,
+    ratioLimit: -2
+})
+
+const addTask = (fun) => {
+    api.post('/api/task', taskAdd.value)
+        .then(res => {
+            if (res.code === 200) {
+                ElMessage.success("任务添加成功")
+                dialogVisible.value = false
+            }
+        }).finally(fun)
+}
+// 上传相关配置
+const uploadHeaders = ref({
+    'Authorization': window.authorization || ''
+})
+
+// 计算属性：是否可以确认
+const canConfirm = computed(() => {
+    if (activeTab.value === 'url') {
+        return torrentUrl.value.url.trim()
+    } else if (activeTab.value === 'file') {
+        return fileSelected.value
+    }
+    return false
+})
+
+// 计算属性：确认按钮文本
+const getConfirmButtonText = () => {
+    if (metadataDownloading.value) {
+        return activeTab.value === 'url' ? '元数据下载中...' : '上传中...'
+    }
+    return activeTab.value === 'url' ? '添加URL' : '上传并添加'
+}
+
+const show = () => {
+    dialogVisible.value = true
+    activeTab.value = 'url'
+    fileSelected.value = false
+    taskAdd.value = {
+        torrentRes: null,
+        uploadType: 'rclone',
+        uploadPath: null,
+        maxSize: null,
+        seedingTimeLimit: -2,
+        ratioLimit: -2
+    }
+    torrentUrl.value = {
+        url: '',
+        savePath: ''
+    }
+    torrentFile.value = {
+        savePath: ''
+    }
+
+
+    // 更新授权头
+    uploadHeaders.value.Authorization = window.authorization || ''
+}
+
+const handleConfirm = async () => {
+    if (activeTab.value === 'url') {
+        await handleUrlConfirm()
+    } else if (activeTab.value === 'file') {
+        await handleFileConfirm()
+    }
+}
+
+// URL 页面的确认处理
+const handleUrlConfirm = async () => {
+    metadataDownloading.value = true
+    // 调用API添加URL
+    api.post('/api/torrent', torrentUrl.value)
+        .then(res => {
+            taskAdd.value = res['data']
+            torrentParsed.value = true
+        })
+        .finally(() => {
+            metadataDownloading.value = false
+        })
+}
+
+// File 页面的确认处理
+const handleFileConfirm = async () => {
+    if (!fileSelected.value) {
+        ElMessage.warning('请先选择文件')
+        return
+    }
+    metadataDownloading.value = true
+    upload.value.submit()
+}
+
+
+
+// 文件选择变化处理
+const handleFileChange = (file, fileList) => {
+    fileSelected.value = fileList.length > 0
+}
+
+
+const handleUploadSuccess = (res, file) => {
+    console.log('上传成功:', res)
+    metadataDownloading.value = false
+
+    if (res.code >= 200 && res.code < 300) {
+        taskAdd.value = res['data'];
+        ElMessage.success('种子上传成功')
+        torrentParsed.value = true
+    } else {
+        ElMessage.error(res.message || '上传失败')
+    }
+}
+
+const handleUploadError = (error, file) => {
+    console.error('上传失败:', error)
+    metadataDownloading.value = false
+
+    let errorMessage = '上传失败'
+    if (error && error.response) {
+        try {
+            const errorData = JSON.parse(error.response)
+            if (errorData.message) {
+                errorMessage = errorData.message
+            }
+            if (errorData.code === 403) {
+                localStorage.removeItem("authorization")
+                setTimeout(() => {
+                    location.reload()
+                }, 1000)
+            }
+        } catch (e) {
+            console.warn('无法解析错误响应:', e)
+        }
+    }
+
+    ElMessage.error(errorMessage)
+}
+
+defineExpose({ show })
+</script>

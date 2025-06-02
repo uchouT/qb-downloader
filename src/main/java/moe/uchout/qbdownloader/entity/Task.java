@@ -114,7 +114,7 @@ public class Task implements Serializable {
     /**
      * 分享率
      */
-    private double ratioLimit;
+    private String ratioLimit;
 
     /**
      * 执行间隔任务，标记状态为 ON_TASK, 完成间隔任务后标记为 FINISHED

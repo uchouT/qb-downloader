@@ -19,7 +19,7 @@ import static moe.uchout.qbdownloader.api.ConfigAction.rectifyHost;
 import static moe.uchout.qbdownloader.api.ConfigAction.rectifyPathAndHost;
 
 @Slf4j
-@Auth(value = false) // TODO: 仅测试阶段解除验证
+@Auth
 @Path("/torrent")
 /**
  * POST 通过链接添加种子,

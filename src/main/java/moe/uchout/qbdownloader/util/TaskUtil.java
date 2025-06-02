@@ -108,7 +108,7 @@ public class TaskUtil {
      */
     @Synchronized("TASK_LIST")
     public static void addTask(TorrentRes torrentRes, String uploadType,
-            String uploadPath, int maxSize, int seedingTimeLimit, float ratioLimit) {
+            String uploadPath, int maxSize, int seedingTimeLimit, String ratioLimit) {
         try {
             String savePath = torrentRes.getSavePath();
             String hash = torrentRes.getHash();

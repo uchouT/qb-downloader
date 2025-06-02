@@ -4,6 +4,7 @@ import java.io.Serializable;
 
 import lombok.Data;
 import lombok.experimental.Accessors;
+import moe.uchout.qbdownloader.util.ConfigUtil;
 
 @Data
 @Accessors(chain = true)
@@ -12,6 +13,6 @@ public class TaskReq implements Serializable {
     private String uploadType;
     private String uploadPath;
     private int maxSize;
-    private int seedingTimeLimit = 1440;
-    private float ratioLimit = 1.0f;
+    private int seedingTimeLimit = ConfigUtil.CONFIG.getDefaultSeedingTimeLimit();
+    private String ratioLimit = ConfigUtil.CONFIG.getDefaultRatioLimit();
 }

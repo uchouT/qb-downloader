@@ -80,4 +80,14 @@ public class Config implements Serializable {
      * 默认保存路径
      */
     private String defaultSavePath;
+
+    /**
+     * 默认分享率
+     */
+    private String defaultRatioLimit;
+
+    /**
+     * 默认分享时间
+     */
+    private int defaultSeedingTimeLimit;
 }

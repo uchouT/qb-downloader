@@ -277,7 +277,7 @@ public class QbUtil {
         return manage(hash, "stop");
     }
 
-    public static void setShareLimit(String hash, float ratioLimit, int seedingTimeLimit) throws QbException {
+    public static void setShareLimit(String hash, String ratioLimit, int seedingTimeLimit) throws QbException {
         try {
             HttpRequest.post(host + "/api/v2/torrents/setShareLimits")
                     .form("hashes", hash)

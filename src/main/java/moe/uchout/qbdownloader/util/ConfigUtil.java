@@ -34,7 +34,9 @@ public class ConfigUtil {
                 .setOnlyInnerIP(false)
                 .setVerifyLoginIp(false)
                 .setDefaultSavePath("")
-                .setAccount(new Login().setUsername("admin").setPassword(password));
+                .setAccount(new Login().setUsername("admin").setPassword(password))
+                .setDefaultRatioLimit("-2")
+                .setDefaultSeedingTimeLimit(-2);
     }
 
     // TODO: filename 还待考虑
