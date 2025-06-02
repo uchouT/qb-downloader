@@ -27,9 +27,9 @@ public class Config implements Serializable {
     private String qbPassword;
 
     /**
-     * 所有任务消耗的总容量上限
+     * 所有任务消耗的总容量上限 TODO
      */
-    private long totalSizeLimit;
+    // private long totalSizeLimit;
 
     /**
      * Alist 地址
@@ -41,10 +41,6 @@ public class Config implements Serializable {
      */
     private String alistToken;
 
-    /**
-     * 是否自定义下载顺序 TODO
-     */
-    private boolean customDownloadOrder;
 
     /**
      * rclone rcd 地址
@@ -54,7 +50,7 @@ public class Config implements Serializable {
     /**
      * rclone rcd 用户名
      */
-    private String rcloneuserName;
+    private String rcloneUserName;
 
     /**
      * rclone rcd 密码

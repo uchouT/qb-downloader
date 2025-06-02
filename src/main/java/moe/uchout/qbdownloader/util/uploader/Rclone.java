@@ -34,7 +34,7 @@ public class Rclone implements Uploader {
     @Override
     public void copy(Task task) {
         String host = ConfigUtil.CONFIG.getRcloneHost();
-        String username = ConfigUtil.CONFIG.getRcloneuserName();
+        String username = ConfigUtil.CONFIG.getRcloneUserName();
         String password = ConfigUtil.CONFIG.getRclonePassword();
         String src = task.getSavePath() + "/" + task.getRootDir();
         String dst = task.getUploadPath() + "/" + task.getRootDir();
@@ -70,7 +70,7 @@ public class Rclone implements Uploader {
      */
     public boolean check(Task task) {
         String host = ConfigUtil.CONFIG.getRcloneHost();
-        String username = ConfigUtil.CONFIG.getRcloneuserName();
+        String username = ConfigUtil.CONFIG.getRcloneUserName();
         String password = ConfigUtil.CONFIG.getRclonePassword();
         int jobId = task.getRcloneJobId();
         JsonObject obj = new JsonObject();

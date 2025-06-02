@@ -26,6 +26,12 @@ public class TaskAction implements BaseAction {
 	@Override
 	public void doAction(HttpServerRequest req, HttpServerResponse res) throws IOException {
 		try {
+			try {
+				Assert.isTrue(QbUtil.login());
+			} catch (Exception e) {
+				log.error("Qb not login");
+				throw new TaskException("Qb not login");
+			}
 			String method = req.getMethod();
 			switch (method.toUpperCase()) {
 				case "GET":
@@ -80,12 +86,6 @@ public class TaskAction implements BaseAction {
 	 * @param req
 	 */
 	private void post(HttpServerRequest req) throws IOException, MissingParamException, TaskException {
-		try {
-			Assert.isTrue(QbUtil.login());
-		} catch (Exception e) {
-			log.error("Qb not login");
-			throw new TaskException("Qb not login");
-		}
 		TaskReq taskReq = getBody(TaskReq.class);
 		try {
 			Assert.notNull(taskReq.getUploadType());

@@ -1,5 +1,6 @@
 <template>
   <Torrent ref="torrent"></Torrent>
+  <Config ref="config"></Config>
   <div style="height: 100%; display: flex; flex-direction: column;">
     <div id="header">
       <div style="margin: 10px;" class="auto">
@@ -10,6 +11,11 @@
           <el-button bg text type="primary" @click="torrent?.show()">
             <el-icon :class="elIconClass()">
               <Plus />
+            </el-icon>
+          </el-button>
+          <el-button bg text type="primary" @click="config?.show()">
+            <el-icon :class="elIconClass()">
+              <Setting />
             </el-icon>
           </el-button>
         </div>
@@ -26,12 +32,11 @@ import { ref } from "vue";
 import { useWindowSize } from "@vueuse/core";
 import { Fold, Plus, Setting, Tickets } from "@element-plus/icons-vue"
 import Torrent from "./Torrent.vue";
+import Config from "./Config.vue";
 // 响应式数据
 const { width, height } = useWindowSize();
 const torrent = ref()
-const task = ref()
-
-
+const config = ref()
 
 
 // 方法定义
@@ -41,17 +46,6 @@ const elIconClass = () => {
 
 const isNotMobile = () => {
   return width.value > 800;
-}
-
-// 事件处理函数
-const handleAddSubscription = () => {
-  console.log('添加订阅')
-  // 这里添加具体的添加订阅逻辑
-}
-
-const handleAddCollection = () => {
-  console.log('添加合集')
-  // 这里添加具体的添加合集逻辑
 }
 </script>
 

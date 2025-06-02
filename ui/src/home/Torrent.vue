@@ -154,7 +154,7 @@ const handleUrlConfirm = async () => {
     // 调用API添加URL
     api.post('/api/torrent', torrentUrl.value)
         .then(res => {
-            taskAdd.value = res['data']
+            taskAdd.torrentRes = res['data']
             torrentParsed.value = true
         })
         .finally(() => {
@@ -185,7 +185,7 @@ const handleUploadSuccess = (res, file) => {
     metadataDownloading.value = false
 
     if (res.code >= 200 && res.code < 300) {
-        taskAdd.value = res['data'];
+        taskAdd.torrentRes = res['data'];
         ElMessage.success('种子上传成功')
         torrentParsed.value = true
     } else {

@@ -1,30 +1,25 @@
 <template>
-  <div
-      class="flex-center"
-      style="justify-content: space-between;flex-flow: column; height: 100%;width: 100%;"
-      v-if="!authorization">
+  <div class="flex-center" style="justify-content: space-between;flex-flow: column; height: 100%;width: 100%;"
+    v-if="!authorization">
     <div id="login-page" class="flex-center" style="flex: 1">
       <div id="form" style="max-width: 200px;">
         <h2 style="text-align: center">qb-downloader</h2>
         <div style="height: 30px;"></div>
-        <el-form
-            @keyup.enter="login"
-            @submit="login">
+        <el-form @keyup.enter="login" @submit="login">
           <el-form-item>
             <el-input v-model:model-value="user.username" placeholder="用户名" style="width: 200px;">
               <template #prefix>
                 <el-icon class="el-input__icon">
-                  <User/>
+                  <User />
                 </el-icon>
               </template>
             </el-input>
           </el-form-item>
           <el-form-item>
-            <el-input style="width: 200px;" v-model:model-value="user.password" show-password
-                      placeholder="密码">
+            <el-input style="width: 200px;" v-model:model-value="user.password" show-password placeholder="密码">
               <template #prefix>
                 <el-icon class="el-input__icon">
-                  <Key/>
+                  <Key />
                 </el-icon>
               </template>
             </el-input>
@@ -37,7 +32,7 @@
       </div>
     </div>
     <div style="margin-bottom: 16px;" id="link">
-    <a href="https://github.com/uchouT/qb-downloader" target="_blank">github</a>
+      <a href="https://github.com/uchouT/qb-downloader" target="_blank">github</a>
     </div>
   </div>
   <App v-else></App>
@@ -45,12 +40,12 @@
 
 <script setup>
 
-import {onMounted, ref} from "vue";
+import { onMounted, ref } from "vue";
 import CryptoJS from "crypto-js"
 import App from "./home/App.vue";
 import api from "./api.js";
-import {useDark, useLocalStorage} from '@vueuse/core'
-import {Key} from "@element-plus/icons-vue";
+import { useDark, useLocalStorage } from '@vueuse/core'
+import { Key } from "@element-plus/icons-vue";
 
 let loading = ref(false)
 
@@ -78,23 +73,23 @@ let login = () => {
   let my_user = JSON.parse(JSON.stringify(user.value))
   my_user.password = my_user.password ? CryptoJS.MD5(my_user.password).toString() : '';
   api.post('api/login', my_user)
-      .then(res => {
-        localStorage.setItem("authorization", res.data)
-        window.authorization = res.data
-        authorization.value = res.data
+    .then(res => {
+      localStorage.setItem("authorization", res.data)
+      window.authorization = res.data
+      authorization.value = res.data
 
-        // 记住密码
-        if (rememberThePassword.value.remember) {
-          rememberThePassword.value.username = user.value.username
-          rememberThePassword.value.password = user.value.password
-        } else {
-          rememberThePassword.value.username = ''
-          rememberThePassword.value.password = ''
-        }
-      })
-      .finally(() => {
-        loading.value = false
-      })
+      // 记住密码
+      if (rememberThePassword.value.remember) {
+        rememberThePassword.value.username = user.value.username
+        rememberThePassword.value.password = user.value.password
+      } else {
+        rememberThePassword.value.username = ''
+        rememberThePassword.value.password = ''
+      }
+    })
+    .finally(() => {
+      loading.value = false
+    })
 }
 
 let test = () => {
@@ -106,25 +101,25 @@ let test = () => {
       'Authorization': window.authorization
     }
   })
-      .then(res => res.json())
-      .then(res => {
-        if (res.code === 200) {
-          localStorage.setItem("authorization", '1')
-          window.authorization = '1'
-          authorization.value = '1'
-          return
-        }
-        localStorage.removeItem("authorization")
-        window.authorization = ''
-        authorization.value = ''
-      })
+    .then(res => res.json())
+    .then(res => {
+      if (res.code === 200) {
+        localStorage.setItem("authorization", '1')
+        window.authorization = '1'
+        authorization.value = '1'
+        return
+      }
+      localStorage.removeItem("authorization")
+      window.authorization = ''
+      authorization.value = ''
+    })
 }
 
 useDark()
 
 onMounted(() => {
   test()
-  let {remember, username, password} = rememberThePassword.value;
+  let { remember, username, password } = rememberThePassword.value;
   if (remember && username && password) {
     user.value.username = username
     user.value.password = password

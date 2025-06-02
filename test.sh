@@ -16,8 +16,9 @@ task=$(cat <<EOF
   },
   "uploadType":"rclone",
   "uploadPath":"od:/test/API/",
-  "maxSize":"100",
-  "seedingTimeLimit":"10"
+  "maxSize":100,
+  "seedingTimeLimit":"10",
+  "ratioLimit": -2
 }
 EOF
 )

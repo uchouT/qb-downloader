@@ -122,7 +122,7 @@ public class TaskUtil {
                     .setUploadPath(uploadPath)
                     .setRatioLimit(ratioLimit)
                     .setSeedingTimeLimit(seedingTimeLimit)
-                    .setMaxSize(maxSize * 1024 * 1024); // 单位为 MB
+                    .setMaxSize(maxSize * 1024 * 1024 * 1024); // 单位为 GB
             List<TorrentContent> contents = QbUtil.getTorrentContentList(hash, task);
             List<List<Integer>> order = getTaskOrder(contents, task.getMaxSize());
             task.setTotalPartNum(order.size());
