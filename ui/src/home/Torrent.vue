@@ -2,7 +2,7 @@
         :close-on-press-escape="!metadataDownloading || !torrentParsed" title="任务添加" 
         :width="dialogWidth" class="torrent-dialog">
         <div v-show="!torrentParsed">
-            <el-tabs v-model="activeTab" tab-position="top" style="height: 200px">
+            <el-tabs v-model="activeTab" tab-position="top" style="height: auto">
                 <el-tab-pane label="Url" name="url">
                     <el-form :model="torrentUrl" :rules="rules">
                         <el-form-item label="链接" prop="url">
