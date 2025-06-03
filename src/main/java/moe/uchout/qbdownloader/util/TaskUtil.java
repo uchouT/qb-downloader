@@ -107,7 +107,7 @@ public class TaskUtil {
      */
     @Synchronized("TASK_LIST")
     public static void addTask(TorrentRes torrentRes, String uploadType,
-            String uploadPath, int maxSize, int seedingTimeLimit, String ratioLimit) {
+            String uploadPath, long maxSize, int seedingTimeLimit, String ratioLimit) {
         try {
             String savePath = torrentRes.getSavePath();
             String hash = torrentRes.getHash();
@@ -171,10 +171,6 @@ public class TaskUtil {
      */
     @Synchronized("TASK_LIST")
     public static void sync() {
-        if (TASK_LIST.isEmpty()) {
-            log.debug("任务列表为空，无需保存");
-            return;
-        }
         try (OutputStreamWriter writer = new OutputStreamWriter(
                 new FileOutputStream(TASK_FILE_PATH), "UTF-8")) {
             String json = GsonStatic.toJson(TASK_LIST);
@@ -205,7 +201,7 @@ public class TaskUtil {
      * @param maxSize
      * @return 是否可以完成
      */
-    public static boolean check(List<TorrentContent> torrentContents, int maxSize) {
+    public static boolean check(List<TorrentContent> torrentContents, long maxSize) {
         for (TorrentContent torrentContent : torrentContents) {
             if (torrentContent.getSize() > maxSize) {
                 return false;
@@ -221,14 +217,14 @@ public class TaskUtil {
      * @param maxSize            最大分片大小
      * @return 二维数组，每个元素是 index 列表
      */
-    public static List<List<Integer>> getTaskOrder(List<TorrentContent> torrentContentList, int maxSize)
+    public static List<List<Integer>> getTaskOrder(List<TorrentContent> torrentContentList, long maxSize)
             throws Exception {
         if (!check(torrentContentList, maxSize)) {
             throw new IllegalArgumentException("任务过大，无法分片");
         }
         List<List<Integer>> TaskOrder = new ArrayList<>();
         List<Integer> onePart = new ArrayList<>();
-        int currentSize = 0;
+        long currentSize = 0;
         for (int i = 0, size = torrentContentList.size(); i < size; i++) {
             TorrentContent torrentContent = torrentContentList.get(i);
             if (currentSize + torrentContent.getSize() > maxSize) {

@@ -9,6 +9,7 @@ import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.net.multipart.MultipartFormData;
 import cn.hutool.core.text.StrFormatter;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.server.HttpServerRequest;
 import cn.hutool.http.server.HttpServerResponse;
 import cn.hutool.http.server.action.Action;
@@ -89,7 +90,7 @@ public interface BaseAction extends Action {
 
     default String getOptionalParam(HttpServerRequest req, String name, String defaultValue) {
         String value = req.getParam(name);
-        return (value == null || value.isBlank()) ? defaultValue : value;
+        return (StrUtil.isBlank(value)) ? defaultValue : value;
     }
 
     default String getRequiredParam(MultipartFormData formData, String name) throws MissingParamException {
@@ -104,7 +105,7 @@ public interface BaseAction extends Action {
 
     default String getOptionalParam(MultipartFormData formData, String name, String defaultValue) {
         String value = formData.getParam(name);
-        return (value == null || value.isBlank()) ? defaultValue : value;
+        return (StrUtil.isBlank(value)) ? defaultValue : value;
     }
 }
 
@@ -117,7 +118,6 @@ class MissingParamException extends Exception {
         super(message);
     }
 }
-
 
 class TaskException extends Exception {
     public TaskException() {

@@ -4,12 +4,14 @@ import static moe.uchout.qbdownloader.api.ConfigAction.rectifyHost;
 import java.io.IOException;
 
 import cn.hutool.core.lang.Assert;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.server.HttpServerRequest;
 import cn.hutool.http.server.HttpServerResponse;
 import lombok.extern.slf4j.Slf4j;
 import moe.uchout.qbdownloader.annotation.Auth;
 import moe.uchout.qbdownloader.annotation.Path;
 import moe.uchout.qbdownloader.api.entity.TaskReq;
+import moe.uchout.qbdownloader.util.ConfigUtil;
 import moe.uchout.qbdownloader.util.QbUtil;
 import moe.uchout.qbdownloader.util.TaskUtil;
 
@@ -89,8 +91,16 @@ public class TaskAction implements BaseAction {
 		TaskReq taskReq = getBody(TaskReq.class);
 		try {
 			Assert.notNull(taskReq.getUploadType());
-			Assert.notNull(taskReq.getTorrentRes().getSavePath());
-			Assert.notNull(taskReq.getUploadPath());
+			String savePath = taskReq.getTorrentRes().getSavePath();
+			if (StrUtil.isBlank(savePath)) {
+				savePath = ConfigUtil.CONFIG.getDefaultSavePath();
+			}
+			Assert.notBlank(savePath);
+			String uploadPath = taskReq.getUploadPath();
+			if (StrUtil.isBlank(uploadPath)) {
+				uploadPath = ConfigUtil.CONFIG.getDefaultUploadPath();
+			}
+			Assert.notBlank(uploadPath);
 			Assert.isTrue(taskReq.getMaxSize() > 0);
 		} catch (Exception e) {
 			throw new MissingParamException();

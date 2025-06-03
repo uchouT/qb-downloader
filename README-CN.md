@@ -42,12 +42,9 @@ WantedBy=multi-user.target
 ### Docker（推荐）
 
 ```yaml
-version: '3.8'
-
 services:
   qb-downloader:
     network_mode: "host"
-    image: uchout/qb-downloader:latest  # 从 Dockerfile 构建
     container_name: qb-downloader
     environment:
       - PORT=7845
@@ -55,8 +52,6 @@ services:
     volumes:
       - ./config/qb-downloader:/config
       - ./downloads:/downloads
-    ports:
-      - "7845:7845"
     restart: unless-stopped
     image: uchout/qb-downloader:latest
 ```

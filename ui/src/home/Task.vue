@@ -1,7 +1,7 @@
 <template>
     <div class="task-form">
         <el-form ref="formRef" :model="props.taskData" :rules="rules" label-position="right" label-width="140px">
-            <el-form-item label="上传路径" prop="uploadPath">
+            <el-form-item label="上传路径">
                 <el-input v-model="props.taskData.uploadPath" :placeholder="pathTips" />
             </el-form-item>
             <el-form-item label="文件大小限制" prop="maxSize">
@@ -53,7 +53,6 @@ const pathTips = computed(()=> {
 })
 const rules = ref({
     uploadType: [{ required: true, message: '请选择上传工具', trigger: 'change' }],
-    uploadPath: [{ required: true, message: '请输入上传路径', trigger: 'blur' }],
     maxSize: [{ required: true, message: '请输入文件大小限制', trigger: 'blur' }]
 })
 

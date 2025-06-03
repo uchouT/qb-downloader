@@ -222,7 +222,7 @@ public class QbUtil {
                         for (JsonElement jsonElement : jsonArray) {
                             JsonObject jsonObject = jsonElement.getAsJsonObject();
                             int index = jsonObject.get("index").getAsInt();
-                            int size = jsonObject.get("size").getAsInt();
+                            long size = jsonObject.get("size").getAsLong();
                             String path = jsonObject.get("name").getAsString();
                             TorrentContent torrentContent = new TorrentContent();
                             torrentContent.setIndex(index).setSize(size);

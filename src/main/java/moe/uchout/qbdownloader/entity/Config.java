@@ -41,7 +41,6 @@ public class Config implements Serializable {
      */
     private String alistToken;
 
-
     /**
      * rclone rcd 地址
      */
@@ -86,4 +85,9 @@ public class Config implements Serializable {
      * 默认分享时间
      */
     private int defaultSeedingTimeLimit;
+
+    /**
+     * 默认上传路径
+     */
+    private String defaultUploadPath;
 }

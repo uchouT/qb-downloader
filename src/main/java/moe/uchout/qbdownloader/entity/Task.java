@@ -99,7 +99,7 @@ public class Task implements Serializable {
     /**
      * 任务最大占用空间
      */
-    private int maxSize;
+    private long maxSize;
 
     /**
      * rclone 任务 ID，用于监控状态

@@ -14,5 +14,5 @@ public class TorrentContent {
     /**
      * 文件大小
      */
-    private int size;
+    private long size;
 }

@@ -39,7 +39,8 @@ public class ConfigUtil {
                 .setDefaultSavePath("")
                 .setAccount(new Login().setUsername("admin").setPassword(password))
                 .setDefaultRatioLimit("-2")
-                .setDefaultSeedingTimeLimit(-2);
+                .setDefaultSeedingTimeLimit(-2)
+                .setDefaultUploadPath("");
     }
 
     /**
