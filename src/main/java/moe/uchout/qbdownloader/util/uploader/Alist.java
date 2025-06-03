@@ -4,6 +4,7 @@ import java.io.File;
 
 import com.google.gson.JsonObject;
 import moe.uchout.qbdownloader.entity.Task;
+import moe.uchout.qbdownloader.enums.Status;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.URLUtil;
 import cn.hutool.http.Header;
@@ -67,6 +68,7 @@ public class Alist implements Uploader {
             log.info("Alist 上传文件: {} -> {}");
         } catch (Exception e) {
             log.error("Alist 上传文件失败: {}", e.getMessage(), e);
+            task.setStatus(Status.ERROR);
         }
     }
 
@@ -92,6 +94,7 @@ public class Alist implements Uploader {
                     });
         } catch (Exception e) {
             log.error("Alist 服务不可用", e);
+            task.setStatus(Status.ERROR);
             return false;
         }
     }

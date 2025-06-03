@@ -57,7 +57,7 @@ public class QbUtil {
     }
 
     /**
-     * 获取种子的信息，带有 QBD 分类
+     * 获取种子的实时信息，带有 QBD 分类
      * 
      * @return 种子信息列表，没有种子信息返回空列表
      */
@@ -66,25 +66,17 @@ public class QbUtil {
             return HttpRequest.get(host + "/api/v2/torrents/info")
                     .form("category", TorrentsInfo.category)
                     .thenFunction(res -> {
-                        Assert.isTrue(res.isOk(), "status code: {}");
+                        Assert.isTrue(res.isOk(), "status code: {}, msg: {}", res.getStatus(), res.body());
                         List<TorrentsInfo> torrentsInfosList = new ArrayList<>();
                         JsonArray jsonArray = GsonStatic.fromJson(res.body(), JsonArray.class);
                         for (JsonElement jsonElement : jsonArray) {
                             JsonObject jsonObject = jsonElement.getAsJsonObject();
                             String hash = jsonObject.get("hash").getAsString();
-                            String name = jsonObject.get("name").getAsString();
                             String state = jsonObject.get("state").getAsString();
                             Float progress = jsonObject.get("progress").getAsFloat();
-                            int size = jsonObject.get("size").getAsInt();
-                            int downloaded = jsonObject.get("downloaded").getAsInt();
-                            String eta = jsonObject.get("eta").getAsString();
 
                             TorrentsInfo torrentsInfo = new TorrentsInfo();
                             torrentsInfo.setHash(hash)
-                                    .setSize(size)
-                                    .setDownloaded(downloaded)
-                                    .setEta(eta)
-                                    .setName(name)
                                     .setState(state)
                                     .setProgress(progress);
                             torrentsInfosList.add(torrentsInfo);

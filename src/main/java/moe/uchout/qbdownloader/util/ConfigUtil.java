@@ -16,7 +16,6 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.introspector.BeanAccess;
 import org.yaml.snakeyaml.representer.Representer;
 
-// TODO: 主程序密码需要加密
 @Slf4j
 public class ConfigUtil {
     public static final String CONFIG_DIR = System.getenv().getOrDefault("CONFIG", "config");
@@ -73,6 +72,17 @@ public class ConfigUtil {
                     log.error("无法创建torrents目录: {}", torrentsDir.getAbsolutePath());
                     throw new RuntimeException("Torrents目录创建失败");
                 }
+            }
+
+            File logsDir = new File(configDir, "logs");
+            if (!logsDir.exists()) {
+                if (logsDir.mkdirs()) {
+                    log.info("Logs目录已创建: {}", logsDir.getAbsolutePath());
+                } else {
+                    log.error("无法创建logs目录: {}", logsDir.getAbsolutePath());
+                    throw new RuntimeException("Logs目录创建失败");
+                }
+
             }
 
             log.debug("配置目录初始化完成: {}", configDir.getAbsolutePath());

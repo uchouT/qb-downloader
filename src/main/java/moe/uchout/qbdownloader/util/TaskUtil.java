@@ -192,6 +192,7 @@ public class TaskUtil {
         FileUtil.del(TORRENT_FILE_PATH + hash + ".torrent");
         QbUtil.delete(hash, true);
         sync();
+        log.info("删除任务成功: {}", hash);
     }
 
     /**

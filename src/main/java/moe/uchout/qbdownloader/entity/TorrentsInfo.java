@@ -16,10 +16,6 @@ public class TorrentsInfo {
      */
     private String hash;
 
-    /**
-     * 种子名称
-     */
-    private String name;
 
     /**
      * 种子下载状态
@@ -27,22 +23,7 @@ public class TorrentsInfo {
     private String state;
 
     /**
-     * 当前已下载文件大小，单位字节
-     */
-    private int downloaded;
-
-    /**
      * 种子下载进度
      */
     private float progress;
-
-    /**
-     * 种子下载剩余时间
-     */
-    private String eta;
-
-    /**
-     * 种子文件大小
-     */
-    private int size;
 }

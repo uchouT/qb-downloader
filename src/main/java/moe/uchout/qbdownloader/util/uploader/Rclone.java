@@ -4,6 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import moe.uchout.qbdownloader.util.ConfigUtil;
 import moe.uchout.qbdownloader.util.GsonStatic;
 import moe.uchout.qbdownloader.entity.Task;
+import moe.uchout.qbdownloader.enums.Status;
+
 import com.google.gson.JsonObject;
 
 import cn.hutool.core.lang.Assert;
@@ -56,6 +58,7 @@ public class Rclone implements Uploader {
                     });
         } catch (Exception e) {
             log.error("rclone copy error: {}", e.getMessage());
+            task.setStatus(Status.ERROR);
         }
     }
 
@@ -87,6 +90,7 @@ public class Rclone implements Uploader {
                     if (finished && !success) {
                         String message = jsonObject.get("error").getAsString();
                         log.error(message);
+                        task.setStatus(Status.ERROR);
                         // TODO
                         throw new RuntimeException("Rclone 任务失败: " + message);
                     }

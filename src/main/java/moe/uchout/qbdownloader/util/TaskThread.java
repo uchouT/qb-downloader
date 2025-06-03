@@ -48,7 +48,8 @@ public class TaskThread extends Thread {
             updateTaskStatus();
             for (Task task : TaskUtil.getTaskList().values()) {
                 Status status = task.getStatus();
-                if (status == Status.DOWNLOADING || status == Status.PAUSED || status == Status.ALL_FINISHED) {
+                if (status == Status.DOWNLOADING || status == Status.PAUSED || status == Status.ALL_FINISHED
+                        || status == Status.ERROR) {
                     continue;
                 } else if (status == Status.ON_TASK) {
                     task.runCheck();
@@ -134,7 +135,9 @@ public class TaskThread extends Thread {
 
     private void cleanupBeforeExit() {
         TaskUtil.sync();
-    }    public void stopTask() {
+    }
+
+    public void stopTask() {
         log.info("Stopping task thread...");
         running = false;
         this.interrupt();
