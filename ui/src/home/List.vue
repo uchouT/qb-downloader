@@ -18,6 +18,9 @@
                                 <el-tag :type="getStatusType(task.status)" size="small">
                                     {{ getStatusText(task.status) }}
                                 </el-tag>
+                                <el-tag v-if="task.seeding" type="info" size="small">
+                                    做种中
+                                </el-tag>
                                 <span class="task-progress">
                                     分片: {{ task.currentPartNum + 1 }}/{{ task.totalPartNum }}
                                 </span>
@@ -89,7 +92,7 @@ let pollingTimer = null
 // 状态映射
 const statusTextMap = {
     'ON_TASK': '上传中',
-    'FINISHED': '分片完成',
+    'FINISHED': '上传完成',
     'DONWLOADED': '下载完成',
     'DOWNLOADING': '下载中',
     'ALL_FINISHED': '全部完成',
@@ -277,6 +280,7 @@ defineExpose({
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    gap: 1rem;
 }
 
 .task-info {
@@ -298,6 +302,7 @@ defineExpose({
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap;
 }
 
 .task-progress {
@@ -352,5 +357,138 @@ defineExpose({
 
 .tasks-container::-webkit-scrollbar-thumb:hover {
     background: var(--el-border-color-dark);
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .task-header {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .task-info {
+    width: 100%;
+  }
+  
+  .task-name {
+    font-size: 14px;
+    line-height: 1.4;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    word-break: break-word;
+  }
+  
+  .task-meta {
+    gap: 8px;
+    justify-content: flex-start;
+  }
+  
+  .task-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .task-actions .el-button-group {
+    width: 100%;
+    display: flex;
+  }
+  
+  .task-actions .el-button {
+    flex: 1;
+    justify-content: center;
+  }
+  
+  .detail-row {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .label {
+    min-width: auto;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  
+  .value {
+    font-size: 13px;
+    padding-left: 8px;
+  }
+  
+  .tasks-container {
+    padding-right: 4px;
+  }
+  
+  .task-card {
+    margin-bottom: 12px;
+  }
+}
+
+/* 超小屏适配 */
+@media (max-width: 480px) {
+  .list-header {
+    padding: 0 4px;
+    margin-bottom: 12px;
+  }
+  
+  .list-header h3 {
+    font-size: 16px;
+  }
+  
+  .task-name {
+    font-size: 13px;
+  }
+  
+  .task-actions .el-button {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+  
+  .task-details {
+    margin-top: 12px;
+  }
+  
+  .detail-row {
+    margin-bottom: 6px;
+  }
+  
+  .label {
+    font-size: 11px;
+  }
+  
+  .value {
+    font-size: 12px;
+  }
+}
+
+/* 平板适配 */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .task-header {
+    gap: 1.25rem;
+  }
+  
+  .task-name {
+    font-size: 15px;
+  }
+  
+  .task-meta {
+    gap: 10px;
+  }
+}
+
+/* 桌面端优化 */
+@media (min-width: 1025px) {
+  .task-card:hover {
+    transform: translateY(-2px);
+    transition: transform 0.2s ease;
+  }
+  
+  .task-name {
+    font-size: 17px;
+  }
+  
+  .task-actions .el-button {
+    transition: all 0.2s ease;
+  }
 }
 </style>

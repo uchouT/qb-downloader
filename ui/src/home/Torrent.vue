@@ -1,6 +1,6 @@
-<template>
-    <el-dialog v-model="dialogVisible" :close-on-click-modal="!metadataDownloading || !torrentParsed"
-        :close-on-press-escape="!metadataDownloading || !torrentParsed" title="任务添加" width="50%">
+<template>    <el-dialog v-model="dialogVisible" :close-on-click-modal="!metadataDownloading || !torrentParsed"
+        :close-on-press-escape="!metadataDownloading || !torrentParsed" title="任务添加" 
+        :width="dialogWidth" class="torrent-dialog">
         <div v-show="!torrentParsed">
             <el-tabs v-model="activeTab" tab-position="top" style="height: 200px">
                 <el-tab-pane label="Url" name="url">
@@ -18,15 +18,15 @@
                 <el-tab-pane label="File" name="file">
                     <el-upload ref="upload" action="/api/torrent" :limit="1" :auto-upload="false" :data="uploadData"
                         name="torrent" :headers="uploadHeaders" :on-success="handleUploadSuccess"
-                        :on-error="handleUploadError" :on-change="handleFileChange">
+                        :on-error="handleUploadError" :on-change="handleFileChange" v-model:file-list="filelist">
                         <template #trigger>
                             <el-button type="primary">选择文件</el-button>
                         </template>
                     </el-upload>
 
                     <el-form-item label="保存路径" style="margin-top: 16px;">
-                        <el-input v-model:model-value="torrentFile.savePath" type="textarea"
-                            placeholder="/home/user/downloads" :disabled="metadataDownloading" />
+                        <el-input v-model:model-value="torrentFile.savePath" type="textarea" placeholder="保存路径"
+                            :disabled="metadataDownloading" />
                     </el-form-item>
                     <template #tip>
                         <div class="el-upload__tip text-red">
@@ -35,7 +35,11 @@
                     </template>
                 </el-tab-pane>
             </el-tabs>
-        </div> <template #footer v-if="!torrentParsed">
+        </div>
+        <div v-if="torrentParsed">
+            <Task v-model:taskData="taskAdd" @ok="addTask" @cancel="handleCancel" />
+        </div>
+        <template #footer v-if="!torrentParsed">
             <span class="dialog-footer">
                 <el-button @click="handleCancel">取消</el-button>
                 <el-button type="primary" @click="handleConfirm" :loading="metadataDownloading" :disabled="!canConfirm">
@@ -43,27 +47,27 @@
                 </el-button>
             </span>
         </template>
-        <div v-if="torrentParsed">
-            <Task v-model:taskData="taskAdd" @ok="addTask" />
-        </div>
     </el-dialog>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useWindowSize } from '@vueuse/core'
 import api from '../api'
 import Task from './Task.vue'
 
 const emit = defineEmits(['load'])
+const { width } = useWindowSize()
 const dialogVisible = ref(false)
 const metadataDownloading = ref(false)
 const activeTab = ref('url') // 当前激活的标签页
+const filelist = ref([])
 const fileSelected = ref(false) // 文件是否已选择
 const torrentParsed = ref(false)
 const torrentUrl = ref({
     url: '',
-    savePath: null,
+    savePath: '',
 })
 const torrentFile = ref({
     savePath: ''
@@ -124,6 +128,17 @@ const getConfirmButtonText = () => {
     return activeTab.value === 'url' ? '添加URL' : '上传并添加'
 }
 
+// 响应式对话框宽度
+const dialogWidth = computed(() => {
+    if (width.value <= 768) {
+        return '95%'
+    } else if (width.value <= 1024) {
+        return '70%'
+    } else {
+        return '50%'
+    }
+})
+
 const show = () => {
     dialogVisible.value = true
     activeTab.value = 'url'
@@ -146,7 +161,7 @@ const show = () => {
     torrentFile.value = {
         savePath: ''
     }
-
+    filelist.value = []
 
     // 更新授权头
     uploadHeaders.value.Authorization = window.authorization || ''
@@ -163,8 +178,19 @@ const handleConfirm = async () => {
 // URL 页面的确认处理
 const handleUrlConfirm = async () => {
     metadataDownloading.value = true
+
+    // 准备请求数据，如果 savePath 为空则不包含该字段
+    const requestData = {
+        url: torrentUrl.value.url
+    }
+
+    // 只有当 savePath 有值时才包含该字段
+    if (torrentUrl.value.savePath && torrentUrl.value.savePath.trim()) {
+        requestData.savePath = torrentUrl.value.savePath
+    }
+
     // 调用API添加URL
-    api.post('/api/torrent', torrentUrl.value)
+    api.post('/api/torrent', requestData)
         .then(res => {
             taskAdd.value.torrentRes = res['data']
             torrentParsed.value = true
@@ -249,3 +275,95 @@ const handleCancel = () => {
 
 defineExpose({ show })
 </script>
+
+<style scoped>
+.torrent-dialog {
+    border-radius: 12px;
+}
+
+.torrent-dialog :deep(.el-dialog__header) {
+    padding: 1.5rem 1.5rem 1rem;
+    border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.torrent-dialog :deep(.el-dialog__body) {
+    padding: 1.5rem;
+}
+
+.torrent-dialog :deep(.el-dialog__footer) {
+    padding: 1rem 1.5rem 1.5rem;
+    border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.torrent-dialog :deep(.el-tabs__content) {
+    padding-top: 1rem;
+}
+
+.torrent-dialog :deep(.el-form-item) {
+    margin-bottom: 1.25rem;
+}
+
+.torrent-dialog :deep(.el-upload__tip) {
+    margin-top: 0.5rem;
+    font-size: 12px;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .torrent-dialog :deep(.el-dialog__header) {
+        padding: 1rem 1rem 0.75rem;
+    }
+    
+    .torrent-dialog :deep(.el-dialog__body) {
+        padding: 1rem;
+    }
+    
+    .torrent-dialog :deep(.el-dialog__footer) {
+        padding: 0.75rem 1rem 1rem;
+    }
+    
+    .torrent-dialog :deep(.el-tabs__header) {
+        margin-bottom: 0.75rem;
+    }
+    
+    .torrent-dialog :deep(.el-form-item) {
+        margin-bottom: 1rem;
+    }
+    
+    .torrent-dialog :deep(.el-form-item__label) {
+        font-size: 14px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .torrent-dialog :deep(.el-textarea__inner) {
+        font-size: 14px;
+    }
+    
+    .torrent-dialog :deep(.el-button) {
+        font-size: 14px;
+        padding: 8px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .torrent-dialog :deep(.el-dialog__header) {
+        padding: 0.75rem 0.75rem 0.5rem;
+    }
+    
+    .torrent-dialog :deep(.el-dialog__body) {
+        padding: 0.75rem;
+    }
+    
+    .torrent-dialog :deep(.el-dialog__footer) {
+        padding: 0.5rem 0.75rem 0.75rem;
+    }
+    
+    .torrent-dialog :deep(.el-form-item__label) {
+        font-size: 13px;
+    }
+    
+    .torrent-dialog :deep(.el-textarea__inner) {
+        font-size: 13px;
+    }
+}
+</style>

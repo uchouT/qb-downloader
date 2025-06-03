@@ -29,7 +29,10 @@
             </el-form-item>
         </el-form>
         <div class="form-actions">
-            <el-button type="primary" :loading="loading" @click="handleSubmit">完成</el-button>
+            <span>
+                <el-button @click="async () => { emit('cancel') }">取消</el-button>
+                <el-button type="primary" :loading="loading" @click="handleSubmit">完成</el-button>
+            </span>
         </div>
     </div>
 </template>
@@ -39,7 +42,7 @@ import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps(['taskData'])
-const emit = defineEmits(['ok'])
+const emit = defineEmits(['ok', 'cancel'])
 const loading = ref(false)
 const formRef = ref(null)
 
@@ -92,5 +95,100 @@ const handleSubmit = async () => {
 .form-actions {
     margin-top: 24px;
     text-align: right;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .task-form {
+        padding: 12px 8px;
+    }
+    
+    .aligned-form {
+        max-width: 100%;
+    }
+    
+    .aligned-form :deep(.el-form-item__label) {
+        width: 120px !important;
+        text-align: left;
+        font-size: 14px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .aligned-form .el-form-item {
+        margin-bottom: 1rem;
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .aligned-form :deep(.el-form-item__content) {
+        margin-left: 0 !important;
+    }
+    
+    .aligned-form :deep(.el-input),
+    .aligned-form :deep(.el-input-number) {
+        width: 100%;
+    }
+    
+    .aligned-form :deep(.el-radio-group) {
+        width: 100%;
+        display: flex;
+        gap: 1rem;
+    }
+    
+    .warning-text {
+        margin: 12px 0;
+        padding: 10px;
+        font-size: 13px;
+    }
+    
+    .form-actions {
+        margin-top: 1rem;
+        text-align: center;
+    }
+    
+    .form-actions span {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+    }
+    
+    .form-actions :deep(.el-button) {
+        flex: 1;
+        font-size: 14px;
+        padding: 10px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .task-form {
+        padding: 10px 6px;
+    }
+    
+    .aligned-form :deep(.el-form-item__label) {
+        width: 100px !important;
+        font-size: 13px;
+    }
+    
+    .aligned-form .el-form-item {
+        margin-bottom: 0.875rem;
+    }
+    
+    .warning-text {
+        padding: 8px;
+        font-size: 12px;
+        margin: 10px 0;
+    }
+    
+    .form-actions :deep(.el-button) {
+        font-size: 13px;
+        padding: 9px 14px;
+    }
+}
+
+/* 平板适配 */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .aligned-form :deep(.el-form-item__label) {
+        width: 160px !important;
+    }
 }
 </style>

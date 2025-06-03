@@ -134,17 +134,23 @@ public class TaskThread extends Thread {
 
     private void cleanupBeforeExit() {
         TaskUtil.sync();
-    }
-
-    public void stopTask() {
+    }    public void stopTask() {
+        log.info("Stopping task thread...");
         running = false;
         this.interrupt();
         try {
-            this.join(10000);
+            this.join(5000); // 减少等待时间到5秒
             if (this.isAlive()) {
-                log.error("forcefully stopping task thread");
+                log.warn("Task thread did not stop gracefully within 5 seconds, forcing stop...");
+                this.join(2000);
+                if (this.isAlive()) {
+                    log.error("Task thread is still alive after forced stop attempt");
+                }
+            } else {
+                log.info("Task thread stopped gracefully");
             }
         } catch (InterruptedException e) {
+            log.warn("Interrupted while waiting for task thread to stop");
             Thread.currentThread().interrupt();
         }
     }

@@ -22,6 +22,7 @@ import moe.uchout.qbdownloader.annotation.Path;
 import moe.uchout.qbdownloader.api.BaseAction;
 import moe.uchout.qbdownloader.auth.AuthUtil;
 import moe.uchout.qbdownloader.entity.Result;
+import moe.uchout.qbdownloader.api.RootAction;
 import static moe.uchout.qbdownloader.auth.AuthUtil.getIp;
 
 @Slf4j
@@ -104,7 +105,7 @@ public class ServerUtil {
      * 注册 API
      */
     private static void registerApi() {
-        // server.addAction("/", new RootAction());
+        server.addAction("/", new RootAction());
         Set<Class<?>> classes = ClassUtil.scanPackageByAnnotation("moe.uchout.qbdownloader.api", Path.class);
         for (Class<?> clazz : classes) {
             Path path = clazz.getAnnotation(Path.class);

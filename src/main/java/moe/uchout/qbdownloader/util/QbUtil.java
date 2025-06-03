@@ -46,7 +46,6 @@ public class QbUtil {
                     .form("password", password)
                     .setFollowRedirects(true)
                     .thenFunction(res -> {
-                        log.debug(res.body());
                         String body = res.body();
                         Assert.isTrue(res.isOk() && "Ok.".equals(body));
                         return true;

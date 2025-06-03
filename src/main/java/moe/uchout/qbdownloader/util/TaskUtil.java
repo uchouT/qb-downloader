@@ -31,9 +31,8 @@ import moe.uchout.qbdownloader.entity.TorrentContent;
  */
 @Slf4j
 public class TaskUtil {
-
-    private static final String TASK_FILE_PATH = "configs/tasks.json";
-    private static final String TORRENT_FILE_PATH = "configs/torrents/";
+    private static final String TASK_FILE_PATH = ConfigUtil.CONFIG_DIR + File.separator + "task.json";
+    private static final String TORRENT_FILE_PATH = ConfigUtil.CONFIG_DIR + File.separator + "torrents" + File.separator;
     /**
      * 任务列表
      */
@@ -43,7 +42,6 @@ public class TaskUtil {
         return TASK_LIST;
     }
 
-    //TODO
     public static void start(String hash) {
         Task task = TASK_LIST.get(hash);
         if (task == null) {
