@@ -89,14 +89,9 @@ public class TaskAction implements BaseAction {
 	 */
 	private void post(HttpServerRequest req) throws IOException, MissingParamException, TaskException {
 		TaskReq taskReq = getBody(TaskReq.class);
+		String uploadPath = taskReq.getUploadPath();
 		try {
 			Assert.notNull(taskReq.getUploadType());
-			String savePath = taskReq.getTorrentRes().getSavePath();
-			if (StrUtil.isBlank(savePath)) {
-				savePath = ConfigUtil.CONFIG.getDefaultSavePath();
-			}
-			Assert.notBlank(savePath);
-			String uploadPath = taskReq.getUploadPath();
 			if (StrUtil.isBlank(uploadPath)) {
 				uploadPath = ConfigUtil.CONFIG.getDefaultUploadPath();
 			}
@@ -105,7 +100,7 @@ public class TaskAction implements BaseAction {
 		} catch (Exception e) {
 			throw new MissingParamException();
 		}
-		taskReq.setUploadPath(rectifyHost(taskReq.getUploadPath()));
+		taskReq.setUploadPath(rectifyHost(uploadPath));
 		TaskUtil.addTask(taskReq.getTorrentRes(), taskReq.getUploadType(), taskReq.getUploadPath(),
 				taskReq.getMaxSize(), taskReq.getSeedingTimeLimit(), taskReq.getRatioLimit());
 	}
