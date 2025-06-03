@@ -3,7 +3,7 @@
         <el-form ref="formRef" :model="props.taskData" :rules="rules" label-position="right" label-width="140px"
             class="aligned-form">
             <el-form-item label="upload path" prop="uploadPath">
-                <el-input v-model="props.taskData.uploadPath" placeholder="输入上传路径" />
+                <el-input v-model="props.taskData.uploadPath" :placeholder="pathTips" />
             </el-form-item>
             <el-form-item label="max size" prop="maxSize">
                 <el-input-number v-model="props.taskData.maxSize" precision="2">
@@ -38,14 +38,16 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps(['taskData'])
 const emit = defineEmits(['ok', 'cancel'])
 const loading = ref(false)
 const formRef = ref(null)
-
+const pathTips = computed(()=> {
+    return props.taskData.uploadType === 'rclone' ? 'dest:/path/to/upload': '/path/to/upload'
+})
 const rules = ref({
     uploadType: [{ required: true, message: '请选择上传方式', trigger: 'change' }],
     uploadPath: [{ required: true, message: '请输入上传路径', trigger: 'blur' }],

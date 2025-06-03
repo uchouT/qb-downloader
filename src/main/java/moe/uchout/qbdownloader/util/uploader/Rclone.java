@@ -82,7 +82,6 @@ public class Rclone implements Uploader {
                 .thenFunction(res -> {
                     Assert.isTrue(res.isOk(), res.body());
                     JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
-                    log.debug(jsonObject.toString());
                     boolean success = jsonObject.get("success").getAsBoolean();
                     boolean finished = jsonObject.get("finished").getAsBoolean();
                     if (finished && !success) {

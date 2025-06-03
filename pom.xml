@@ -87,46 +87,6 @@
                 </configuration>
             </plugin>
 
-            <!-- Frontend Build Plugin -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <!-- Install npm dependencies -->
-                    <execution>
-                        <id>npm install</id>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <phase>generate-resources</phase>
-                        <configuration>
-                            <executable>npm.cmd</executable>
-                            <arguments>
-                                <argument>install</argument>
-                            </arguments>
-                            <workingDirectory>${project.basedir}/ui</workingDirectory>
-                        </configuration>
-                    </execution>
-                    <!-- Build frontend -->
-                    <execution>
-                        <id>npm run build</id>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <phase>generate-resources</phase>
-                        <configuration>
-                            <executable>npm.cmd</executable>
-                            <arguments>
-                                <argument>run</argument>
-                                <argument>build</argument>
-                            </arguments>
-                            <workingDirectory>${project.basedir}/ui</workingDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
             <!-- Copy Frontend Dist to Resources -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

@@ -107,6 +107,10 @@ public class Task implements Serializable {
     private int rcloneJobId;
 
     /**
+     * alist 任务 ID
+     */
+    private String alistJobId;
+    /**
      * 做种时间
      */
     private int seedingTimeLimit;

@@ -48,7 +48,7 @@ public class Alist implements Uploader {
                         .setConfig(httpConfig)
                         .timeout(1000 * 60 * 2)
                         .header(Header.AUTHORIZATION, alistToken)
-                        .header("As-Task", "false")
+                        .header("As-Task", "true")
                         .header(Header.CONTENT_LENGTH, String.valueOf(file.length()))
                         .header("File-Path", URLUtil.encode(remotePath))
                         .form("file", file)
@@ -56,6 +56,9 @@ public class Alist implements Uploader {
                             Assert.isTrue(res.isOk(), "上传失败 {} 状态码:{}", filePath, res.getStatus());
                             JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
                             int code = jsonObject.get("code").getAsInt();
+                            String jobId = jsonObject.getAsJsonObject("data").getAsJsonObject("task").get("id")
+                                    .getAsString();
+                            task.setAlistJobId(jobId);
                             log.debug(jsonObject.toString());
                             Assert.isTrue(code == 200, "上传失败 {} 状态码:{}", filePath, code);
                             log.info("Alist 上传文件成功: {} -> {}", file.getName(), remotePath + "/" + file.getPath());
@@ -75,8 +78,18 @@ public class Alist implements Uploader {
     @Override
     public boolean check(Task task) {
         try {
-            // TODO
-            return true;
+            String host = ConfigUtil.CONFIG.getAlistHost();
+            String token = ConfigUtil.CONFIG.getAlistToken();
+            return HttpRequest.post(host + "/api/task/upload/info?tid=" + task.getAlistJobId())
+                    .header(Header.AUTHORIZATION, token)
+                    .timeout(1000 * 20)
+                    .thenFunction(res -> {
+                        Assert.isTrue(res.isOk());
+                        JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
+                        JsonObject data = jsonObject.getAsJsonObject("data");
+                        int state = data.get("state").getAsInt();
+                        return state == 2;
+                    });
         } catch (Exception e) {
             log.error("Alist 服务不可用", e);
             return false;
