@@ -32,7 +32,8 @@ import moe.uchout.qbdownloader.entity.TorrentContent;
 @Slf4j
 public class TaskUtil {
     private static final String TASK_FILE_PATH = ConfigUtil.CONFIG_DIR + File.separator + "task.json";
-    private static final String TORRENT_FILE_PATH = ConfigUtil.CONFIG_DIR + File.separator + "torrents" + File.separator;
+    private static final String TORRENT_FILE_PATH = ConfigUtil.CONFIG_DIR + File.separator + "torrents"
+            + File.separator;
     /**
      * 任务列表
      */
@@ -125,7 +126,6 @@ public class TaskUtil {
             List<List<Integer>> order = getTaskOrder(contents, task.getMaxSize());
             task.setTotalPartNum(order.size());
             task.setTaskOrder(order);
-            TASK_LIST.put(hash, task);
             Thread.sleep(1000);
             boolean setNotDownload = QbUtil.setNotDownload(task);
             Assert.isTrue(setNotDownload, "设置不下载失败");
@@ -133,6 +133,7 @@ public class TaskUtil {
             QbUtil.setShareLimit(hash, ratioLimit, seedingTimeLimit);
             QbUtil.start(hash);
             task.setStatus(Status.DOWNLOADING);
+            TASK_LIST.put(hash, task);
             log.info("添加任务成功: {}", task.getName());
             sync();
         } catch (Exception e) {
