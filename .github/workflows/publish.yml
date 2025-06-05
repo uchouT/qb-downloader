@@ -53,7 +53,7 @@ jobs:
           tag_name: ${{ steps.get_version.outputs.TAG }}
           name: Release ${{ steps.get_version.outputs.VERSION }}
           body_path: UPDATE.md
-          files: target/qbdownloader.jar
+          files: target/qb-downloader.jar
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
