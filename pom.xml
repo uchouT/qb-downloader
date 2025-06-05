@@ -6,7 +6,7 @@
 
     <groupId>uchout.qbdownloader</groupId>
     <artifactId>qbdownloader</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -54,7 +54,7 @@
         </dependency>    </dependencies>
 
     <build>
-        <finalName>qbdownloader</finalName>
+        <finalName>qb-downloader</finalName>
         <plugins>
             <!-- Maven Compiler Plugin -->
             <plugin>

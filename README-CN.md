@@ -1,3 +1,8 @@
+<div align="center">
+<img src="ui/public/android-chrome-512x512.png" height="100"/>
+<h1 style="margin-top: 0">Qb-downloader</h1>
+</div>
+
 # Qb-downloader
 
 [English](README.md)

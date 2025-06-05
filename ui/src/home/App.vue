@@ -5,22 +5,18 @@
     <header class="app-header">
       <div class="header-content">
         <div class="app-logo">
-          <h1 class="app-title">qb-downloader</h1>
+          <img src="../../public/icon.png" class="app-icon" />
+          <h1 class="app-title">b-downloader</h1>
         </div>
         <nav class="header-actions">
-          <el-button 
-            class="action-button add-button" 
-            type="primary" 
-            @click="torrent?.show()"
+          <el-button class="action-button add-button" type="primary" @click="torrent?.show()"
             :size="isNotMobile() ? 'default' : 'small'">
             <el-icon>
               <Plus />
             </el-icon>
             <span v-if="isNotMobile()">添加任务</span>
           </el-button>
-          <el-button 
-            class="action-button config-button" 
-            @click="config?.show()"
+          <el-button class="action-button config-button" @click="config?.show()"
             :size="isNotMobile() ? 'default' : 'small'">
             <el-icon>
               <Setting />
@@ -30,19 +26,23 @@
         </nav>
       </div>
     </header>
-    
     <main class="app-main">
       <div class="main-content">
         <List ref="taskList" />
       </div>
     </main>
+
+    <!-- 浮动退出登录按钮 -->
+    <el-button class="logout-button" @click="logout" type="danger">
+      退出
+    </el-button>
   </div>
 </template>
 
 <script setup>
 import { ref } from "vue";
 import { useWindowSize } from "@vueuse/core";
-import { Fold, Plus, Setting, Tickets } from "@element-plus/icons-vue"
+import { Plus, Setting, Tickets } from "@element-plus/icons-vue"
 import Torrent from "./Torrent.vue";
 import Config from "./Config.vue";
 import List from "./List.vue";
@@ -53,25 +53,13 @@ const torrent = ref()
 const config = ref()
 const taskList = ref()
 
-// 方法定义
-const elIconClass = () => {
-  return isNotMobile() ? 'el-icon--left' : '';
-}
-
 const isNotMobile = () => {
   return width.value > 768;
 }
 
-const isMobile = () => {
-  return width.value <= 768;
-}
-
-const isTablet = () => {
-  return width.value > 768 && width.value <= 1024;
-}
-
-const isDesktop = () => {
-  return width.value > 1024;
+const logout = () => {
+  localStorage.removeItem('authorization')
+  location.reload()
 }
 
 // 当任务添加成功时刷新任务列表
@@ -108,6 +96,9 @@ const handleTaskAdded = () => {
 
 .app-logo {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.05rem;
 }
 
 .app-title {
@@ -119,6 +110,12 @@ const handleTaskAdded = () => {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.app-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
 }
 
 .header-actions {
@@ -171,27 +168,64 @@ const handleTaskAdded = () => {
   flex-direction: column;
 }
 
+/* 退出登录浮动按钮 */
+.logout-button {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  z-index: 999;
+  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.logout-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(245, 108, 108, 0.4);
+}
+
+.logout-button:active {
+  transform: translateY(0);
+}
+
+.logout-button .el-icon {
+  font-size: 1.25rem;
+}
+
 /* 移动端适配 */
 @media (max-width: 768px) {
   .header-content {
     padding: 0.75rem 1rem;
   }
-  
+
   .app-title {
     font-size: 1.25rem;
   }
-  
+
   .header-actions {
     gap: 0.5rem;
   }
-  
+
   .action-button {
     padding: 0.5rem;
     min-width: auto;
   }
-  
+
   .main-content {
     padding: 1rem;
+  }
+
+  .logout-button {
+    bottom: 1.5rem;
+    right: 1.5rem;
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .logout-button .el-icon {
+    font-size: 1.125rem;
   }
 }
 
@@ -199,13 +233,24 @@ const handleTaskAdded = () => {
   .header-content {
     padding: 0.5rem 0.75rem;
   }
-  
+
   .app-title {
     font-size: 1.125rem;
   }
-  
+
   .main-content {
     padding: 0.75rem;
+  }
+
+  .logout-button {
+    bottom: 1rem;
+    right: 1rem;
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .logout-button .el-icon {
+    font-size: 1rem;
   }
 }
 
@@ -214,7 +259,7 @@ const handleTaskAdded = () => {
   .header-content {
     padding: 1rem 2rem;
   }
-  
+
   .main-content {
     padding: 2rem;
   }
@@ -225,11 +270,11 @@ const handleTaskAdded = () => {
   .header-content {
     padding: 1.25rem 3rem;
   }
-  
+
   .app-title {
     font-size: 1.75rem;
   }
-  
+
   .main-content {
     padding: 2.5rem;
   }
@@ -240,11 +285,11 @@ const handleTaskAdded = () => {
   .header-content {
     padding: 1.5rem 4rem;
   }
-  
+
   .app-title {
     font-size: 2rem;
   }
-  
+
   .main-content {
     padding: 3rem;
   }
@@ -255,11 +300,11 @@ const handleTaskAdded = () => {
   .header-content {
     padding: 1.75rem 6rem;
   }
-  
+
   .app-title {
     font-size: 2.25rem;
   }
-  
+
   .main-content {
     padding: 4rem;
   }

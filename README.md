@@ -1,6 +1,5 @@
 <div align="center">
 <img src="ui/public/android-chrome-512x512.png" height="100"/>
-<br>
 <h1 style="margin-top: 0">Qb-downloader</h1>
 </div>
 
