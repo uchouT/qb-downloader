@@ -11,7 +11,7 @@
 
 Qb-downloader 允许你分部分完成 qBittorrent 任务并上传到云盘。这使得你可以下载超出本地最大可用存储空间的大型种子任务。
 
-支持的上传工具：[Rclone rcd](https://rclone.org/commands/rclone_rcd/)（推荐）和 [Alist](https://alistgo.com/)。
+支持的上传工具：[Rclone rcd](https://rclone.org/commands/rclone_rcd/)（推荐）
 
 典型的 qb-downloader 工作流程包括：
 1. 将种子任务分割成多个部分

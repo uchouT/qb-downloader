@@ -192,6 +192,7 @@ public class QbUtil {
     }
 
     /**
+     * TODO: 未来可能本地解析 torrent 信息，而不是调用 qbittorrent API
      * 获取种子的内容信息，将获取到的 rootDir, files, fileNum 应用到任务实体中，
      * precondition: 种子内容符合规范，只有一个根目录，里面包含所有文件
      * size 的单位是字节
@@ -207,23 +208,19 @@ public class QbUtil {
                     .thenFunction(res -> {
                         Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
                         List<TorrentContent> torrentContentList = new ArrayList<>();
-                        List<String> files = new ArrayList<>();
                         JsonArray jsonArray = GsonStatic.fromJson(res.body(), JsonArray.class);
                         int fileNum = 0;
-                        String savePath = task.getSavePath();
                         for (JsonElement jsonElement : jsonArray) {
                             JsonObject jsonObject = jsonElement.getAsJsonObject();
                             int index = jsonObject.get("index").getAsInt();
                             long size = jsonObject.get("size").getAsLong();
-                            String path = jsonObject.get("name").getAsString();
                             TorrentContent torrentContent = new TorrentContent();
                             torrentContent.setIndex(index).setSize(size);
                             torrentContentList.add(torrentContent);
-                            files.add(savePath + "/" + path);
                             fileNum++;
                         }
                         String rootDir = jsonArray.get(0).getAsJsonObject().get("name").getAsString().split("/")[0];
-                        task.setRootDir(rootDir).setFileNum(fileNum).setFiles(files);
+                        task.setRootDir(rootDir).setFileNum(fileNum);
                         return torrentContentList;
                     });
         } catch (Exception e) {

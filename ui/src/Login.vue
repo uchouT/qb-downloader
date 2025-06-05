@@ -7,7 +7,9 @@
     <div class="login-content">
       <div class="login-card">
         <div class="login-header">
-          <h1 class="app-title">qb-downloader</h1>
+          <div style="text-align: center;">
+          <img src="../public/icon.png" height="100" width="100" alt="icon.png"/>
+        </div>
         </div>
         
         <el-form class="login-form" @keyup.enter="login" @submit="login">
@@ -245,17 +247,6 @@ el.style.setProperty('--el-color-primary', useLocalStorage('--el-color-primary',
   margin-bottom: 2.5rem;
 }
 
-.app-title {
-  margin: 0 0 0.5rem 0;
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--el-color-primary);
-  background: linear-gradient(135deg, var(--el-color-primary), var(--el-color-primary-light-3));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
 .app-subtitle {
   margin: 0;
   font-size: 0.875rem;
@@ -365,10 +356,6 @@ el.style.setProperty('--el-color-primary', useLocalStorage('--el-color-primary',
     margin: 1rem 0;
   }
   
-  .app-title {
-    font-size: 1.75rem;
-  }
-  
   .app-subtitle {
     font-size: 0.8rem;
   }
@@ -401,9 +388,6 @@ el.style.setProperty('--el-color-primary', useLocalStorage('--el-color-primary',
     border-radius: 8px;
   }
   
-  .app-title {
-    font-size: 1.5rem;
-  }
   
   .app-subtitle {
     font-size: 0.75rem;
@@ -428,10 +412,7 @@ el.style.setProperty('--el-color-primary', useLocalStorage('--el-color-primary',
     padding: 1.25rem 1rem;
   }
   
-  .app-title {
-    font-size: 1.375rem;
-  }
-  
+
   .login-button {
     height: 42px;
     font-size: 0.85rem;
@@ -443,10 +424,6 @@ el.style.setProperty('--el-color-primary', useLocalStorage('--el-color-primary',
   .login-card {
     padding: 3.5rem 3rem;
     max-width: 450px;
-  }
-  
-  .app-title {
-    font-size: 2.25rem;
   }
   
   .app-subtitle {
@@ -473,10 +450,6 @@ el.style.setProperty('--el-color-primary', useLocalStorage('--el-color-primary',
   
   .login-header {
     margin-bottom: 1.5rem;
-  }
-  
-  .app-title {
-    font-size: 1.5rem;
   }
   
   .login-form .el-form-item {

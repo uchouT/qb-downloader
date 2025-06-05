@@ -32,16 +32,6 @@ public class Config implements Serializable {
     // private long totalSizeLimit;
 
     /**
-     * Alist 地址
-     */
-    private String alistHost;
-
-    /**
-     * Alist Token
-     */
-    private String alistToken;
-
-    /**
      * rclone rcd 地址
      */
     private String rcloneHost;

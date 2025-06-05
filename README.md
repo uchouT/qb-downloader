@@ -1,4 +1,9 @@
-# Qb-downloader
+<div align="center">
+<img src="ui/public/android-chrome-512x512.png" height="100"/>
+<br>
+<h1 style="margin-top: 0">Qb-downloader</h1>
+</div>
+
 
 [中文](README-CN.md)
 
@@ -8,8 +13,7 @@
 
 Qb-downloader allows you to complete your qBittorrent tasks part by part and upload them to your cloud drive. This enables you to download large torrent tasks even if they exceed your maximum available storage.
 
-Supported uploaders: [Rclone rcd](https://rclone.org/commands/rclone_rcd/) (recommended) and [Alist](https://alistgo.com/).
-
+Supported uploaders: [Rclone rcd](https://rclone.org/commands/rclone_rcd/) (recommended).
 A typical qb-downloader workflow includes:
 1. Splitting the torrent task into multiple parts.
 2. Downloading each part sequentially.

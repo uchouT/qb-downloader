@@ -12,7 +12,7 @@
             <el-form-item label="上传工具" prop="uploadType">
                 <el-radio-group v-model="props.taskData.uploadType">
                     <el-radio value="rclone">Rclone</el-radio>
-                    <el-radio value="alist">Alist</el-radio>
+                    <!-- <el-radio value="alist">Alist</el-radio> -->
                 </el-radio-group>
             </el-form-item>
             

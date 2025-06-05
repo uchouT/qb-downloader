@@ -27,8 +27,6 @@ public class ConfigUtil {
         CONFIG.setQbHost("http://localhost:8080")
                 .setQbUsername("admin")
                 .setQbPassword("adminadmin")
-                .setAlistHost("http://localhost:5244")
-                .setAlistToken("")
                 .setRcloneHost("http://localhost:5572")
                 .setRclonePassword("secret")
                 .setRcloneUserName("admin")

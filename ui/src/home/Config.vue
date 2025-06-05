@@ -40,12 +40,6 @@
                 <el-scrollbar>
                     <el-tab-pane label="Uploader" name="second">
                         <el-form label-position="right" label-width="140px">
-                            <el-form-item label="Alist Host">
-                                <el-input v-model="config.alistHost" placeholder="http://localhost:5244" />
-                            </el-form-item>
-                            <el-form-item label="Alist Token">
-                                <el-input v-model="config.alistToken" type="password" placeholder="alist token" />
-                            </el-form-item>
                             <el-form-item label="Rclone Host">
                                 <el-input v-model="config.rcloneHost" placeholder="http://localhost:5572" />
                             </el-form-item>
@@ -117,8 +111,6 @@ const config = ref({
     qbHost: "",
     qbUsername: "",
     qbPassword: '',
-    alistHost: '',
-    alistToken: '',
     rcloneHost: '',
     rcloneUserName: '',
     rclonePassword: '',

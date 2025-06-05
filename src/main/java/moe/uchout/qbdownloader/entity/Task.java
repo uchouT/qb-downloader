@@ -82,11 +82,6 @@ public class Task implements Serializable {
     private int fileNum;
 
     /**
-     * 需要下载的文件路径列表
-     */
-    private List<String> files;
-
-    /**
      * 种子文件备份路径
      */
     private String torrentPath;
@@ -106,10 +101,10 @@ public class Task implements Serializable {
      */
     private int rcloneJobId;
 
-    /**
-     * alist 任务 ID
-     */
-    private String alistJobId;
+    // /**
+    //  * alist 任务 ID
+    //  */
+    // private String alistJobId;
     /**
      * 做种时间
      */

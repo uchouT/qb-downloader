@@ -10,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 public class UploaderFactory {
     // 上传类型常量
     public static final String TYPE_RCLONE = "rclone";
-    public static final String TYPE_ALIST = "alist";
+    // public static final String TYPE_ALIST = "alist";
 
     private UploaderFactory() {
     }
@@ -30,8 +30,8 @@ public class UploaderFactory {
         switch (uploadType.toLowerCase().trim()) {
             case TYPE_RCLONE:
                 return Rclone.getInstance();
-            case TYPE_ALIST:
-                return Alist.getInstance();
+            // case TYPE_ALIST:
+                // return Alist.getInstance();
             default:
                 log.warn("不支持的上传类型: {}，默认使用 Rclone", uploadType);
                 return Rclone.getInstance();
