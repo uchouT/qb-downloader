@@ -14,7 +14,7 @@ public enum Status {
     /**
      * 分片任务下载完成，需要进行间隔任务
      */
-    DONWLOADED,
+    DOWNLOADED,
 
     /**
      * 分片任务正在下载

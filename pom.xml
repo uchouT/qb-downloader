@@ -51,7 +51,13 @@
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
             <version>2.0</version>
-        </dependency>    </dependencies>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse</groupId>
+            <artifactId>bittorrent</artifactId>
+            <version>0.3.0-v20070627-1030</version>
+        </dependency>
+    </dependencies>
 
     <build>
         <finalName>qb-downloader</finalName>

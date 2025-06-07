@@ -11,7 +11,7 @@ import moe.uchout.qbdownloader.annotation.Auth;
 import moe.uchout.qbdownloader.annotation.Path;
 import moe.uchout.qbdownloader.auth.AuthUtil;
 import moe.uchout.qbdownloader.entity.Login;
-
+import cn.hutool.core.util.RandomUtil;
 @Slf4j
 @Auth(value = false)
 @Path("/login")
@@ -36,7 +36,7 @@ public class LoginAction implements BaseAction {
             return;
         }
         log.warn("登陆失败 {}, ip: {}", accountUsername, AuthUtil.getIp());
-        ThreadUtil.sleep(4000);
+        ThreadUtil.sleep(RandomUtil.randomInt(1000, 5000));
         resultErrorMsg("用户名或密码错误");
     }
 

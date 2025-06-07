@@ -38,12 +38,15 @@ public class TorrentActon implements BaseAction {
             String method = req.getMethod();
             if ("POST".equalsIgnoreCase(method)) {
                 post(req);
-            } else if ("DELETE".equalsIgnoreCase(method)) {
-                delete(req);
-            } else {
-                resultErrorMsg("Unsupported method: " + method);
                 return;
             }
+            if ("DELETE".equalsIgnoreCase(method)) {
+                delete(req);
+                return;
+            }
+            resultErrorMsg("Unsupported method: " + method);
+            return;
+
         } catch (Exception e) {
             log.error("Error processing request: {}", e.getMessage(), e);
             resultErrorMsg(e.getMessage());
@@ -69,12 +72,14 @@ public class TorrentActon implements BaseAction {
                     getOptionalParam(formData, "savePath", ConfigUtil.CONFIG.getDefaultSavePath()));
             String hash = TaskUtil.addTorrent(true, file.getFileContent(), file.getFileName(), savePath);
             resultSuccess(new TorrentRes().setHash(hash).setSavePath(savePath));
-        } else {
-            TorrentReq torrentReq = getBody(TorrentReq.class);
-            rectifyPathAndHost(torrentReq);
-            String hash = TaskUtil.addTorrent(false, null, torrentReq.getUrl(), torrentReq.getSavePath());
-            resultSuccess(new TorrentRes().setHash(hash).setSavePath(torrentReq.getSavePath()));
+            return;
         }
+
+        TorrentReq torrentReq = getBody(TorrentReq.class);
+        rectifyPathAndHost(torrentReq);
+        String hash = TaskUtil.addTorrent(false, null, torrentReq.getUrl(), torrentReq.getSavePath());
+        resultSuccess(new TorrentRes().setHash(hash).setSavePath(torrentReq.getSavePath()));
+
     }
 
     /**

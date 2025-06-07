@@ -64,12 +64,12 @@ public class Task implements Serializable {
     /**
      * 分片任务总数
      */
-    private int totalPartNum;
+    private Integer totalPartNum;
 
     /**
      * 当前进行的分片任务序号, 从 0 开始
      */
-    private int currentPartNum;
+    private Integer currentPartNum;
 
     /**
      * 分片任务下载顺序
@@ -79,7 +79,7 @@ public class Task implements Serializable {
     /**
      * 文件总数
      */
-    private int fileNum;
+    private Integer fileNum;
 
     /**
      * 种子文件备份路径
@@ -99,7 +99,7 @@ public class Task implements Serializable {
     /**
      * rclone 任务 ID，用于监控状态
      */
-    private int rcloneJobId;
+    private Integer rcloneJobId;
 
     // /**
     //  * alist 任务 ID
@@ -108,7 +108,7 @@ public class Task implements Serializable {
     /**
      * 做种时间
      */
-    private int seedingTimeLimit;
+    private Integer seedingTimeLimit;
 
     /**
      * 分享率

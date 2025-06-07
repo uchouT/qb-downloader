@@ -74,7 +74,7 @@ public class Config implements Serializable {
     /**
      * 默认分享时间
      */
-    private int defaultSeedingTimeLimit;
+    private Integer defaultSeedingTimeLimit;
 
     /**
      * 默认上传路径

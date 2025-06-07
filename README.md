@@ -20,6 +20,8 @@ A typical qb-downloader workflow includes:
 
 ## Usage
 
+### prerequisite
+
 This tool requires qBittorrent and an uploader to be running. Make sure you have configured them properly.
 
 Example [rclone rcd](https://rclone.org/commands/rclone_rcd/) service configuration:
@@ -38,8 +40,9 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 ```
+### Deploy
 
-### Docker (Recommended)
+#### Docker (Recommended)
 
 ```yaml
 services:
@@ -51,10 +54,17 @@ services:
       - CONFIG=/config
     volumes:
       - ./config/qb-downloader:/config
-      - ./downloads:/downloads
     restart: unless-stopped
     image: uchout/qb-downloader:latest
 ```
+#### Manual installation
+Make sure you have Java Running Environment.
+
+Download the latest jar file from [release page](https://github.com/uchouT/qb-downloader/releases/latest), and you can run qb-downloader by:
+```bash
+java -jar path/to/qb-downloader.jar
+```
+Now qb-downloader is running on port 7845 by default. The initial username is `admin`, password is `adminadmin`. 
 
 ## Acknowledgments
 

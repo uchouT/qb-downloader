@@ -93,7 +93,7 @@ let pollingTimer = null
 const statusTextMap = {
     'ON_TASK': '上传中',
     'FINISHED': '上传完成',
-    'DONWLOADED': '下载完成',
+    'DOWNLOADED': '下载完成',
     'DOWNLOADING': '下载中',
     'ALL_FINISHED': '全部完成',
     'ERROR': '错误',
@@ -103,7 +103,7 @@ const statusTextMap = {
 const statusTypeMap = {
     'ON_TASK': 'warning',
     'FINISHED': 'success',
-    'DONWLOADED': 'success',
+    'DOWNLOADED': 'success',
     'DOWNLOADING': 'primary',
     'ALL_FINISHED': 'success',
     'ERROR': 'danger',

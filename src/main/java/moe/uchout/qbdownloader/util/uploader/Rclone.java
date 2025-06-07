@@ -9,7 +9,12 @@ import moe.uchout.qbdownloader.enums.Status;
 import com.google.gson.JsonObject;
 
 import cn.hutool.core.lang.Assert;
+import cn.hutool.http.ContentType;
+import cn.hutool.http.Header;
 import cn.hutool.http.HttpRequest;
+
+import java.io.File;
+import java.util.Map;
 
 @Slf4j
 public class Rclone implements Uploader {
@@ -38,17 +43,17 @@ public class Rclone implements Uploader {
         String host = ConfigUtil.CONFIG.getRcloneHost();
         String username = ConfigUtil.CONFIG.getRcloneUserName();
         String password = ConfigUtil.CONFIG.getRclonePassword();
-        String src = task.getSavePath() + "/" + task.getRootDir();
+        String src = task.getSavePath() + File.separator + task.getRootDir();
         String dst = task.getUploadPath() + "/" + task.getRootDir();
-        JsonObject obj = new JsonObject();
-        obj.addProperty("srcFs", src);
-        obj.addProperty("dstFs", dst);
-        obj.addProperty("_async", true);
-        obj.addProperty("createEmptySrcDirs", true);
+        Map<String, Object> obj = Map.of(
+                "srcFs", src,
+                "dstFs", dst,
+                "_async", true,
+                "createEmptySrcDirs", true);
         try {
             HttpRequest.post(host + "/sync/copy")
                     .basicAuth(username, password)
-                    .header("Content-Type", "application/json")
+                    .header(Header.CONTENT_TYPE, ContentType.JSON.toString())
                     .body(GsonStatic.toJson(obj))
                     .then(res -> {
                         Assert.isTrue(res.isOk(), res.body());
@@ -76,11 +81,11 @@ public class Rclone implements Uploader {
         String username = ConfigUtil.CONFIG.getRcloneUserName();
         String password = ConfigUtil.CONFIG.getRclonePassword();
         int jobId = task.getRcloneJobId();
-        JsonObject obj = new JsonObject();
-        obj.addProperty("jobid", jobId);
+        Map<String, Object> obj = Map.of(
+                "jobid", jobId);
         return HttpRequest.post(host + "/job/status")
                 .basicAuth(username, password)
-                .header("Content-Type", "application/json")
+                .header(Header.CONTENT_TYPE, ContentType.JSON.toString())
                 .body(GsonStatic.toJson(obj))
                 .thenFunction(res -> {
                     Assert.isTrue(res.isOk(), res.body());

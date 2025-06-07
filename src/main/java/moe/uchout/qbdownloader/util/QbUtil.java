@@ -6,7 +6,6 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.http.HttpRequest;
 import lombok.extern.slf4j.Slf4j;
-import moe.uchout.qbdownloader.entity.TorrentContent;
 import moe.uchout.qbdownloader.entity.TorrentsInfo;
 import moe.uchout.qbdownloader.entity.Task;
 import com.google.gson.JsonElement;
@@ -192,40 +191,23 @@ public class QbUtil {
     }
 
     /**
-     * TODO: 未来可能本地解析 torrent 信息，而不是调用 qbittorrent API
-     * 获取种子的内容信息，将获取到的 rootDir, files, fileNum 应用到任务实体中，
-     * precondition: 种子内容符合规范，只有一个根目录，里面包含所有文件
-     * size 的单位是字节
-     * 
+     * 获取种子的根目录文件夹
      * @param hash
-     * @param task 任务实体
-     * @return ContentList 种子内容列表
+     * @return
      */
-    public static List<TorrentContent> getTorrentContentList(String hash, Task task) {
+    public static String getRootDir(String hash) {
         try {
             return HttpRequest.get(host + "/api/v2/torrents/files")
                     .form("hash", hash)
                     .thenFunction(res -> {
                         Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
-                        List<TorrentContent> torrentContentList = new ArrayList<>();
                         JsonArray jsonArray = GsonStatic.fromJson(res.body(), JsonArray.class);
-                        int fileNum = 0;
-                        for (JsonElement jsonElement : jsonArray) {
-                            JsonObject jsonObject = jsonElement.getAsJsonObject();
-                            int index = jsonObject.get("index").getAsInt();
-                            long size = jsonObject.get("size").getAsLong();
-                            TorrentContent torrentContent = new TorrentContent();
-                            torrentContent.setIndex(index).setSize(size);
-                            torrentContentList.add(torrentContent);
-                            fileNum++;
-                        }
-                        String rootDir = jsonArray.get(0).getAsJsonObject().get("name").getAsString().split("/")[0];
-                        task.setRootDir(rootDir).setFileNum(fileNum);
-                        return torrentContentList;
+                        return jsonArray.get(0).getAsJsonObject().get("name").getAsString().split("/")[0];
+
                     });
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            return new ArrayList<>();
+            return "";
         }
     }
 

@@ -53,7 +53,7 @@ public class TaskThread extends Thread {
                     continue;
                 } else if (status == Status.ON_TASK) {
                     task.runCheck();
-                } else if (status == Status.DONWLOADED) {
+                } else if (status == Status.DOWNLOADED) {
                     task.runInterval();
                     log.info("运行间隔任务");
                 } else if (status == Status.FINISHED) {
@@ -116,10 +116,10 @@ public class TaskThread extends Thread {
                         "checkingUP",
                         "forcedUP").contains(state)) {
                     task.setSeeding(true);
-                    task.setStatus(Status.DONWLOADED);
+                    task.setStatus(Status.DOWNLOADED);
                 } else if ("stoppedUP".equals(state)) {
                     task.setSeeding(false);
-                    task.setStatus(Status.DONWLOADED);
+                    task.setStatus(Status.DOWNLOADED);
                 } else if (List.of(
                         "error",
                         "missingFiles").contains(state)) {

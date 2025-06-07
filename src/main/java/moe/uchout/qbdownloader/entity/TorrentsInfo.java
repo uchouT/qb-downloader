@@ -25,5 +25,5 @@ public class TorrentsInfo {
     /**
      * 种子下载进度
      */
-    private float progress;
+    private Float progress;
 }

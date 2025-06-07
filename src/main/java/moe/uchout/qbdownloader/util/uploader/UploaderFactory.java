@@ -1,6 +1,7 @@
 package moe.uchout.qbdownloader.util.uploader;
 
 import moe.uchout.qbdownloader.entity.Task;
+import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -22,7 +23,7 @@ public class UploaderFactory {
      * @return 对应的上传器，如果类型不支持则返回 null
      */
     public static Uploader getUploader(String uploadType) {
-        if (uploadType == null || uploadType.isBlank()) {
+        if (StrUtil.isBlank(uploadType)) {
             log.warn("上传类型为空，默认使用 Rclone");
             return Rclone.getInstance();
         }

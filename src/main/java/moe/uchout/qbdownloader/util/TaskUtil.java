@@ -24,7 +24,7 @@ import java.util.HashMap;
 
 import moe.uchout.qbdownloader.api.entity.TorrentRes;
 import moe.uchout.qbdownloader.entity.Task;
-import moe.uchout.qbdownloader.entity.TorrentContent;
+import org.eclipse.bittorrent.TorrentFile;
 
 /**
  * 任务执行相关
@@ -76,7 +76,7 @@ public class TaskUtil {
     }
 
     /**
-     * 添加种子任务，不下载
+     * 添加种子任务，不下载，同时将元数据保存到指定文件夹
      * 
      * @param isFile
      * @param file
@@ -92,6 +92,7 @@ public class TaskUtil {
         }
         ThreadUtil.sleep(500);
         String hash = QbUtil.getHash();
+        QbUtil.export(hash, TORRENT_FILE_PATH + hash + ".torrent");
         return hash;
     }
 
@@ -112,7 +113,6 @@ public class TaskUtil {
         try {
             String savePath = torrentRes.getSavePath();
             String hash = torrentRes.getHash();
-            QbUtil.export(hash, TORRENT_FILE_PATH + hash + ".torrent");
             String name = QbUtil.getName(hash);
             Task task = new Task().setCurrentPartNum(0).setStatus(Status.PAUSED).setName(name)
                     .setHash(hash).setSeeding(false).setTorrentPath(TORRENT_FILE_PATH + hash + ".torrent")
@@ -122,8 +122,16 @@ public class TaskUtil {
                     .setRatioLimit(ratioLimit)
                     .setSeedingTimeLimit(seedingTimeLimit)
                     .setMaxSize(maxSize * 1024 * 1024 * 1024); // 单位为 GB
-            List<TorrentContent> contents = QbUtil.getTorrentContentList(hash, task);
-            List<List<Integer>> order = getTaskOrder(contents, task.getMaxSize());
+
+            TorrentFile torrentFile = new TorrentFile(new File(TORRENT_FILE_PATH + hash + ".torrent"));
+            long[] fileLengths = torrentFile.getLengths();
+            String rootDir = QbUtil.getRootDir(hash);
+            task.setFileNum(fileLengths.length).setRootDir(rootDir);
+            List<Long> files = new ArrayList<>();
+            for (long len : fileLengths) {
+                files.add(len);
+            }
+            List<List<Integer>> order = getTaskOrder(files, task.getMaxSize());
             task.setTotalPartNum(order.size());
             task.setTaskOrder(order);
             Thread.sleep(1000);
@@ -190,7 +198,7 @@ public class TaskUtil {
     @Synchronized("TASK_LIST")
     public static void delete(String hash) {
         TASK_LIST.remove(hash);
-        FileUtil.del(TORRENT_FILE_PATH + hash + ".torrent");
+        FileUtil.del(new File(TORRENT_FILE_PATH + hash + ".torrent"));
         QbUtil.delete(hash, true);
         sync();
         log.info("删除任务成功: {}", hash);
@@ -203,9 +211,9 @@ public class TaskUtil {
      * @param maxSize
      * @return 是否可以完成
      */
-    public static boolean check(List<TorrentContent> torrentContents, long maxSize) {
-        for (TorrentContent torrentContent : torrentContents) {
-            if (torrentContent.getSize() > maxSize) {
+    public static boolean check(List<Long> torrentContents, long maxSize) {
+        for (Long torrentContent : torrentContents) {
+            if (torrentContent > maxSize) {
                 return false;
             }
         }
@@ -219,7 +227,7 @@ public class TaskUtil {
      * @param maxSize            最大分片大小
      * @return 二维数组，每个元素是 index 列表
      */
-    public static List<List<Integer>> getTaskOrder(List<TorrentContent> torrentContentList, long maxSize)
+    public static List<List<Integer>> getTaskOrder(List<Long> torrentContentList, long maxSize)
             throws Exception {
         if (!check(torrentContentList, maxSize)) {
             throw new IllegalArgumentException("任务过大，无法分片");
@@ -228,17 +236,17 @@ public class TaskUtil {
         List<Integer> onePart = new ArrayList<>();
         long currentSize = 0;
         for (int i = 0, size = torrentContentList.size(); i < size; i++) {
-            TorrentContent torrentContent = torrentContentList.get(i);
-            if (currentSize + torrentContent.getSize() > maxSize) {
+            long torrentContent = torrentContentList.get(i);
+            if (currentSize + torrentContent > maxSize) {
                 TaskOrder.add(onePart);
                 onePart = new ArrayList<>();
                 currentSize = 0;
             }
-            onePart.add(torrentContent.getIndex());
+            onePart.add(i);
             if (i == size - 1) {
                 TaskOrder.add(onePart);
             }
-            currentSize += torrentContent.getSize();
+            currentSize += torrentContent;
         }
         return TaskOrder;
     }

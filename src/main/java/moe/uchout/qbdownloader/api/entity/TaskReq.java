@@ -12,7 +12,7 @@ public class TaskReq implements Serializable {
     private TorrentRes torrentRes;
     private String uploadType;
     private String uploadPath = ConfigUtil.CONFIG.getDefaultUploadPath();
-    private long maxSize;
-    private int seedingTimeLimit = ConfigUtil.CONFIG.getDefaultSeedingTimeLimit();
+    private Long maxSize;
+    private Integer seedingTimeLimit = ConfigUtil.CONFIG.getDefaultSeedingTimeLimit();
     private String ratioLimit = ConfigUtil.CONFIG.getDefaultRatioLimit();
 }
