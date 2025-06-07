@@ -25,6 +25,8 @@ Qb-downloader 允许你分部分完成 qBittorrent 任务并上传到云盘。�
 
 ## 使用方法
 
+### 前置要求
+
 此工具需要 qBittorrent 和上传工具运行。请确保你已正确配置它们。
 
 [rclone rcd](https://rclone.org/commands/rclone_rcd/) 服务配置示例：
@@ -43,8 +45,9 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 ```
+### 部署
 
-### Docker（推荐）
+#### Docker（推荐）
 
 ```yaml
 services:
@@ -60,6 +63,16 @@ services:
     restart: unless-stopped
     image: uchout/qb-downloader:latest
 ```
+#### 手动部署
+
+确保拥有本地有 JRE。
+
+从 [release page](https://github.com/uchouT/qb-downloader/releases/latest) 获取最新 jar 文件, 然后就可以运行 qb-downloader:
+```bash
+java -jar path/to/qb-downloader.jar
+```
+
+qb-downloader 默认运行在 7845 端口，默认账号: `admin`, 默认密码: `adminadmin`。port 和 host 和通过 `--port` 和 `--host` 参数来指定。推荐配置 systemd service 来使用。
 
 ## 致谢
 

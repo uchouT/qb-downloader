@@ -21,10 +21,11 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 import moe.uchout.qbdownloader.api.entity.TorrentRes;
 import moe.uchout.qbdownloader.entity.Task;
-import org.eclipse.bittorrent.TorrentFile;
+import com.dampcake.bencode.Bencode;
 
 /**
  * 任务执行相关
@@ -122,18 +123,28 @@ public class TaskUtil {
                     .setRatioLimit(ratioLimit)
                     .setSeedingTimeLimit(seedingTimeLimit)
                     .setMaxSize(maxSize * 1024 * 1024 * 1024); // 单位为 GB
-
-            TorrentFile torrentFile = new TorrentFile(new File(TORRENT_FILE_PATH + hash + ".torrent"));
-            long[] fileLengths = torrentFile.getLengths();
-            String rootDir = QbUtil.getRootDir(hash);
-            task.setFileNum(fileLengths.length).setRootDir(rootDir);
-            List<Long> files = new ArrayList<>();
-            for (long len : fileLengths) {
-                files.add(len);
+                    
+            try (FileInputStream fis = new FileInputStream(TORRENT_FILE_PATH + hash + ".torrent")) {
+                Bencode bencode = new Bencode();
+                byte[] data = fis.readAllBytes();
+                Map<String, Object> torrentData = bencode.decode(data, com.dampcake.bencode.Type.DICTIONARY);
+                Object infoObj = torrentData.get("info");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> info = (infoObj instanceof Map) ? (Map<String, Object>) infoObj : new HashMap<>();
+                String rootDir = (String) info.get("name");
+                @SuppressWarnings("unchecked")
+                List<LinkedHashMap<String, Object>> files = (ArrayList<LinkedHashMap<String, Object>>) info.get("files");
+                int size = files.size();
+                List<Long> fileLengths = files.stream().map(file -> {
+                    return (Long) file.get("length");
+                }).toList();
+                List<List<Integer>> order = getTaskOrder(fileLengths, task.getMaxSize());
+                task.setRootDir(rootDir).setFileNum(size).setTotalPartNum(order.size()).setTaskOrder(order);
+            } catch (Exception e) {
+                log.error("添加任务失败: {}", e.getMessage(), e);
+                throw new RuntimeException(e);
             }
-            List<List<Integer>> order = getTaskOrder(files, task.getMaxSize());
-            task.setTotalPartNum(order.size());
-            task.setTaskOrder(order);
+
             Thread.sleep(1000);
             boolean setNotDownload = QbUtil.setNotDownload(task);
             Assert.isTrue(setNotDownload, "设置不下载失败");

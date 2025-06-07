@@ -58,13 +58,13 @@ services:
     image: uchout/qb-downloader:latest
 ```
 #### Manual installation
-Make sure you have Java Running Environment.
+Make sure you have a Java Runtime Environment installed.
 
-Download the latest jar file from [release page](https://github.com/uchouT/qb-downloader/releases/latest), and you can run qb-downloader by:
+Download the latest jar file from the [release page](https://github.com/uchouT/qb-downloader/releases/latest), and run qb-downloader with:
 ```bash
 java -jar path/to/qb-downloader.jar
 ```
-Now qb-downloader is running on port 7845 by default. The initial username is `admin`, password is `adminadmin`. 
+qb-downloader will run on port 7845 by default. The initial username is `admin` and the password is `adminadmin`. You can specify a custom port and host using `--port` and `--host` arguments. It's recommended to configure a systemd service for use.
 
 ## Acknowledgments
 
@@ -77,3 +77,4 @@ Now qb-downloader is running on port 7845 by default. The initial username is `a
 - [Logback](https://github.com/qos-ch/logback)
 - [Maven](https://github.com/apache/maven)
 - [Gson](https://github.com/google/gson)
+- [dampcake/bencode](https://github.com/dampcake/bencode)

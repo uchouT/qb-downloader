@@ -191,27 +191,6 @@ public class QbUtil {
     }
 
     /**
-     * 获取种子的根目录文件夹
-     * @param hash
-     * @return
-     */
-    public static String getRootDir(String hash) {
-        try {
-            return HttpRequest.get(host + "/api/v2/torrents/files")
-                    .form("hash", hash)
-                    .thenFunction(res -> {
-                        Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
-                        JsonArray jsonArray = GsonStatic.fromJson(res.body(), JsonArray.class);
-                        return jsonArray.get(0).getAsJsonObject().get("name").getAsString().split("/")[0];
-
-                    });
-        } catch (Exception e) {
-            log.error(e.getMessage(), e);
-            return "";
-        }
-    }
-
-    /**
      * 适用于种子管理操作
      * 
      * @param hash
