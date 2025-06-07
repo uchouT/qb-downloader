@@ -6,7 +6,7 @@
 
     <groupId>uchout.qbdownloader</groupId>
     <artifactId>qbdownloader</artifactId>
-    <version>0.2.0</version>
+    <version>1.0.1</version>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -53,9 +53,9 @@
             <version>2.0</version>
         </dependency>
         <dependency>
-            <groupId>org.eclipse</groupId>
-            <artifactId>bittorrent</artifactId>
-            <version>0.3.0-v20070627-1030</version>
+            <groupId>com.dampcake</groupId>
+            <artifactId>bencode</artifactId>
+            <version>1.4.2</version>
         </dependency>
     </dependencies>
 
