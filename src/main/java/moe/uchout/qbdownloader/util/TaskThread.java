@@ -66,7 +66,8 @@ public class TaskThread extends Thread {
                     if (currentPartNum < task.getTotalPartNum() - 1) {
                         task.setCurrentPartNum(currentPartNum + 1);
                         // 从保存的种子文件中快速重新添加
-                        QbUtil.add(task.getTorrentPath(), task.getSavePath(), true);
+                        QbUtil.add(task.getTorrentPath(), task.getSavePath(), task.getSeedingTimeLimit(),
+                                task.getRatioLimit());
                         Thread.sleep(1000);
                         boolean setNotDownload = QbUtil.setNotDownload(task);
                         for (int i = 0; !setNotDownload && i < TaskConstants.RETRY_TIMES; i++) {

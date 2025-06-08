@@ -89,7 +89,7 @@ public class TaskUtil {
         if (isFile) {
             QbUtil.add(file, url, savePath);
         } else {
-            QbUtil.add(url, savePath, false);
+            QbUtil.add(url, savePath);
         }
         ThreadUtil.sleep(500);
         String hash = QbUtil.getHash();
@@ -123,7 +123,7 @@ public class TaskUtil {
                     .setRatioLimit(ratioLimit)
                     .setSeedingTimeLimit(seedingTimeLimit)
                     .setMaxSize(maxSize * 1024 * 1024 * 1024); // 单位为 GB
-                    
+
             try (FileInputStream fis = new FileInputStream(TORRENT_FILE_PATH + hash + ".torrent")) {
                 Bencode bencode = new Bencode();
                 byte[] data = fis.readAllBytes();
@@ -133,7 +133,8 @@ public class TaskUtil {
                 Map<String, Object> info = (infoObj instanceof Map) ? (Map<String, Object>) infoObj : new HashMap<>();
                 String rootDir = (String) info.get("name");
                 @SuppressWarnings("unchecked")
-                List<LinkedHashMap<String, Object>> files = (ArrayList<LinkedHashMap<String, Object>>) info.get("files");
+                List<LinkedHashMap<String, Object>> files = (ArrayList<LinkedHashMap<String, Object>>) info
+                        .get("files");
                 int size = files.size();
                 List<Long> fileLengths = files.stream().map(file -> {
                     return (Long) file.get("length");

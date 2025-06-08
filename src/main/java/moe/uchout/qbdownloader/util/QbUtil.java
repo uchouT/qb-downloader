@@ -346,26 +346,45 @@ public class QbUtil {
      * @param isFile   是否是本地文件路径
      * @return 是否添加成功
      */
-    public static void add(String url, String savePath, boolean isFile) {
-        HttpRequest req = HttpRequest.post(host + "/api/v2/torrents/add")
-                // 所有通过 qb-downloader 添加的种子都属于这个分类
-                .form("category", TorrentsInfo.category)
-                .form("savepath", savePath);
+    public static void add(String url, String savePath) {
         try {
-            if (isFile) {
-                req.form("torrents", new File(url))
-                        .form("stopped", "true")
-                        .then(res -> {
-                            Assert.isTrue(res.isOk(), "add torrent failed, status code: {}", res.getStatus());
-                        });
-            } else {
-                req.form("urls", url)
-                        .form("tags", Tags.NEW)
-                        .form("stopCondition", "MetadataReceived")
-                        .then(res -> {
-                            Assert.isTrue(res.isOk(), "add torrent failed, status code: {}", res.getStatus());
-                        });
-            }
+            HttpRequest.post(host + "/api/v2/torrents/add")
+                    // 所有通过 qb-downloader 添加的种子都属于这个分类
+                    .form("category", TorrentsInfo.category)
+                    .form("savepath", savePath)
+                    .form("urls", url)
+                    .form("tags", Tags.NEW)
+                    .form("stopCondition", "MetadataReceived")
+                    .then(res -> {
+                        Assert.isTrue(res.isOk(), "add torrent failed, status code: {}", res.getStatus());
+                    });
+
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 用于从保存的种子文件中快速添加种子
+     * @param filePath
+     * @param savePath
+     * @param seedingTimeLimit
+     * @param ratioLimit
+     */
+    public static void add(String filePath, String savePath, int seedingTimeLimit, String ratioLimit) {
+        try {
+            HttpRequest.post(host + "/api/v2/torrents/add")
+                    // 所有通过 qb-downloader 添加的种子都属于这个分类
+                    .form("category", TorrentsInfo.category)
+                    .form("savepath", savePath)
+                    .form("seedingTimeLimit", seedingTimeLimit)
+                    .form("ratioLimit", ratioLimit)
+                    .form("torrents", new File(filePath))
+                    .form("stopped", "true")
+                    .then(res -> {
+                        Assert.isTrue(res.isOk(), "add torrent failed, status code: {}", res.getStatus());
+                    });
+
         } catch (Exception e) {
             log.error(e.getMessage(), e);
         }
