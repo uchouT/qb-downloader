@@ -4,7 +4,6 @@ import moe.uchout.qbdownloader.enums.*;
 import moe.uchout.qbdownloader.exception.QbException;
 
 import java.util.List;
-import cn.hutool.core.lang.Assert;
 import cn.hutool.core.thread.ThreadUtil;
 import lombok.extern.slf4j.Slf4j;
 import moe.uchout.qbdownloader.entity.Task;
@@ -68,16 +67,7 @@ public class TaskThread extends Thread {
                         // 从保存的种子文件中快速重新添加
                         QbUtil.add(task.getTorrentPath(), task.getSavePath(), task.getSeedingTimeLimit(),
                                 task.getRatioLimit());
-                        Thread.sleep(1000);
-                        boolean setNotDownload = QbUtil.setNotDownload(task);
-                        for (int i = 0; !setNotDownload && i < TaskConstants.RETRY_TIMES; i++) {
-                            setNotDownload = QbUtil.setNotDownload(task);
-                        }
-                        Assert.isTrue(setNotDownload, "设置不下载失败");
-
-                        QbUtil.setPrio(hash, 1, task.getTaskOrder().get(currentPartNum + 1));
-                        QbUtil.start(hash);
-                        task.setStatus(Status.DOWNLOADING);
+                        TaskUtil.startTask(currentPartNum + 1, hash, task);
                         TaskUtil.sync();
                         log.info("{} 开始分片任务：{}", task.getName(), task.getCurrentPartNum() + 1);
                     } else {
@@ -158,8 +148,4 @@ public class TaskThread extends Thread {
             Thread.currentThread().interrupt();
         }
     }
-}
-
-class TaskConstants {
-    static final int RETRY_TIMES = 3;
 }

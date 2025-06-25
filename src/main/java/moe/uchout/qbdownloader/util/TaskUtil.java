@@ -146,13 +146,8 @@ public class TaskUtil {
                 throw new RuntimeException(e);
             }
 
-            Thread.sleep(1000);
-            boolean setNotDownload = QbUtil.setNotDownload(task);
-            Assert.isTrue(setNotDownload, "设置不下载失败");
-            QbUtil.setPrio(hash, 1, task.getTaskOrder().get(0));
             QbUtil.setShareLimit(hash, ratioLimit, seedingTimeLimit);
-            QbUtil.start(hash);
-            task.setStatus(Status.DOWNLOADING);
+            startTask(0, hash, task);
             TASK_LIST.put(hash, task);
             log.info("添加任务成功: {}", task.getName());
             sync();
@@ -160,6 +155,19 @@ public class TaskUtil {
             log.error("添加任务失败: {}", e.getMessage(), e);
             throw new RuntimeException(e);
         }
+    }
+
+    public static void startTask(int index, String hash, Task task) {
+        boolean setNotDownload = QbUtil.setNotDownload(task);
+        for (int i = 0; !setNotDownload && i < TaskConstants.RETRY_TIMES; i++) {
+            ThreadUtil.sleep(1000);
+            setNotDownload = QbUtil.setNotDownload(task);
+        }
+        Assert.isTrue(setNotDownload, "设置不下载失败");
+
+        QbUtil.setPrio(hash, 1, task.getTaskOrder().get(index));
+        QbUtil.start(hash);
+        task.setStatus(Status.DOWNLOADING);
     }
 
     /**
@@ -262,4 +270,8 @@ public class TaskUtil {
         }
         return TaskOrder;
     }
+}
+
+class TaskConstants {
+    static final int RETRY_TIMES = 3;
 }
