@@ -155,8 +155,8 @@ const task_ = async (hash, type) => {
     actionLoading[hash] = true
     await api.put(`/api/task?type=${type}&hash=${hash}`)
         .then(async () => {
-            ElMessage.success(`task ${type} success`)
             await fetchTasks()
+            ElMessage.success(`task ${type} success`)
         })
         .finally(() => {
             actionLoading[hash] = false
@@ -179,8 +179,8 @@ const deleteTask = async (hash) => {
     actionLoading[hash] = true
     await api.del(`/api/task?hash=${hash}`)
         .then(async () => {
-            ElMessage.success('Task delete success')
             await fetchTasks()
+            ElMessage.success('Task delete success')
         })
         .finally(() => {
             actionLoading[hash] = false
