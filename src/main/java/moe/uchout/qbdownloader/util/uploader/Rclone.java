@@ -102,4 +102,21 @@ public class Rclone implements Uploader {
                     return success;
                 });
     }
+
+    public static boolean test(String host, String username, String password) {
+        try {
+            return HttpRequest.post(host + "/core/version")
+                    .basicAuth(username, password)
+                    .thenFunction(res -> {
+                        Assert.isTrue(res.isOk(), res.body());
+                        JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
+                        String version = jsonObject.get("version").getAsString();
+                        log.info("Rclone version: {}", version);
+                        return true;
+                    });
+        } catch (Exception e) {
+            log.warn("Rclone 测试失败: {}", e.getMessage());
+            return false;
+        }
+    }
 }

@@ -14,6 +14,10 @@
                             <el-form-item label="QB 密码">
                                 <el-input v-model="config.qbPassword" type="password" placeholder="password" />
                             </el-form-item>
+                            <el-form-item>
+                                <el-button @click="test('qb')" bg text :loading="qbTestLoading" icon="Odometer">测试
+                                </el-button>
+                            </el-form-item>
                             <el-form-item label="仅限内网 IP">
                                 <el-switch v-model="config.onlyInnerIP" />
                             </el-form-item>
@@ -49,6 +53,10 @@
                             <el-form-item label="Rclone Password">
                                 <el-input v-model="config.rclonePassword" type="password" placeholder="secret" />
                             </el-form-item>
+                            <el-form-item>
+                                <el-button @click="test('rclone')" bg text :loading="rcloneTestLoading" icon="Odometer">测试
+                                </el-button>
+                            </el-form-item>
                             <el-form-item label="默认下载路径">
                                 <el-input v-model="config.defaultSavePath" placeholder="/downloads" />
                             </el-form-item>
@@ -75,7 +83,6 @@ import { useWindowSize } from '@vueuse/core'
 import api from '../api';
 import CryptoJS from "crypto-js";
 import { ElMessage } from 'element-plus';
-
 const { width } = useWindowSize()
 
 // 响应式对话框宽度
@@ -105,6 +112,8 @@ const saveConfig = () => {
             loading.value = false
         })
 }
+const qbTestLoading = ref(false)
+const rcloneTestLoading = ref(false)
 const dialogVisible = ref(false)
 const activeName = ref('first')
 const config = ref({
@@ -141,6 +150,37 @@ const show = () => {
 }
 const emit = defineEmits(['load'])
 defineExpose({ show })
+
+const test = (type) => {
+    if (type === 'qb') {
+        qbTestLoading.value = true
+        api.post('api/test', {
+            type: 'qb',
+            host: config.value.qbHost,
+            username: config.value.qbUsername,
+            password: config.value.qbPassword
+        }).then(res => {
+            ElMessage.success(res.message)
+        }).finally(() => {
+            qbTestLoading.value = false
+        })
+        return
+    }
+    if (type === 'rclone') {
+        rcloneTestLoading.value = true
+        api.post('api/test', {
+            type: 'rclone',
+            host: config.value.rcloneHost,
+            username: config.value.rcloneUserName,
+            password: config.value.rclonePassword
+        }).then(res => {
+            ElMessage.success(res.message)
+        }).finally(() => {
+            rcloneTestLoading.value = false
+        })
+        return
+    }
+}
 </script>
 
 <style scoped>
@@ -192,45 +232,45 @@ defineExpose({ show })
     .config-dialog :deep(.el-dialog__header) {
         padding: 1rem 1rem 0.75rem;
     }
-    
+
     .config-dialog :deep(.el-dialog__body) {
         padding: 1rem;
         max-height: 75vh;
     }
-    
+
     .config-dialog :deep(.el-dialog__footer) {
         padding: 0.75rem 1rem 1rem;
     }
-    
+
     .config-dialog :deep(.el-tabs__content) {
         max-height: 55vh;
     }
-    
+
     .config-dialog :deep(.el-form) {
         width: 100%;
     }
-    
+
     .config-dialog :deep(.el-form--label-right .el-form-item__label) {
         width: 120px !important;
         text-align: left;
         font-size: 14px;
     }
-    
+
     .config-dialog :deep(.el-form-item) {
         margin-bottom: 1rem;
         flex-direction: column;
         align-items: stretch;
     }
-    
+
     .config-dialog :deep(.el-form-item__content) {
         margin-left: 0 !important;
         margin-top: 0.5rem;
     }
-    
+
     .config-dialog :deep(.el-input) {
         width: 100%;
     }
-    
+
     .config-dialog :deep(.el-button) {
         font-size: 14px;
         padding: 8px 16px;
@@ -241,25 +281,25 @@ defineExpose({ show })
     .config-dialog :deep(.el-dialog__header) {
         padding: 0.75rem 0.75rem 0.5rem;
     }
-    
+
     .config-dialog :deep(.el-dialog__body) {
         padding: 0.75rem;
         max-height: 80vh;
     }
-    
+
     .config-dialog :deep(.el-dialog__footer) {
         padding: 0.5rem 0.75rem 0.75rem;
     }
-    
+
     .config-dialog :deep(.el-tabs__content) {
         max-height: 60vh;
     }
-    
+
     .config-dialog :deep(.el-form--label-right .el-form-item__label) {
         width: 100px !important;
         font-size: 13px;
     }
-    
+
     .config-dialog :deep(.el-scrollbar__view) {
         padding-right: 0.5rem;
     }
@@ -270,11 +310,11 @@ defineExpose({ show })
     .config-dialog :deep(.el-form--label-right .el-form-item__label) {
         width: 160px !important;
     }
-    
+
     .config-dialog :deep(.el-dialog__body) {
         max-height: 65vh;
     }
-    
+
     .config-dialog :deep(.el-tabs__content) {
         max-height: 45vh;
     }

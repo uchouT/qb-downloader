@@ -11,6 +11,7 @@ import moe.uchout.qbdownloader.entity.Task;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import moe.uchout.qbdownloader.enums.Tags;
+import moe.uchout.qbdownloader.entity.Config;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,8 +26,6 @@ import cn.hutool.core.util.StrUtil;
  */
 @Slf4j
 public class QbUtil {
-    private QbUtil() {
-    }
 
     private static String host;
 
@@ -34,11 +33,18 @@ public class QbUtil {
      * @return 是否登录成功
      */
     public static boolean login() {
+        Config config = ConfigUtil.CONFIG;
+        host = config.getQbHost();
+        String username = config.getQbUsername();
+        String password = config.getQbPassword();
+        return login(host, username, password);
+
+    }
+
+    public static boolean login(String host, String username, String password) {
         try {
-            host = ConfigUtil.CONFIG.getQbHost();
-            String username = ConfigUtil.CONFIG.getQbUsername();
+            Assert.notBlank(host);
             Assert.notBlank(username);
-            String password = ConfigUtil.CONFIG.getQbPassword();
             Assert.notBlank(password);
             return HttpRequest.post(host + "/api/v2/auth/login")
                     .form("username", username)
@@ -366,6 +372,7 @@ public class QbUtil {
 
     /**
      * 用于从保存的种子文件中快速添加种子
+     * 
      * @param filePath
      * @param savePath
      * @param seedingTimeLimit
