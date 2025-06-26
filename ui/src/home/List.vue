@@ -80,7 +80,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, VideoPlay, VideoPause, Delete } from '@element-plus/icons-vue'
+import { VideoPlay, VideoPause, Delete } from '@element-plus/icons-vue'
 import api from '../api'
 
 // 响应式数据
@@ -124,7 +124,11 @@ const fetchTasks = async () => {
     loading.value = true
     api.get('/api/task')
         .then(res => {
-            tasks.value = Object.values(res.data)
+            if (res.data) {
+                tasks.value = Object.values(res.data)
+            } else {
+                tasks.value = []
+            }
         })
         .finally(() => {
             loading.value = false
@@ -139,60 +143,49 @@ const refreshTasks = () => {
 
 // 开始任务
 const startTask = async (hash) => {
-    try {
-        actionLoading[hash] = true
-        await api.put(`/api/task?type=start&hash=${hash}`)
-        ElMessage.success('任务已开始')
-        await fetchTasks()
-    } catch (error) {
-        console.error('开始任务失败:', error)
-        ElMessage.error('开始任务失败')
-    } finally {
-        actionLoading[hash] = false
-    }
+    await task_(hash, 'start')
 }
 
 // 停止任务
 const stopTask = async (hash) => {
-    try {
-        actionLoading[hash] = true
-        await api.put(`/api/task?type=stop&hash=${hash}`)
-        ElMessage.success('任务已暂停')
-        await fetchTasks()
-    } catch (error) {
-        console.error('停止任务失败:', error)
-        ElMessage.error('停止任务失败')
-    } finally {
-        actionLoading[hash] = false
-    }
+    await task_(hash, 'stop')
+}
+
+const task_ = async (hash, type) => {
+    actionLoading[hash] = true
+    await api.put(`/api/task?type=${type}&hash=${hash}`)
+        .then(async () => {
+            ElMessage.success(`task ${type} success`)
+            await fetchTasks()
+        })
+        .finally(() => {
+            actionLoading[hash] = false
+        })
 }
 
 // 删除任务
 const deleteTask = async (hash) => {
-    try {
-        await ElMessageBox.confirm(
-            '确定要删除这个任务吗？此操作不可恢复。',
-            '确认删除',
-            {
-                confirmButtonText: '确定',
-                cancelButtonText: '取消',
-                type: 'warning',
-            }
-        )
 
-        actionLoading[hash] = true
-        await api.del(`/api/task?hash=${hash}`)
-        ElMessage.success('任务已删除')
-        await fetchTasks()
-    } catch (error) {
-        if (error === 'cancel') {
-            return
+    await ElMessageBox.confirm(
+        '确定要删除这个任务吗？此操作不可恢复。',
+        '确认删除',
+        {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning',
         }
-        console.error('删除任务失败:', error)
-        ElMessage.error('删除任务失败')
-    } finally {
-        actionLoading[hash] = false
-    }
+    )
+
+    actionLoading[hash] = true
+    await api.del(`/api/task?hash=${hash}`)
+        .then(async () => {
+            ElMessage.success('Task delete success')
+            await fetchTasks()
+        })
+        .finally(() => {
+            actionLoading[hash] = false
+        })
+
 }
 
 // 开始轮询

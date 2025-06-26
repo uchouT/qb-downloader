@@ -1,6 +1,7 @@
-<template>    <el-dialog v-model="dialogVisible" :close-on-click-modal="!metadataDownloading || !torrentParsed"
-        :close-on-press-escape="!metadataDownloading || !torrentParsed" title="任务添加" 
-        :width="dialogWidth" class="torrent-dialog">
+<template>
+    <el-dialog v-model="dialogVisible" :close-on-click-modal="!metadataDownloading || !torrentParsed"
+        :close-on-press-escape="!metadataDownloading || !torrentParsed" title="任务添加" :width="dialogWidth"
+        class="torrent-dialog">
         <div v-show="!torrentParsed">
             <el-tabs v-model="activeTab" tab-position="top" style="height: auto">
                 <el-tab-pane label="Url" name="url">
@@ -313,32 +314,32 @@ defineExpose({ show })
     .torrent-dialog :deep(.el-dialog__header) {
         padding: 1rem 1rem 0.75rem;
     }
-    
+
     .torrent-dialog :deep(.el-dialog__body) {
         padding: 1rem;
     }
-    
+
     .torrent-dialog :deep(.el-dialog__footer) {
         padding: 0.75rem 1rem 1rem;
     }
-    
+
     .torrent-dialog :deep(.el-tabs__header) {
         margin-bottom: 0.75rem;
     }
-    
+
     .torrent-dialog :deep(.el-form-item) {
         margin-bottom: 1rem;
     }
-    
+
     .torrent-dialog :deep(.el-form-item__label) {
         font-size: 14px;
         margin-bottom: 0.5rem;
     }
-    
+
     .torrent-dialog :deep(.el-textarea__inner) {
         font-size: 14px;
     }
-    
+
     .torrent-dialog :deep(.el-button) {
         font-size: 14px;
         padding: 8px 16px;
@@ -349,19 +350,19 @@ defineExpose({ show })
     .torrent-dialog :deep(.el-dialog__header) {
         padding: 0.75rem 0.75rem 0.5rem;
     }
-    
+
     .torrent-dialog :deep(.el-dialog__body) {
         padding: 0.75rem;
     }
-    
+
     .torrent-dialog :deep(.el-dialog__footer) {
         padding: 0.5rem 0.75rem 0.75rem;
     }
-    
+
     .torrent-dialog :deep(.el-form-item__label) {
         font-size: 13px;
     }
-    
+
     .torrent-dialog :deep(.el-textarea__inner) {
         font-size: 13px;
     }
