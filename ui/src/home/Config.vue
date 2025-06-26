@@ -17,7 +17,7 @@
                             <el-form-item label="仅限内网 IP">
                                 <el-switch v-model="config.onlyInnerIP" />
                             </el-form-item>
-                            <el-form-item label="禁止多端登录">
+                            <el-form-item label="IP 验证">
                                 <el-switch v-model="config.verifyLoginIP" />
                             </el-form-item>
                             <el-form-item label="Username">

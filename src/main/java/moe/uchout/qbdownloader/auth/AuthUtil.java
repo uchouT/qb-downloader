@@ -18,11 +18,9 @@ import moe.uchout.qbdownloader.util.ConfigUtil;
 import moe.uchout.qbdownloader.util.GsonStatic;
 import moe.uchout.qbdownloader.util.ServerUtil;
 
-// TODO: 理解学习
 @Slf4j
 public class AuthUtil {
     private static final int loginEffectiveHours = 24;
-    private static final boolean multiLoginForbidden = false;
     static {
         resetKey();
     }
@@ -42,11 +40,9 @@ public class AuthUtil {
      * 刷新密钥
      */
     public static String resetKey() {
-        String key = "123";
-        if (multiLoginForbidden) {
-            // 禁止多端登录
-            key = RandomUtil.randomString(128);
-        }
+
+        String key = RandomUtil.randomString(128);
+
         MyCacheUtil.put("auth_key", key, TimeUnit.HOURS.toMillis(loginEffectiveHours));
         return key;
     }
