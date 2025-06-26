@@ -57,7 +57,7 @@ public class TaskAction implements BaseAction {
 			resultErrorMsg("missing parameter" + e.getMessage());
 			return;
 		} catch (TaskException e) {
-			resultErrorMsg("Task add failed." + e.getMessage());
+			resultErrorMsg(e.getMessage());
 		}
 	}
 
@@ -118,7 +118,6 @@ public class TaskAction implements BaseAction {
 			resultSuccess();
 		} else {
 			resultSuccess(TaskUtil.getTaskList());
-
 		}
 	}
 }

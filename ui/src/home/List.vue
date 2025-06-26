@@ -121,23 +121,15 @@ const getStatusType = (status) => {
 
 // 获取任务列表
 const fetchTasks = async () => {
-    try {
-        loading.value = true
-        const response = await api.get('/api/task')
-        if (response.code === 200) {
-            // 后端返回的是 Map<String, Task>，需要转换为数组
-            if (response.data) {
-                tasks.value = Object.values(response.data)
-            } else {
-                tasks.value = []
-            }
-        }
-    } catch (error) {
-        console.error('获取任务列表失败:', error)
-        ElMessage.error('获取任务列表失败')
-    } finally {
-        loading.value = false
-    }
+    loading.value = true
+    api.get('/api/task')
+        .then(res => {
+            tasks.value = Object.values(res.data)
+        })
+        .finally(() => {
+            loading.value = false
+        })
+
 }
 
 // 刷新任务列表
@@ -361,134 +353,134 @@ defineExpose({
 
 /* 移动端适配 */
 @media (max-width: 768px) {
-  .task-header {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  
-  .task-info {
-    width: 100%;
-  }
-  
-  .task-name {
-    font-size: 14px;
-    line-height: 1.4;
-    white-space: normal;
-    overflow: visible;
-    text-overflow: unset;
-    word-break: break-word;
-  }
-  
-  .task-meta {
-    gap: 8px;
-    justify-content: flex-start;
-  }
-  
-  .task-actions {
-    margin-left: 0;
-    width: 100%;
-  }
-  
-  .task-actions .el-button-group {
-    width: 100%;
-    display: flex;
-  }
-  
-  .task-actions .el-button {
-    flex: 1;
-    justify-content: center;
-  }
-  
-  .detail-row {
-    flex-direction: column;
-    gap: 4px;
-  }
-  
-  .label {
-    min-width: auto;
-    font-size: 12px;
-    font-weight: 600;
-  }
-  
-  .value {
-    font-size: 13px;
-    padding-left: 8px;
-  }
-  
-  .tasks-container {
-    padding-right: 4px;
-  }
-  
-  .task-card {
-    margin-bottom: 12px;
-  }
+    .task-header {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .task-info {
+        width: 100%;
+    }
+
+    .task-name {
+        font-size: 14px;
+        line-height: 1.4;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+        word-break: break-word;
+    }
+
+    .task-meta {
+        gap: 8px;
+        justify-content: flex-start;
+    }
+
+    .task-actions {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .task-actions .el-button-group {
+        width: 100%;
+        display: flex;
+    }
+
+    .task-actions .el-button {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .detail-row {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .label {
+        min-width: auto;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .value {
+        font-size: 13px;
+        padding-left: 8px;
+    }
+
+    .tasks-container {
+        padding-right: 4px;
+    }
+
+    .task-card {
+        margin-bottom: 12px;
+    }
 }
 
 /* 超小屏适配 */
 @media (max-width: 480px) {
-  .list-header {
-    padding: 0 4px;
-    margin-bottom: 12px;
-  }
-  
-  .list-header h3 {
-    font-size: 16px;
-  }
-  
-  .task-name {
-    font-size: 13px;
-  }
-  
-  .task-actions .el-button {
-    font-size: 12px;
-    padding: 6px 8px;
-  }
-  
-  .task-details {
-    margin-top: 12px;
-  }
-  
-  .detail-row {
-    margin-bottom: 6px;
-  }
-  
-  .label {
-    font-size: 11px;
-  }
-  
-  .value {
-    font-size: 12px;
-  }
+    .list-header {
+        padding: 0 4px;
+        margin-bottom: 12px;
+    }
+
+    .list-header h3 {
+        font-size: 16px;
+    }
+
+    .task-name {
+        font-size: 13px;
+    }
+
+    .task-actions .el-button {
+        font-size: 12px;
+        padding: 6px 8px;
+    }
+
+    .task-details {
+        margin-top: 12px;
+    }
+
+    .detail-row {
+        margin-bottom: 6px;
+    }
+
+    .label {
+        font-size: 11px;
+    }
+
+    .value {
+        font-size: 12px;
+    }
 }
 
 /* 平板适配 */
 @media (min-width: 769px) and (max-width: 1024px) {
-  .task-header {
-    gap: 1.25rem;
-  }
-  
-  .task-name {
-    font-size: 15px;
-  }
-  
-  .task-meta {
-    gap: 10px;
-  }
+    .task-header {
+        gap: 1.25rem;
+    }
+
+    .task-name {
+        font-size: 15px;
+    }
+
+    .task-meta {
+        gap: 10px;
+    }
 }
 
 /* 桌面端优化 */
 @media (min-width: 1025px) {
-  .task-card:hover {
-    transform: translateY(-2px);
-    transition: transform 0.2s ease;
-  }
-  
-  .task-name {
-    font-size: 17px;
-  }
-  
-  .task-actions .el-button {
-    transition: all 0.2s ease;
-  }
+    .task-card:hover {
+        transform: translateY(-2px);
+        transition: transform 0.2s ease;
+    }
+
+    .task-name {
+        font-size: 17px;
+    }
+
+    .task-actions .el-button {
+        transition: all 0.2s ease;
+    }
 }
 </style>
