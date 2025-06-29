@@ -32,7 +32,7 @@ public class UploaderFactory {
             case TYPE_RCLONE:
                 return Rclone.getInstance();
             // case TYPE_ALIST:
-                // return Alist.getInstance();
+            // return Alist.getInstance();
             default:
                 log.warn("不支持的上传类型: {}，默认使用 Rclone", uploadType);
                 return Rclone.getInstance();
@@ -40,12 +40,10 @@ public class UploaderFactory {
     }
 
     /**
-     * 上传文件（静态便捷方法）
+     * 上传文件到远程存储
      * 
-     * @param uploadType 上传类型
-     * @param localPath  本地文件路径
-     * @param remotePath 远程文件路径
-     * @return 是否上传成功
+     * @param uploadType
+     * @param task
      */
     public static void copy(String uploadType, Task task) {
         Uploader uploader = getUploader(uploadType);

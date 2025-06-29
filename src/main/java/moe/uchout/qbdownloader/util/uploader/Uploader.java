@@ -15,7 +15,9 @@ public interface Uploader {
     void copy(Task task);
 
     /**
-     * 检查上传器状态
+     * 检查上传进度
+     * @param task 任务对象
+     * @return 是否上传完成
      */
     boolean check(Task task);
 }

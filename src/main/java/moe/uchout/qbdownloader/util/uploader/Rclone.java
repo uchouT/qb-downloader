@@ -1,6 +1,7 @@
 package moe.uchout.qbdownloader.util.uploader;
 
 import lombok.extern.slf4j.Slf4j;
+import moe.uchout.qbdownloader.entity.Config;
 import moe.uchout.qbdownloader.util.ConfigUtil;
 import moe.uchout.qbdownloader.util.GsonStatic;
 import moe.uchout.qbdownloader.entity.Task;
@@ -32,17 +33,16 @@ public class Rclone implements Uploader {
      * 或者只有一个单文件
      * 
      * @param task
-     * @param dst
-     * @return 是否上传成功
      * @see <a href=
      *      "https://rclone.org/rc/#running-asynchronous-jobs-with-async-true">rclone
      *      async</a>
      */
     @Override
     public void copy(Task task) {
-        String host = ConfigUtil.CONFIG.getRcloneHost();
-        String username = ConfigUtil.CONFIG.getRcloneUserName();
-        String password = ConfigUtil.CONFIG.getRclonePassword();
+        Config config = ConfigUtil.CONFIG;
+        String host = config.getRcloneHost();
+        String username = config.getRcloneUserName();
+        String password = config.getRclonePassword();
         String src = task.getSavePath() + File.separator + task.getRootDir();
         String dst = task.getUploadPath() + "/" + task.getRootDir();
         Map<String, Object> obj = Map.of(
@@ -67,22 +67,21 @@ public class Rclone implements Uploader {
         }
     }
 
-    @Override
     /**
-     * 检查 rclone 任务状态
-     * 
-     * @param task
-     * @return 是否上传完成
      * @see <a href=
      *      "https://rclone.org/rc/#job-status">rclone job status</a>
      */
+    @Override
     public boolean check(Task task) {
-        String host = ConfigUtil.CONFIG.getRcloneHost();
-        String username = ConfigUtil.CONFIG.getRcloneUserName();
-        String password = ConfigUtil.CONFIG.getRclonePassword();
+        Config config = ConfigUtil.CONFIG;
+        String host = config.getRcloneHost();
+        String username = config.getRcloneUserName();
+        String password = config.getRclonePassword();
         int jobId = task.getRcloneJobId();
+
         Map<String, Object> obj = Map.of(
                 "jobid", jobId);
+
         return HttpRequest.post(host + "/job/status")
                 .basicAuth(username, password)
                 .header(Header.CONTENT_TYPE, ContentType.JSON.toString())
@@ -92,6 +91,8 @@ public class Rclone implements Uploader {
                     JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
                     boolean success = jsonObject.get("success").getAsBoolean();
                     boolean finished = jsonObject.get("finished").getAsBoolean();
+
+                    // finished 和 success 值不相等时，代表上传出错
                     if (finished && !success) {
                         String message = jsonObject.get("error").getAsString();
                         log.error(message);

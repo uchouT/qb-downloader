@@ -102,8 +102,8 @@ public class Task implements Serializable {
     private Integer rcloneJobId;
 
     // /**
-    //  * alist 任务 ID
-    //  */
+    // * alist 任务 ID
+    // */
     // private String alistJobId;
     /**
      * 做种时间
@@ -121,12 +121,12 @@ public class Task implements Serializable {
     public void runInterval() {
         this.status = Status.ON_TASK;
         TaskUtil.sync();
-        log.info("{} 下载完成，准备上传", this.name);
+        log.info("{} 下载完成，准备上传", name);
         try {
             // 使用线程池执行上传任务
             EXECUTOR.execute(() -> {
                 // 使用工厂获取上传器并执行上传，非阻塞
-                UploaderFactory.copy(this.getUploadType(), this);
+                UploaderFactory.copy(uploadType, this);
             });
         } catch (Exception e) {
             log.error(e.getMessage());
@@ -139,10 +139,10 @@ public class Task implements Serializable {
      */
     public void runCheck() {
         EXECUTOR.execute(() -> {
-            if (UploaderFactory.check(this.getUploadType(), this)) {
+            if (UploaderFactory.check(uploadType, this)) {
                 log.info("上传完成");
-                TaskUtil.sync();
                 this.status = Status.FINISHED;
+                TaskUtil.sync();
             }
         });
     }
