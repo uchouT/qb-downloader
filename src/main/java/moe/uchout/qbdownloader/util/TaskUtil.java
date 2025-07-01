@@ -85,7 +85,7 @@ public class TaskUtil {
      * @param savePath
      * @return 种子 hash 值
      */
-    public static String addTorrent(boolean isFile, byte[] file, String url, String savePath) {
+    public synchronized static String addTorrent(boolean isFile, byte[] file, String url, String savePath) {
         if (isFile) {
             QbUtil.add(file, url, savePath);
         } else {
@@ -94,6 +94,8 @@ public class TaskUtil {
         ThreadUtil.sleep(500);
         String hash = QbUtil.getHash();
         QbUtil.export(hash, TORRENT_FILE_PATH + hash + ".torrent");
+        QbUtil.addTag(hash, Tags.WAITED);
+
         return hash;
     }
 

@@ -4,6 +4,8 @@
 
 ## 修复
 
+- 任务还未添加成功后关闭服务，导致的种子残留问题。
+
 ## 改进
 
-设置中可以测试 qBittorrent 和 rclone
+- 设置中可以测试 qBittorrent 和 rclone

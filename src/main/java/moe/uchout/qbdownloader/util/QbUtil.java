@@ -31,6 +31,7 @@ public class QbUtil {
 
     /**
      * 读取配置文件的登录信息
+     * 
      * @return 是否登录成功
      */
     public static boolean login() {
@@ -42,13 +43,13 @@ public class QbUtil {
 
     }
 
-    /** 
-    * @param host qBittorrent host, 末尾没有 "/"
-    * @param username
-    * @param password
-    *
-    * @return 是否成功
-    */
+    /**
+     * @param host     qBittorrent host, 末尾没有 "/"
+     * @param username
+     * @param password
+     *
+     * @return 是否成功
+     */
     public static boolean login(String host, String username, String password) {
         try {
             Assert.notBlank(host);
@@ -117,7 +118,7 @@ public class QbUtil {
                         Assert.isTrue(res.isOk(), "get Hash failed, status code: {}", res.getStatus());
                         JsonArray jsonArray = GsonStatic.fromJson(res.body(), JsonArray.class);
                         if (jsonArray.size() == 0) {
-                            return null;
+                            return "";
                         }
                         JsonObject jsonObject = jsonArray.get(0).getAsJsonObject();
                         String hash = jsonObject.get("hash").getAsString();
@@ -126,7 +127,7 @@ public class QbUtil {
                     });
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            return null;
+            return "";
         }
     }
 
@@ -276,10 +277,9 @@ public class QbUtil {
     }
 
     /**
-     * 
      * @param hash
      * @param tag
-     * @param req
+     * @param req  请求路径
      * @return
      */
     private static boolean tag(String hash, Tags tag, String req) {
@@ -324,7 +324,7 @@ public class QbUtil {
      * @param hash
      * @param path
      */
-    public static synchronized void export(String hash, String path) {
+    public static void export(String hash, String path) {
         try {
             String state = getState(hash);
             // 直到元数据下载完成后，才导出种子
@@ -345,7 +345,7 @@ public class QbUtil {
     }
 
     /**
-     * 删除种子
+     * 根据 hash 删除种子
      * 
      * @param hash        种子 hash
      * @param deleteFiles 是否删除种子文件
@@ -361,6 +361,39 @@ public class QbUtil {
                     });
         } catch (Exception e) {
             log.error(e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * 删除选定 tag 的所有种子
+     * 
+     * @param tag
+     * @param deleteFiles
+     * @return 是否删除成功
+     */
+    public static boolean delete(Tags tag, boolean deleteFiles) {
+        try {
+            String hashes = HttpRequest.get(host + "/api/v2/torrents/info")
+                    .form("category", TorrentsInfo.category)
+                    .form("tag", tag.toString())
+                    .thenFunction(res -> {
+                        Assert.isTrue(res.isOk(), "请求响应错误");
+                        List<String> hashList = new ArrayList<>();
+                        JsonArray jsonArray = GsonStatic.fromJson(res.body(), JsonArray.class);
+                        for (JsonElement jsonElement : jsonArray) {
+                            JsonObject jsonObject = jsonElement.getAsJsonObject();
+                            String hash = jsonObject.get("hash").getAsString();
+                            hashList.add(hash);
+                        }
+                        return StrUtil.join("|", hashList);
+                    });
+
+            if (StrUtil.isBlank(hashes)) {
+                return true;
+            }
+            return delete(hashes, deleteFiles);
+        } catch (Exception e) {
             return false;
         }
     }
