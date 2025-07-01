@@ -3,5 +3,7 @@
 ## 新功能
 
 ## 修复
-分片任务 torrent 做种限制未应用。
+
 ## 改进
+
+设置中可以测试 qBittorrent 和 rclone

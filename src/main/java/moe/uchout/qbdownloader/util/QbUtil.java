@@ -30,6 +30,7 @@ public class QbUtil {
     private static String host;
 
     /**
+     * 读取配置文件的登录信息
      * @return 是否登录成功
      */
     public static boolean login() {
@@ -41,6 +42,13 @@ public class QbUtil {
 
     }
 
+    /** 
+    * @param host qBittorrent host, 末尾没有 "/"
+    * @param username
+    * @param password
+    *
+    * @return 是否成功
+    */
     public static boolean login(String host, String username, String password) {
         try {
             Assert.notBlank(host);
@@ -62,7 +70,7 @@ public class QbUtil {
     }
 
     /**
-     * 获取种子的实时信息，带有 QBD 分类
+     * 获取带有 QBD 分类的种子的实时信息
      * 
      * @return 种子信息列表，没有种子信息返回空列表
      */
@@ -96,6 +104,7 @@ public class QbUtil {
 
     /**
      * 获取最新添加的种子的 hash
+     * 最新添加的种子带有 Tags.NEW 标签，带有此标签的种子确保只同时存在一个
      * 
      * @return
      */
@@ -121,7 +130,13 @@ public class QbUtil {
         }
     }
 
-    public static String getState(String hash) {
+    /**
+     * 获取种子的状态，用于 export() 时检测元数据是否下载完成
+     *
+     * @param hash 需要获取状态的种子 hash
+     * @return State 状态
+     */
+    private static String getState(String hash) {
         try {
             return HttpRequest.get(host + "/api/v2/torrents/info")
                     .form("hashes", hash)
@@ -140,6 +155,12 @@ public class QbUtil {
         }
     }
 
+    /**
+     * 获取种子名称，种子名称和种子根目录文件夹名称可能不同
+     *
+     * @param hash
+     * @return 种子名称
+     */
     public static String getName(String hash) {
         try {
             return HttpRequest.get(host + "/api/v2/torrents/info")
@@ -148,14 +169,14 @@ public class QbUtil {
                         Assert.isTrue(res.isOk(), "get Name failed, status code: {}", res.getStatus());
                         JsonArray jsonArray = GsonStatic.fromJson(res.body(), JsonArray.class);
                         if (jsonArray.size() == 0) {
-                            return null;
+                            return "";
                         }
                         JsonObject jsonObject = jsonArray.get(0).getAsJsonObject();
                         return jsonObject.get("name").getAsString();
                     });
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            return null;
+            return "";
         }
     }
 
