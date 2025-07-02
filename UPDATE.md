@@ -8,4 +8,6 @@
 
 ## 改进
 
-- 设置中可以测试 qBittorrent 和 rclone
+- 设置中可以测试 qBittorrent 和 rclone。
+- Qb 登录失败后不循环试错，降低被流控概率。
+- Qb 和 Uploader 未配置完成禁用添加任务。

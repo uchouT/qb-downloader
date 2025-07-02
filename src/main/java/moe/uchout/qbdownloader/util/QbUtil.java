@@ -51,6 +51,9 @@ public class QbUtil {
         String username = config.getQbUsername();
         String password = config.getQbPassword();
         logined = login(host, username, password);
+        if (!logined) {
+            log.warn("qbittorrent login failed.");
+        }
     }
 
     /**
@@ -75,7 +78,6 @@ public class QbUtil {
                         return true;
                     });
         } catch (Exception e) {
-            log.warn("qbittorrent login failed.");
             return false;
         }
     }
@@ -87,7 +89,7 @@ public class QbUtil {
      */
     public static List<TorrentsInfo> getTorrentsInfo() {
         try {
-            Assert.isTrue(logined);
+            Assert.isTrue(logined, "Qb not login");
             return HttpRequest.get(host + "/api/v2/torrents/info")
                     .form("category", TorrentsInfo.category)
                     .thenFunction(res -> {
@@ -109,7 +111,7 @@ public class QbUtil {
                         return torrentsInfosList;
                     });
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
+            log.error(e.getMessage());
             return new ArrayList<>();
         }
     }

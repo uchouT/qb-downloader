@@ -98,7 +98,7 @@ public class Rclone implements Uploader {
                         log.error(message);
                         task.setStatus(Status.ERROR);
                         // TODO
-                        throw new RuntimeException("Rclone 任务失败: " + message);
+                        throw new RuntimeException("Rclone 任务失败5: " + message);
                     }
                     return success;
                 });
@@ -112,11 +112,11 @@ public class Rclone implements Uploader {
                         Assert.isTrue(res.isOk(), res.body());
                         JsonObject jsonObject = GsonStatic.fromJson(res.body(), JsonObject.class);
                         String version = jsonObject.get("version").getAsString();
-                        log.info("Rclone version: {}", version);
+                        log.info("Rclone test success, version: {}", version);
                         return true;
                     });
         } catch (Exception e) {
-            log.warn("Rclone 测试失败: {}", e.getMessage());
+            log.warn("Rclone test failed: {}", e.getMessage());
             return false;
         }
     }
