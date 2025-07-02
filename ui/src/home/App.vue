@@ -9,7 +9,7 @@
           <h1 class="app-title">b-downloader</h1>
         </div>
         <nav class="header-actions">
-          <el-button class="action-button add-button" type="primary" @click="torrent?.show()"
+          <el-button class="action-button add-button" type="primary" @click="addTask"
             :size="isNotMobile() ? 'default' : 'small'">
             <el-icon>
               <Plus />
@@ -42,16 +42,40 @@
 <script setup>
 import { ref } from "vue";
 import { useWindowSize } from "@vueuse/core";
+import { ElMessage } from 'element-plus'
 import { Plus, Setting, Tickets } from "@element-plus/icons-vue"
 import Torrent from "./Torrent.vue";
 import Config from "./Config.vue";
 import List from "./List.vue";
+import api from "../api";
+
+// TODO: check
+const checkBeforeAddTask = async () => {
+  let uploaderOk
+  let qbOk
+  await api.get("api/test")
+    .then(res => {
+      uploaderOk = res['data'].uploaderOk;
+      qbOk = res['data'].qbOk;
+    })
+  return uploaderOk && qbOk;
+}
+
 
 // 响应式数据
 const { width, height } = useWindowSize();
 const torrent = ref()
 const config = ref()
 const taskList = ref()
+
+const addTask = async () => {
+  const isReady = await checkBeforeAddTask();
+  if (!isReady) {
+    ElMessage.warning("qb 或者 uploader 未配置完成")
+    return;
+  }
+  torrent?.value.show();
+}
 
 const isNotMobile = () => {
   return width.value > 768;
