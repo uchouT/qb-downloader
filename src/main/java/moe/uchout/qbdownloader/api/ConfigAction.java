@@ -4,6 +4,7 @@ import java.io.IOException;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.util.ObjectUtil;
+import static moe.uchout.qbdownloader.util.QbUtil.login;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.server.HttpServerRequest;
 import cn.hutool.http.server.HttpServerResponse;
@@ -36,6 +37,7 @@ public class ConfigAction implements BaseAction {
                 config.getAccount().setPassword(password);
             }
             ConfigUtil.sync();
+            login();
             resultSuccessMsg("Configuration updated successfully.");
         } else if (method.toUpperCase().equals("GET")) {
             Config config = ObjectUtil.clone(ConfigUtil.CONFIG);

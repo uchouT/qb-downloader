@@ -28,11 +28,9 @@ public class TaskAction implements BaseAction {
 	@Override
 	public void doAction(HttpServerRequest req, HttpServerResponse res) throws IOException {
 		try {
-			try {
-				Assert.isTrue(QbUtil.getLogin(), "Qb not login");
-			} catch (Exception e) {
-				log.error("Qb not login");
-				throw new TaskException("Qb not login");
+			if (!QbUtil.getLogin()) {
+				resultSuccess();
+				return;
 			}
 			String method = req.getMethod();
 			switch (method.toUpperCase()) {
@@ -56,8 +54,6 @@ public class TaskAction implements BaseAction {
 		} catch (MissingParamException e) {
 			resultErrorMsg("missing parameter" + e.getMessage());
 			return;
-		} catch (TaskException e) {
-			resultErrorMsg(e.getMessage());
 		}
 	}
 
@@ -87,7 +83,7 @@ public class TaskAction implements BaseAction {
 	 * 
 	 * @param req
 	 */
-	private void post(HttpServerRequest req) throws IOException, MissingParamException, TaskException {
+	private void post(HttpServerRequest req) throws IOException, MissingParamException {
 		TaskReq taskReq = getBody(TaskReq.class);
 		String uploadPath = taskReq.getUploadPath();
 		try {

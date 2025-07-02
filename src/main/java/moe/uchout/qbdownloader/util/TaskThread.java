@@ -20,6 +20,7 @@ public class TaskThread extends Thread {
 
     @Override
     public void run() {
+        QbUtil.login();
         while (!QbUtil.getLogin() && running) {
             ThreadUtil.sleep(10000);
         }
@@ -44,6 +45,7 @@ public class TaskThread extends Thread {
      */
     private void processTask() {
         try {
+            // TODO: qb 登录后再设置错误账号，可能导致错误
             updateTaskStatus();
             for (Task task : TaskUtil.getTaskList().values()) {
                 Status status = task.getStatus();
