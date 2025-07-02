@@ -20,7 +20,7 @@ public class TaskThread extends Thread {
 
     @Override
     public void run() {
-        while (!QbUtil.login() && running) {
+        while (!QbUtil.getLogin() && running) {
             ThreadUtil.sleep(10000);
         }
         log.info("qBittorrent login success.");

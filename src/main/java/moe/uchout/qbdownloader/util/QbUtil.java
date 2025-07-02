@@ -29,18 +29,28 @@ public class QbUtil {
 
     private static String host;
 
+    private static boolean logined;
+
+    /**
+     * 返回当前 QBD qbittorrent 登录情况
+     * 
+     * @return
+     */
+    public static boolean getLogin() {
+        return logined;
+    }
+
     /**
      * 读取配置文件的登录信息
      * 
      * @return 是否登录成功
      */
-    public static boolean login() {
+    public static void login() {
         Config config = ConfigUtil.CONFIG;
         host = config.getQbHost();
         String username = config.getQbUsername();
         String password = config.getQbPassword();
-        return login(host, username, password);
-
+        logined = login(host, username, password);
     }
 
     /**
@@ -77,6 +87,7 @@ public class QbUtil {
      */
     public static List<TorrentsInfo> getTorrentsInfo() {
         try {
+            Assert.isTrue(logined);
             return HttpRequest.get(host + "/api/v2/torrents/info")
                     .form("category", TorrentsInfo.category)
                     .thenFunction(res -> {
@@ -111,6 +122,7 @@ public class QbUtil {
      */
     public static String getHash() {
         try {
+            Assert.isTrue(logined, "Qb not login");
             return HttpRequest.get(host + "/api/v2/torrents/info")
                     .form("category", TorrentsInfo.category)
                     .form("tag", Tags.NEW)
@@ -139,6 +151,7 @@ public class QbUtil {
      */
     private static String getState(String hash) {
         try {
+            Assert.isTrue(logined, "Qb not login");
             return HttpRequest.get(host + "/api/v2/torrents/info")
                     .form("hashes", hash)
                     .thenFunction(res -> {
@@ -164,6 +177,7 @@ public class QbUtil {
      */
     public static String getName(String hash) {
         try {
+            Assert.isTrue(logined, "Qb not login");
             return HttpRequest.get(host + "/api/v2/torrents/info")
                     .form("hashes", hash)
                     .thenFunction(res -> {
@@ -190,6 +204,7 @@ public class QbUtil {
      */
     public static boolean setPrio(String hash, Integer priority, List<Integer> indexList) {
         try {
+            Assert.isTrue(logined, "Qb not login");
             String id = StrUtil.join("|", indexList);
             return HttpRequest.post(host + "/api/v2/torrents/filePrio")
                     .form("hash", hash)
@@ -224,17 +239,16 @@ public class QbUtil {
      * @param hash
      * @param req
      */
-    private static boolean manage(String hash, String req) {
+    private static void manage(String hash, String req) {
         try {
-            return HttpRequest.post(host + "/api/v2/torrents/" + req)
+            Assert.isTrue(logined, "Qb not login");
+            HttpRequest.post(host + "/api/v2/torrents/" + req)
                     .form("hashes", hash)
-                    .thenFunction(res -> {
+                    .then(res -> {
                         Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
-                        return true;
                     });
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            return false;
         }
     }
 
@@ -243,8 +257,8 @@ public class QbUtil {
      * 
      * @param hash 种子 hash
      */
-    public static boolean start(String hash) {
-        return manage(hash, "start");
+    public static void start(String hash) {
+        manage(hash, "start");
     }
 
     /**
@@ -253,12 +267,13 @@ public class QbUtil {
      * 
      * @param hash 种子 hash
      */
-    public static boolean pause(String hash) {
-        return manage(hash, "stop");
+    public static void pause(String hash) {
+        manage(hash, "stop");
     }
 
     public static void setShareLimit(String hash, String ratioLimit, int seedingTimeLimit) throws QbException {
         try {
+            Assert.isTrue(logined, "Qb not login");
             HttpRequest.post(host + "/api/v2/torrents/setShareLimits")
                     .form("hashes", hash)
                     .form("ratioLimit", ratioLimit)
@@ -282,18 +297,17 @@ public class QbUtil {
      * @param req  请求路径
      * @return
      */
-    private static boolean tag(String hash, Tags tag, String req) {
+    private static void tag(String hash, Tags tag, String req) {
         try {
-            return HttpRequest.post(host + "/api/v2/torrents/" + req)
+            Assert.isTrue(logined, "Qb not login");
+            HttpRequest.post(host + "/api/v2/torrents/" + req)
                     .form("hashes", hash)
                     .form("tags", tag.getTag())
-                    .thenFunction(res -> {
+                    .then(res -> {
                         Assert.isTrue(res.isOk(), "status code: {}", res.getStatus());
-                        return true;
                     });
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            return false;
         }
     }
 
@@ -304,8 +318,8 @@ public class QbUtil {
      * @param tag
      * @return
      */
-    public static boolean removeTag(String hash, Tags tag) {
-        return tag(hash, tag, "removeTags");
+    public static void removeTag(String hash, Tags tag) {
+        tag(hash, tag, "removeTags");
     }
 
     /**
@@ -314,8 +328,8 @@ public class QbUtil {
      * @param hash
      * @param tag
      */
-    public static boolean addTag(String hash, Tags tag) {
-        return tag(hash, tag, "addTags");
+    public static void addTag(String hash, Tags tag) {
+        tag(hash, tag, "addTags");
     }
 
     /**
@@ -350,18 +364,17 @@ public class QbUtil {
      * @param hash        种子 hash
      * @param deleteFiles 是否删除种子文件
      */
-    public static boolean delete(String hash, boolean deleteFiles) {
+    public static void delete(String hash, boolean deleteFiles) {
         try {
-            return HttpRequest.post(host + "/api/v2/torrents/delete")
+            Assert.isTrue(logined);
+            HttpRequest.post(host + "/api/v2/torrents/delete")
                     .form("hashes", hash)
                     .form("deleteFiles", deleteFiles)
-                    .thenFunction(res -> {
+                    .then(res -> {
                         Assert.isTrue(res.isOk(), "delete torrent failed, status code: {}", res.getStatus());
-                        return true;
                     });
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            return false;
         }
     }
 
@@ -372,7 +385,7 @@ public class QbUtil {
      * @param deleteFiles
      * @return 是否删除成功
      */
-    public static boolean delete(Tags tag, boolean deleteFiles) {
+    public static void delete(Tags tag, boolean deleteFiles) {
         try {
             String hashes = HttpRequest.get(host + "/api/v2/torrents/info")
                     .form("category", TorrentsInfo.category)
@@ -390,11 +403,11 @@ public class QbUtil {
                     });
 
             if (StrUtil.isBlank(hashes)) {
-                return true;
+                return;
             }
-            return delete(hashes, deleteFiles);
+            delete(hashes, deleteFiles);
         } catch (Exception e) {
-            return false;
+            log.error("torrents waited clean failed.");
         }
     }
 
@@ -408,6 +421,7 @@ public class QbUtil {
      */
     public static void add(String url, String savePath) {
         try {
+            Assert.isTrue(logined);
             HttpRequest.post(host + "/api/v2/torrents/add")
                     // 所有通过 qb-downloader 添加的种子都属于这个分类
                     .form("category", TorrentsInfo.category)
@@ -434,6 +448,7 @@ public class QbUtil {
      */
     public static void add(String filePath, String savePath, int seedingTimeLimit, String ratioLimit) {
         try {
+            Assert.isTrue(logined);
             HttpRequest.post(host + "/api/v2/torrents/add")
                     // 所有通过 qb-downloader 添加的种子都属于这个分类
                     .form("category", TorrentsInfo.category)
@@ -459,23 +474,22 @@ public class QbUtil {
      * @param savePath
      * @return
      */
-    public static boolean add(byte[] torrentFile, String fileName, String savePath) {
+    public static void add(byte[] torrentFile, String fileName, String savePath) {
         try {
-            return HttpRequest.post(host + "/api/v2/torrents/add")
+            Assert.isTrue(logined);
+            HttpRequest.post(host + "/api/v2/torrents/add")
                     // 所有通过 qb-downloader 添加的种子都属于这个分类
                     .form("category", TorrentsInfo.category)
                     .form("savepath", savePath)
                     .form("tags", Tags.NEW)
                     .form("torrents", torrentFile, fileName)
                     .form("stopped", "true")
-                    .thenFunction(res -> {
+                    .then(res -> {
                         Assert.isTrue(res.isOk(), "add torrent failed, status code: {}", res.getStatus());
-                        return true;
                     });
 
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            return false;
         }
     }
 }

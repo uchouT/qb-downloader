@@ -29,7 +29,7 @@ public class TaskAction implements BaseAction {
 	public void doAction(HttpServerRequest req, HttpServerResponse res) throws IOException {
 		try {
 			try {
-				Assert.isTrue(QbUtil.login());
+				Assert.isTrue(QbUtil.getLogin(), "Qb not login");
 			} catch (Exception e) {
 				log.error("Qb not login");
 				throw new TaskException("Qb not login");

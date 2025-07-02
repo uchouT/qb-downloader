@@ -32,9 +32,8 @@ import static moe.uchout.qbdownloader.api.ConfigAction.rectifyPathAndHost;
 public class TorrentActon implements BaseAction {
     @Override
     public void doAction(HttpServerRequest req, HttpServerResponse res) throws IOException {
-        Assert.isTrue(QbUtil.login(), "Qb not login");
-
         try {
+            Assert.isTrue(QbUtil.getLogin(), "Qb not login");
             String method = req.getMethod();
             if ("POST".equalsIgnoreCase(method)) {
                 post(req);
