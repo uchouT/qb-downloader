@@ -69,6 +69,7 @@ public class QbUtil {
             Assert.notBlank(username);
             Assert.notBlank(password);
             return HttpRequest.post(host + "/api/v2/auth/login")
+                    .disableCookie()
                     .form("username", username)
                     .form("password", password)
                     .setFollowRedirects(true)

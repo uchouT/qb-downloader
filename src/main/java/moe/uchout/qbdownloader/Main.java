@@ -7,6 +7,10 @@ import static moe.uchout.qbdownloader.util.QbUtil.delete;
 import moe.uchout.qbdownloader.util.ServerUtil;
 import moe.uchout.qbdownloader.util.TaskThread;
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.http.cookie.GlobalCookieManager;
+
+import java.net.CookieManager;
+import java.net.CookiePolicy;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,6 +19,11 @@ public class Main {
     public static List<String> ARGS = new ArrayList<>();
 
     private final static TaskThread taskThread = new TaskThread();
+    static {
+        CookieManager cookieManager = new CookieManager();
+        cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
+        GlobalCookieManager.setCookieManager(cookieManager);
+    }
 
     public static void main(String[] args) {
         ARGS = List.of(ObjectUtil.defaultIfNull(args, new String[] {}));
