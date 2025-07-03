@@ -114,8 +114,8 @@ public class TaskUtil {
     public static void addTask(TorrentRes torrentRes, String uploadType,
             String uploadPath, long maxSize, int seedingTimeLimit, String ratioLimit) {
         try {
-            String savePath = torrentRes.getSavePath();
             String hash = torrentRes.getHash();
+            String savePath = torrentRes.getSavePath();
             String name = QbUtil.getName(hash);
             Task task = new Task().setCurrentPartNum(0).setStatus(Status.PAUSED).setName(name)
                     .setHash(hash).setSeeding(false).setTorrentPath(TORRENT_FILE_PATH + hash + ".torrent")
@@ -169,6 +169,7 @@ public class TaskUtil {
 
         QbUtil.setPrio(hash, 1, task.getTaskOrder().get(index));
         QbUtil.start(hash);
+        QbUtil.removeTag(hash, Tags.WAITED);
         task.setStatus(Status.DOWNLOADING);
     }
 
