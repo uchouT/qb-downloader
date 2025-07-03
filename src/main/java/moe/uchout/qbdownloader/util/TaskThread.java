@@ -20,23 +20,28 @@ public class TaskThread extends Thread {
 
     @Override
     public void run() {
-        QbUtil.login();
-        while (!QbUtil.getLogin() && running) {
+        while (running) {
+            QbUtil.login();
+            boolean first = true;
+            while (running && QbUtil.getLogin()) {
+                if (first) {
+                    log.info("qBittorrent login success.");
+                    first = false;
+                }
+                try {
+                    processTask();
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    running = false;
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception e) {
+                    log.error("任务处理出错", e);
+                }
+            }
             ThreadUtil.sleep(10000);
         }
-        log.info("qBittorrent login success.");
-        while (running) {
-            try {
-                processTask();
-                Thread.sleep(5000);
-            } catch (InterruptedException e) {
-                running = false;
-                Thread.currentThread().interrupt();
-                break;
-            } catch (Exception e) {
-                log.error("任务处理出错", e);
-            }
-        }
+
         cleanupBeforeExit();
     }
 
