@@ -20,8 +20,8 @@ public class TaskThread extends Thread {
 
     @Override
     public void run() {
+        QbUtil.login();
         while (running) {
-            QbUtil.login();
             boolean first = true;
             while (running && QbUtil.getLogin()) {
                 if (first) {

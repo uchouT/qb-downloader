@@ -3,7 +3,8 @@ package moe.uchout.qbdownloader;
 import lombok.extern.slf4j.Slf4j;
 import moe.uchout.qbdownloader.enums.Tags;
 import moe.uchout.qbdownloader.util.ConfigUtil;
-import static moe.uchout.qbdownloader.util.QbUtil.delete;
+import moe.uchout.qbdownloader.util.QbUtil;
+
 import moe.uchout.qbdownloader.util.ServerUtil;
 import moe.uchout.qbdownloader.util.TaskThread;
 import cn.hutool.core.util.ObjectUtil;
@@ -51,9 +52,10 @@ public class Main {
     public static synchronized void Shutdown() {
         log.info("Shutdown hook triggered, stopping server...");
         try {
-            log.info("Removing waited torrents");
-            delete(Tags.WAITED, true);
-
+            if (QbUtil.getLogin()) {
+                log.info("Removing waited torrents");
+                QbUtil.delete(Tags.WAITED, true);
+            }
             log.info("Stopping task thread...");
             taskThread.stopTask();
             log.info("Task thread stopped.");

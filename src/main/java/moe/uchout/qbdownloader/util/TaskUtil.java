@@ -81,7 +81,7 @@ public class TaskUtil {
      * 
      * @param isFile
      * @param file
-     * @param url
+     * @param url isFile 时，url 为 filename； 非 isFile 时，url 为种子 url
      * @param savePath
      * @return 种子 hash 值
      */

@@ -47,38 +47,44 @@ public class TorrentActon implements BaseAction {
             return;
 
         } catch (Exception e) {
-            log.error("Error processing request: {}", e.getMessage(), e);
+            log.error("Error processing request: {}", e.getMessage());
             resultErrorMsg(e.getMessage());
         }
     }
 
     /**
-     * 处理种子任务添加
+     * 处理种子任务添加. multipart 处理 .torrent 文件添加，否则处理 url 添加
      * 
      * @param req
      * @throws IOException
      */
     private void post(HttpServerRequest req) throws IOException {
-        if (req.isMultipart()) {
-            Assert.isTrue(req.isMultipart());
+
+        String savePath;
+        boolean isMultipart = req.isMultipart();
+        byte[] fileContent = null;
+        String url;
+
+        if (isMultipart) {
             MultipartFormData formData = req.getMultipart();
             UploadFile file = formData.getFile("torrent");
-            Assert.notNull(file);
+            Assert.notNull(file, "文件上传失败");
             while (!file.isUploaded()) {
                 ThreadUtil.sleep(500);
             }
-            String savePath = rectifyHost(
+            savePath = rectifyHost(
                     getOptionalParam(formData, "savePath", ConfigUtil.CONFIG.getDefaultSavePath()));
-            String hash = TaskUtil.addTorrent(true, file.getFileContent(), file.getFileName(), savePath);
-            resultSuccess(new TorrentRes().setHash(hash).setSavePath(savePath));
-            return;
+            url = file.getFileName();
+            fileContent = file.getFileContent();
+        } else {
+            TorrentReq torrentReq = getBody(TorrentReq.class);
+            rectifyPathAndHost(torrentReq);
+            savePath = torrentReq.getSavePath();
+            url = torrentReq.getUrl();
         }
-
-        TorrentReq torrentReq = getBody(TorrentReq.class);
-        rectifyPathAndHost(torrentReq);
-        String hash = TaskUtil.addTorrent(false, null, torrentReq.getUrl(), torrentReq.getSavePath());
-        resultSuccess(new TorrentRes().setHash(hash).setSavePath(torrentReq.getSavePath()));
-
+        Assert.notBlank(savePath, "保存路径不能为空。");
+        String hash = TaskUtil.addTorrent(isMultipart, fileContent, url, savePath);
+        resultSuccess(new TorrentRes().setHash(hash).setSavePath(savePath));
     }
 
     /**
