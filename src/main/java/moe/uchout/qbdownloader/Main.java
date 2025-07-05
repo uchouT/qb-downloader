@@ -1,12 +1,12 @@
 package moe.uchout.qbdownloader;
 
 import lombok.extern.slf4j.Slf4j;
-import moe.uchout.qbdownloader.enums.Tags;
 import moe.uchout.qbdownloader.util.ConfigUtil;
 import moe.uchout.qbdownloader.util.QbUtil;
 
 import moe.uchout.qbdownloader.util.ServerUtil;
 import moe.uchout.qbdownloader.util.TaskThread;
+import moe.uchout.qbdownloader.util.TaskUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.http.cookie.GlobalCookieManager;
 
@@ -54,7 +54,7 @@ public class Main {
         try {
             if (QbUtil.getLogin()) {
                 log.info("Removing waited torrents");
-                QbUtil.delete(Tags.WAITED, true);
+                TaskUtil.clear();
             }
             log.info("Stopping task thread...");
             taskThread.stopTask();

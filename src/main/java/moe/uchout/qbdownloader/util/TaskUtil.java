@@ -10,6 +10,7 @@ import com.google.gson.reflect.TypeToken;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.thread.ThreadUtil;
+import cn.hutool.core.util.StrUtil;
 
 import java.lang.reflect.Type;
 import java.io.InputStreamReader;
@@ -26,6 +27,8 @@ import java.util.LinkedHashMap;
 import moe.uchout.qbdownloader.api.entity.TorrentRes;
 import moe.uchout.qbdownloader.entity.Task;
 import com.dampcake.bencode.Bencode;
+
+// TODO: 抽象出 BencodeUtil
 
 /**
  * 任务执行相关
@@ -272,6 +275,21 @@ public class TaskUtil {
             currentSize += torrentContent;
         }
         return TaskOrder;
+    }
+
+    /**
+     * 清除待添加的任务种子，包括 torrent 文件和 qb 中的任务
+     * 待添加的种子带有 Tags.WAITED 标签
+     */
+    public static void clear() {
+        List<String> hashList = QbUtil.getTagTorrentList(Tags.WAITED);
+        if (hashList.isEmpty()) {
+            return;
+        }
+        QbUtil.delete(StrUtil.join("|", hashList), true);
+        for (String hash : hashList) {
+            FileUtil.del(new File(TORRENT_FILE_PATH + hash + ".torrent"));
+        }
     }
 }
 

@@ -382,15 +382,14 @@ public class QbUtil {
     }
 
     /**
-     * 删除选定 tag 的所有种子
+     * 获取指定标签种子的 hash 列表
      * 
      * @param tag
-     * @param deleteFiles
-     * @return 是否删除成功
+     * @return hash 列表
      */
-    public static void delete(Tags tag, boolean deleteFiles) {
+    public static List<String> getTagTorrentList(Tags tag) {
         try {
-            String hashes = HttpRequest.get(host + "/api/v2/torrents/info")
+            return HttpRequest.get(host + "/api/v2/torrents/info")
                     .form("category", TorrentsInfo.category)
                     .form("tag", tag.toString())
                     .thenFunction(res -> {
@@ -402,15 +401,12 @@ public class QbUtil {
                             String hash = jsonObject.get("hash").getAsString();
                             hashList.add(hash);
                         }
-                        return StrUtil.join("|", hashList);
+                        return hashList;
                     });
 
-            if (StrUtil.isBlank(hashes)) {
-                return;
-            }
-            delete(hashes, deleteFiles);
         } catch (Exception e) {
             log.error("torrents waited clean failed.");
+            return new ArrayList<>();
         }
     }
 
