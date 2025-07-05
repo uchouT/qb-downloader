@@ -96,6 +96,6 @@ public class TorrentActon implements BaseAction {
      */
     private void delete(HttpServerRequest req) throws MissingParamException {
         String hash = getRequiredParam(req, "hash");
-        QbUtil.delete(hash, true);
+        TaskUtil.delete(hash, false);
     }
 }

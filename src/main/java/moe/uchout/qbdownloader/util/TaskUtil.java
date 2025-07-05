@@ -217,17 +217,34 @@ public class TaskUtil {
     }
 
     /**
-     * 删除任务，根据 hash
+     * 删除 TASK_LIST 中的任务
      * 
      * @param hash
      */
     @Synchronized("TASK_LIST")
     public static void delete(String hash) {
-        TASK_LIST.remove(hash);
+        try {
+            delete(hash, true);
+        } catch (Exception e) {
+            log.error("删除任务失败: {}", e.getMessage());
+            throw new RuntimeException("Failed to delete task: " + e.getMessage(), e);
+        }
+        log.info("删除任务成功: {}", hash);
+    }
+
+    /**
+     * 根据 hash 删除任务
+     * 
+     * @param hash  待删除的任务的 hash
+     * @param added 是否已经添加到 TASK_LIST 中
+     */
+    public static void delete(String hash, boolean added) {
         FileUtil.del(new File(TORRENT_FILE_PATH + hash + ".torrent"));
         QbUtil.delete(hash, true);
-        sync();
-        log.info("删除任务成功: {}", hash);
+        if (added) {
+            TASK_LIST.remove(hash);
+            sync();
+        }
     }
 
     /**
