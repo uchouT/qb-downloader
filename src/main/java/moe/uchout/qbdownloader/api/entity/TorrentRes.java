@@ -9,6 +9,7 @@ import moe.uchout.qbdownloader.util.ConfigUtil;
 @Data
 @Accessors(chain = true)
 public class TorrentRes implements Serializable {
+    private String torrentName;
     private String hash;
     private String savePath = ConfigUtil.CONFIG.getDefaultSavePath();
 }

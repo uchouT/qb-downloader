@@ -81,6 +81,7 @@ const rules = ref({
 
 const taskAdd = ref({
     torrentRes: {
+        torrentName: '',
         savePath: '',
         hash: ''
     },
@@ -146,6 +147,7 @@ const show = () => {
     fileSelected.value = false
     taskAdd.value = {
         torrentRes: {
+            torrentName: '',
             savePath: '',
             hash: ''
         },

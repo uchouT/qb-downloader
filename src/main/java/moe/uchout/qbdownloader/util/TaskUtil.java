@@ -81,7 +81,7 @@ public class TaskUtil {
      * 
      * @param isFile
      * @param file
-     * @param url isFile 时，url 为 filename； 非 isFile 时，url 为种子 url
+     * @param url      isFile 时，url 为 filename； 非 isFile 时，url 为种子 url
      * @param savePath
      * @return 种子 hash 值
      */
@@ -116,7 +116,7 @@ public class TaskUtil {
         try {
             String hash = torrentRes.getHash();
             String savePath = torrentRes.getSavePath();
-            String name = QbUtil.getName(hash);
+            String name = torrentRes.getTorrentName();
             Task task = new Task().setCurrentPartNum(0).setStatus(Status.PAUSED).setName(name)
                     .setHash(hash).setSeeding(false).setTorrentPath(TORRENT_FILE_PATH + hash + ".torrent")
                     .setUploadType(uploadType)

@@ -1,6 +1,9 @@
 <template>
     <div class="task-form">
         <el-form ref="formRef" :model="props.taskData" :rules="rules" label-position="right" label-width="140px">
+            <el-form-item label="种子名称">
+                <el-text>{{ props.taskData.torrentRes.torrentName }}</el-text>
+            </el-form-item>
             <el-form-item label="上传路径">
                 <el-input v-model="props.taskData.uploadPath" :placeholder="pathTips" />
             </el-form-item>
@@ -15,12 +18,12 @@
                     <!-- <el-radio value="alist">Alist</el-radio> -->
                 </el-radio-group>
             </el-form-item>
-            
+
             <div class="warning-box">
                 <p><strong>重要提醒：</strong>务必设置做种限制，否则分片任务将永远不会结束</p>
                 <p><small>-2 表示使用 qBittorrent 的全局设置</small></p>
             </div>
-            
+
             <el-form-item label="做种时间限制">
                 <el-input-number v-model="props.taskData.seedingTimeLimit" :placeholder="-2">
                     <template #suffix>分钟</template>
@@ -30,7 +33,7 @@
                 <el-input-number v-model="props.taskData.ratioLimit" :precision="2" :placeholder="-2" :step="0.1" />
             </el-form-item>
         </el-form>
-        
+
         <div class="form-actions">
             <el-button @click="emit('cancel')">取消</el-button>
             <el-button type="primary" :loading="loading" @click="handleSubmit">
@@ -48,8 +51,8 @@ const props = defineProps(['taskData'])
 const emit = defineEmits(['ok', 'cancel'])
 const loading = ref(false)
 const formRef = ref(null)
-const pathTips = computed(()=> {
-    return props.taskData.uploadType === 'rclone' ? 'dest:/path/to/upload': '/path/to/upload'
+const pathTips = computed(() => {
+    return props.taskData.uploadType === 'rclone' ? 'dest:/path/to/upload' : '/path/to/upload'
 })
 const rules = ref({
     uploadType: [{ required: true, message: '请选择上传工具', trigger: 'change' }],
@@ -121,45 +124,45 @@ const handleSubmit = async () => {
     .task-form {
         padding: 1rem;
     }
-    
+
     .el-form :deep(.el-form-item__label) {
         width: 120px !important;
         text-align: left;
         font-size: 14px;
     }
-    
+
     .el-form-item {
         margin-bottom: 1rem;
         flex-direction: column;
         align-items: stretch;
     }
-    
+
     .el-form :deep(.el-form-item__content) {
         margin-left: 0 !important;
     }
-    
+
     .el-form :deep(.el-input),
     .el-form :deep(.el-input-number) {
         width: 100%;
     }
-    
+
     .el-form :deep(.el-radio-group) {
         display: flex;
         gap: 1rem;
     }
-    
+
     .warning-box {
         font-size: 13px;
         padding: 0.875rem;
     }
-    
+
     .form-actions {
         text-align: center;
         display: flex;
         gap: 0.75rem;
         justify-content: center;
     }
-    
+
     .form-actions .el-button {
         flex: 1;
         margin-left: 0;
@@ -170,12 +173,12 @@ const handleSubmit = async () => {
     .task-form {
         padding: 0.875rem;
     }
-    
+
     .el-form :deep(.el-form-item__label) {
         width: 100px !important;
         font-size: 13px;
     }
-    
+
     .warning-box {
         font-size: 12px;
         padding: 0.75rem;

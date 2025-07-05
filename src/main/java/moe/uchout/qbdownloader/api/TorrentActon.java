@@ -64,7 +64,7 @@ public class TorrentActon implements BaseAction {
         boolean isMultipart = req.isMultipart();
         byte[] fileContent = null;
         String url;
-
+        String torrentName;
         if (isMultipart) {
             MultipartFormData formData = req.getMultipart();
             UploadFile file = formData.getFile("torrent");
@@ -84,7 +84,8 @@ public class TorrentActon implements BaseAction {
         }
         Assert.notBlank(savePath, "保存路径不能为空。");
         String hash = TaskUtil.addTorrent(isMultipart, fileContent, url, savePath);
-        resultSuccess(new TorrentRes().setHash(hash).setSavePath(savePath));
+        torrentName = QbUtil.getName(hash);
+        resultSuccess(new TorrentRes().setHash(hash).setSavePath(savePath).setTorrentName(torrentName));
     }
 
     /**
