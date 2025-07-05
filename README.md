@@ -18,6 +18,13 @@ A typical qb-downloader workflow includes:
 2. Downloading each part sequentially.
 3. Running interval tasks between each part, such as seeding, uploading to your cloud drive, etc.
 
+## TODO
+
+- [ ] Adding support for customizing torrent contents.
+- [ ] Forced continuation when error occurs.
+- [ ] Improving ui experience.
+- [ ] Adding support for hot update.
+
 ## Usage
 
 ### prerequisite
