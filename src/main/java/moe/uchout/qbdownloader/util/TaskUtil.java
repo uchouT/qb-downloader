@@ -140,6 +140,7 @@ public class TaskUtil {
                 @SuppressWarnings("unchecked")
                 List<LinkedHashMap<String, Object>> files = (ArrayList<LinkedHashMap<String, Object>>) info
                         .get("files");
+                Assert.notNull(files, "种子为单文件种子");
                 int size = files.size();
                 List<Long> fileLengths = files.stream().map(file -> {
                     return (Long) file.get("length");
