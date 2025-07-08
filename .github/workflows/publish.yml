@@ -51,7 +51,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.TAG }}
-          name: Release ${{ steps.get_version.outputs.VERSION }}
           body_path: UPDATE.md
           files: target/qb-downloader.jar
           draft: false
