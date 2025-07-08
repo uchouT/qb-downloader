@@ -74,6 +74,7 @@ public class TaskThread extends Thread {
                         // 从保存的种子文件中快速重新添加
                         QbUtil.add(task.getTorrentPath(), task.getSavePath(), task.getSeedingTimeLimit(),
                                 task.getRatioLimit());
+                        ThreadUtil.sleep(TaskConstants.SLEEP_TIMES_BEFORE_ADD);
                         TaskUtil.startTask(currentPartNum + 1, hash, task);
                         TaskUtil.sync();
                         log.info("{} 开始分片任务：{}", task.getName(), task.getCurrentPartNum() + 1);

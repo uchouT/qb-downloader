@@ -94,7 +94,7 @@ public class TaskUtil {
         } else {
             QbUtil.add(url, savePath);
         }
-        ThreadUtil.sleep(500);
+        ThreadUtil.sleep(TaskConstants.SLEEP_TIMES_BEFORE_ADD);
         String hash = QbUtil.getHash();
         QbUtil.export(hash, TORRENT_FILE_PATH + hash + ".torrent");
         QbUtil.addTag(hash, Tags.WAITED);
@@ -313,4 +313,5 @@ public class TaskUtil {
 
 class TaskConstants {
     static final int RETRY_TIMES = 3;
+    static final int SLEEP_TIMES_BEFORE_ADD = 500;
 }
