@@ -345,7 +345,10 @@ public class QbUtil {
         try {
             String state = getState(hash);
             // 直到元数据下载完成后，才导出种子
-            while ("metaDL".equals(state)) {
+            while (!List.of("stoppedUP",
+                    "pausedUP",
+                    "stoppedDL",
+                    "pausedDL").contains(state)) {
                 state = getState(hash);
                 Thread.sleep(1000);
             }

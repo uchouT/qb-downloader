@@ -116,7 +116,7 @@ public class TaskThread extends Thread {
                         "forcedUP").contains(state)) {
                     task.setSeeding(true);
                     task.setStatus(Status.DOWNLOADED);
-                } else if ("stoppedUP".equals(state)) {
+                } else if (List.of("stoppedUP", "pausedUP").contains(state)) {
                     task.setSeeding(false);
                     task.setStatus(Status.DOWNLOADED);
                 } else if (List.of(
@@ -125,7 +125,7 @@ public class TaskThread extends Thread {
                     task.setStatus(Status.ERROR);
                 }
             } else if (task.isSeeding()) {
-                if ("stoppedUP".equals(torrentsInfo.getState())) {
+                if (List.of("stoppedUP", "pausedUP").contains(torrentsInfo.getState())) {
                     task.setSeeding(false);
                 }
             }
