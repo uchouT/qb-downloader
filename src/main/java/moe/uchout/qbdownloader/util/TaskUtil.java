@@ -96,10 +96,26 @@ public class TaskUtil {
         }
         ThreadUtil.sleep(TaskConstants.SLEEP_TIMES_BEFORE_ADD);
         String hash = QbUtil.getHash();
-        QbUtil.export(hash, TORRENT_FILE_PATH + hash + ".torrent");
+        export(hash, isFile, file);
         QbUtil.addTag(hash, Tags.WAITED);
 
         return hash;
+    }
+
+    /**
+     * 将种子文件缓存到指定路径
+     * 
+     * @param hash
+     * @param isFile
+     * @param file
+     */
+    private static void export(String hash, boolean isFile, byte[] file) {
+        String path = TORRENT_FILE_PATH + hash + ".torrent";
+        if (isFile) {
+            FileUtil.writeBytes(file, new File(path));
+            return;
+        }
+        QbUtil.export(hash, path);
     }
 
     /**
