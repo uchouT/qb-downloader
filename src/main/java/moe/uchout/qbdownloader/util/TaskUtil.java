@@ -96,6 +96,7 @@ public class TaskUtil {
         }
         ThreadUtil.sleep(TaskConstants.SLEEP_TIMES_BEFORE_ADD);
         String hash = QbUtil.getHash();
+        Assert.notEmpty(hash, "种子已经存在");
         export(hash, isFile, file);
         QbUtil.addTag(hash, Tags.WAITED);
 
