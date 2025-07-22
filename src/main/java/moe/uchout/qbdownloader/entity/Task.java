@@ -101,10 +101,6 @@ public class Task implements Serializable {
      */
     private Integer rcloneJobId;
 
-    // /**
-    // * alist 任务 ID
-    // */
-    // private String alistJobId;
     /**
      * 做种时间
      */
@@ -114,6 +110,11 @@ public class Task implements Serializable {
      * 分享率
      */
     private String ratioLimit;
+
+    /**
+     * 任务进度
+     */
+    private Float progress;
 
     /**
      * 执行间隔任务，标记状态为 ON_TASK, 完成间隔任务后标记为 FINISHED

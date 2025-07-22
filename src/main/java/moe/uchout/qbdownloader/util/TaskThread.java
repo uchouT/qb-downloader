@@ -116,18 +116,25 @@ public class TaskThread extends Thread {
                         "forcedUP").contains(state)) {
                     task.setSeeding(true);
                     task.setStatus(Status.DOWNLOADED);
-                } else if (List.of("stoppedUP", "pausedUP").contains(state)) {
+                    continue;
+                }
+                if (List.of("stoppedUP", "pausedUP").contains(state)) {
                     task.setSeeding(false);
                     task.setStatus(Status.DOWNLOADED);
-                } else if (List.of(
+                    continue;
+                }
+                if (List.of(
                         "error",
                         "missingFiles").contains(state)) {
                     task.setStatus(Status.ERROR);
+                    continue;
                 }
-            } else if (task.isSeeding()) {
-                if (List.of("stoppedUP", "pausedUP").contains(torrentsInfo.getState())) {
-                    task.setSeeding(false);
-                }
+                float progress = torrentsInfo.getProgress();
+                task.setProgress(progress);
+                continue;
+            }
+            if (task.isSeeding() && List.of("stoppedUP", "pausedUP").contains(torrentsInfo.getState())) {
+                task.setSeeding(false);
             }
         }
     }

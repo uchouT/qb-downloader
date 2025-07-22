@@ -1,30 +1,30 @@
 <template>
     <div class="task-form">
-        <el-form ref="formRef" :model="props.taskData" :rules="rules" label-position="right" label-width="140px">
+        <el-form ref="formRef" :model="taskData" :rules="rules" label-position="right" label-width="140px">
             <el-form-item label="种子名称">
-                <el-text>{{ props.taskData.torrentRes.torrentName }}</el-text>
+                <el-text>{{ taskData.torrentRes.torrentName }}</el-text>
             </el-form-item>
             <el-form-item label="上传路径">
-                <el-input v-model="props.taskData.uploadPath" :placeholder="pathTips" />
+                <el-input v-model="taskData.uploadPath" :placeholder="pathTips" />
             </el-form-item>
             <el-form-item label="文件大小限制" prop="maxSize">
-                <el-input-number v-model="props.taskData.maxSize" precision="0" :min="1" :max="999">
+                <el-input-number v-model="taskData.maxSize" precision="0" :min="1" :max="999">
                     <template #suffix>GB</template>
                 </el-input-number>
             </el-form-item>
             <el-form-item label="上传工具" prop="uploadType">
-                <el-radio-group v-model="props.taskData.uploadType">
+                <el-radio-group v-model="taskData.uploadType">
                     <el-radio value="rclone">Rclone</el-radio>
                     <!-- <el-radio value="alist">Alist</el-radio> -->
                 </el-radio-group>
             </el-form-item>
             <el-form-item label="做种时间限制">
-                <el-input-number v-model="props.taskData.seedingTimeLimit" :placeholder="-2">
+                <el-input-number v-model="taskData.seedingTimeLimit" :placeholder="-2">
                     <template #suffix>分钟</template>
                 </el-input-number>
             </el-form-item>
             <el-form-item label="分享率限制">
-                <el-input-number v-model="props.taskData.ratioLimit" :precision="2" :placeholder="-2" :step="0.1" />
+                <el-input-number v-model="taskData.ratioLimit" :precision="2" :placeholder="-2" :step="0.1" />
             </el-form-item>
         </el-form>
         <div class="warning-box flex-center">
@@ -46,12 +46,12 @@
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
-const props = defineProps(['taskData'])
+const taskData = defineModel('taskData')
 const emit = defineEmits(['ok', 'cancel'])
 const loading = ref(false)
 const formRef = ref(null)
 const pathTips = computed(() => {
-    return props.taskData.uploadType === 'rclone' ? 'dest:/path/to/upload' : '/path/to/upload'
+    return taskData.uploadType === 'rclone' ? 'dest:/path/to/upload' : '/path/to/upload'
 })
 const rules = ref({
     uploadType: [{ required: true, message: '请选择上传工具', trigger: 'change' }],

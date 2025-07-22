@@ -38,8 +38,8 @@
 <script setup>
 import { ref } from "vue";
 import { useWindowSize } from "@vueuse/core";
-import { ElMessage } from 'element-plus'
-import { Plus, Setting, Tickets } from "@element-plus/icons-vue"
+import { ElMessage } from 'element-plus';
+import { Plus, Setting, Tickets } from "@element-plus/icons-vue";
 import Torrent from "./Torrent.vue";
 import Config from "./Config.vue";
 import List from "./List.vue";
@@ -47,8 +47,8 @@ import api from "../api";
 
 // TODO: check
 const checkBeforeAddTask = async () => {
-  let uploaderOk
-  let qbOk
+  let uploaderOk;
+  let qbOk;
   await api.get("api/test")
     .then(res => {
       uploaderOk = res['data'].uploaderOk;
@@ -60,14 +60,14 @@ const checkBeforeAddTask = async () => {
 
 // 响应式数据
 const { width, height } = useWindowSize();
-const torrent = ref()
-const config = ref()
-const taskList = ref()
+const torrent = ref();
+const config = ref();
+const taskList = ref();
 
 const addTask = async () => {
   const isReady = await checkBeforeAddTask();
   if (!isReady) {
-    ElMessage.warning("qb 或者 uploader 未配置完成")
+    ElMessage.warning("qb 或者 uploader 未配置完成");
     return;
   }
   torrent?.value.show();
@@ -78,13 +78,13 @@ const isNotMobile = () => {
 }
 
 const logout = () => {
-  localStorage.removeItem('authorization')
-  location.reload()
+  localStorage.removeItem('authorization');
+  location.reload();
 }
 
 // 当任务添加成功时刷新任务列表
 const handleTaskAdded = () => {
-  taskList.value?.refreshTasks()
+  taskList.value?.refreshTasks();
 }
 </script>
 

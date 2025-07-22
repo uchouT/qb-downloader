@@ -5,6 +5,9 @@ import lombok.experimental.Accessors;
 
 @Data
 @Accessors(chain = true)
+/**
+ * 种子的实时信息
+ */
 public class TorrentsInfo {
     /**
      * qb-downloader 接管的种子分类
@@ -15,7 +18,6 @@ public class TorrentsInfo {
      * 种子 hash
      */
     private String hash;
-
 
     /**
      * 种子下载状态

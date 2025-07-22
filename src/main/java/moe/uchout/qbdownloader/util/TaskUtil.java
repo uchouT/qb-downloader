@@ -140,9 +140,10 @@ public class TaskUtil {
             Task task = new Task().setCurrentPartNum(0).setStatus(Status.PAUSED).setName(name)
                     .setHash(hash).setSeeding(false).setTorrentPath(TORRENT_FILE_PATH + hash + ".torrent")
                     .setUploadType(uploadType)
-                    .setSavePath(savePath) // savePath 需要去除末尾 /
+                    .setSavePath(savePath)
                     .setUploadPath(uploadPath)
                     .setRatioLimit(ratioLimit)
+                    .setProgress(0f)
                     .setSeedingTimeLimit(seedingTimeLimit)
                     .setMaxSize(maxSize * 1024 * 1024 * 1024); // 单位为 GB
 

@@ -249,15 +249,13 @@ const deleteTorrent = () => {
 }
 
 const handleCancel = () => {
+    deleteTorrent();
     if (metadataDownloading.value) {
-        deleteTorrent();
         //TODO:
         //  如果是 url，中断 export。
         // 如果是 File，中断上传
         metadataDownloading.value = false
     } else if (torrentParsed.value) {
-        deleteTorrent();
-        // 删除 torrents/hash.torrent
         torrentParsed.value = false
     }
     dialogVisible.value = false;
