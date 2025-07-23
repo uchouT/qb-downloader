@@ -145,6 +145,20 @@ const show = () => {
     dialogVisible.value = true
     activeTab.value = 'url'
     fileSelected.value = false
+    if (!torrentParsed) {
+        taskAdd.value = {
+            torrentRes: {
+                torrentName: '',
+                savePath: '',
+                hash: ''
+            },
+            uploadType: 'rclone',
+            uploadPath: null,
+            maxSize: null,
+            seedingTimeLimit: -2,
+            ratioLimit: -2
+        }
+    }
     torrentUrl.value = {
         url: '',
         savePath: ''

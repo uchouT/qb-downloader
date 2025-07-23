@@ -107,6 +107,8 @@ public class TaskThread extends Thread {
                 continue;
             }
             if (task.getStatus() == Status.DOWNLOADING) {
+                float progress = torrentsInfo.getProgress();
+                task.setProgress(progress);
                 String state = torrentsInfo.getState();
                 if (List.of(
                         "uploading",
@@ -129,8 +131,6 @@ public class TaskThread extends Thread {
                     task.setStatus(Status.ERROR);
                     continue;
                 }
-                float progress = torrentsInfo.getProgress();
-                task.setProgress(progress);
                 continue;
             }
             if (task.isSeeding() && List.of("stoppedUP", "pausedUP").contains(torrentsInfo.getState())) {

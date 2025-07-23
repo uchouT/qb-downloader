@@ -4,7 +4,7 @@
             <h3>任务列表</h3>
         </div>
 
-        <div v-if="tasks.length === 0" class="flex-center">
+        <div v-if="tasks.length === 0" class="flex-center" style="height: 100%;">
             <el-empty description="当前任务为空" />
         </div>
 

@@ -121,7 +121,6 @@ public class Task implements Serializable {
      */
     public void runInterval() {
         this.status = Status.ON_TASK;
-        TaskUtil.sync();
         log.info("{} 下载完成，准备上传", name);
         try {
             // 使用线程池执行上传任务
@@ -132,6 +131,8 @@ public class Task implements Serializable {
         } catch (Exception e) {
             log.error(e.getMessage());
             this.status = Status.ERROR;
+        } finally {
+            TaskUtil.sync();
         }
     }
 
@@ -139,13 +140,19 @@ public class Task implements Serializable {
      * 检查间隔任务是否完成
      */
     public void runCheck() {
-        EXECUTOR.execute(() -> {
-            if (UploaderFactory.check(uploadType, this)) {
-                log.info("上传完成");
-                this.status = Status.FINISHED;
-                TaskUtil.sync();
-            }
-        });
+        try {
+            EXECUTOR.execute(() -> {
+                if (UploaderFactory.check(uploadType, this)) {
+                    log.info("上传完成");
+                    this.status = Status.FINISHED;
+                    TaskUtil.sync();
+                }
+            });
+        } catch (Exception e) {
+            log.error(e.getMessage());
+        } finally {
+            TaskUtil.sync();
+        }
     }
 }
 

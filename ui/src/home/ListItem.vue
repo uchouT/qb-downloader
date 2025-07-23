@@ -1,67 +1,71 @@
 <template>
     <el-card shadow="hover">
         <template #header>
-            <div class="task-header">
-                <div class="task-info">
-                    <h4 class="task-name">{{ props.taskItem.name }}</h4>
-                    <div class="task-meta">
-                        <el-tag :type="getStatusType(props.taskItem.status)" size="small">
-                            {{ getStatusText(props.taskItem.status) }}
-                        </el-tag>
-                        <el-tag v-if="props.taskItem.seeding" type="info" size="small">
-                            做种中
-                        </el-tag>
-                        <span class="task-progress">
-                            分片: {{ props.taskItem.currentPartNum + 1 }}/{{ props.taskItem.totalPartNum }}
-                        </span>
-                    </div>
+            <div class="task-name">{{ props.taskItem.name }}</div>
+        </template>
+        <el-row class="task-status" justify="space-between">
+            <el-col :span="20"
+                style="display: flex; flex-direction: column; gap: 10px; justify-content: space-between;">
+                <div class="task-progress">
+                    分片: {{ props.taskItem.currentPartNum + 1 }}/{{ props.taskItem.totalPartNum }}
                 </div>
-                <div class="task-actions">
-                    <el-button-group size="small" plain>
-                        <el-button v-if="props.taskItem.status === 'PAUSED'" @click="startTask(props.taskItem.hash)"
-                            type="success" :loading="actionLoading[props.taskItem.hash]">
-                            <el-icon>
-                                <VideoPlay />
-                            </el-icon>
-                            开始
-                        </el-button>
-                        <el-button v-if="props.taskItem.status === 'DOWNLOADING'" @click="stopTask(props.taskItem.hash)"
-                            type="warning" :loading="actionLoading[props.taskItem.hash]">
-                            <el-icon>
-                                <VideoPause />
-                            </el-icon>
-                            暂停
-                        </el-button>
-                        <el-button @click="deleteTask(props.taskItem.hash)" type="danger"
-                            :loading="actionLoading[props.taskItem.hash]">
-                            <el-icon>
-                                <Delete />
-                            </el-icon>
-                            删除
-                        </el-button>
-                    </el-button-group>
-                </div>
+                <el-space class="task-status-tag">
+                    <el-tag :type="getStatusType(props.taskItem.status)" size="small" style="text-align: right;">
+                        {{ getStatusText(props.taskItem.status) }}
+                    </el-tag>
+                    <el-tag v-if="props.taskItem.seeding" type="primary" size="small">
+                        做种中
+                    </el-tag>
+                </el-space>
+                <div><el-progress :text-inside="true" :status="getProcessStatus(props.taskItem.status)"
+                        :percentage="(props.taskItem.progress * 100).toFixed(2)">
+                    </el-progress></div>
+
+            </el-col>
+
+            <el-col :span="2" style="display: flex; flex-direction: column; gap: 10px; justify-content: space-between;">
+                <el-button plain size="small" v-if="props.taskItem.status === 'PAUSED'"
+                    @click="startTask(props.taskItem.hash)" type="success" :loading="actionLoading[props.taskItem.hash]"
+                    icon="VideoPlay">
+                </el-button>
+                <el-button plain size="small" v-if="props.taskItem.status === 'DOWNLOADING'"
+                    @click="stopTask(props.taskItem.hash)" type="warning" :loading="actionLoading[props.taskItem.hash]"
+                    icon="VideoPause">
+                </el-button>
+                <el-button plain size="small" @click="deleteTask(props.taskItem.hash)" type="danger"
+                    :loading="actionLoading[props.taskItem.hash]" icon="Delete">
+                </el-button>
+                <el-button plain size="small" @click="showDetail = !showDetail" icon="InfoFilled"
+                    type="info"></el-button>
+            </el-col>
+        </el-row>
+
+
+
+        <template #footer v-if="showDetail">
+            <div class="task-details" style="font-size: 14px;">
+                <el-row>
+                    <span class="label">种子名称:</span>
+                    <span> {{ props.taskItem.name }}</span>
+                </el-row>
+                <el-row>
+                    <span class="label">保存路径:</span>
+                    <span>{{ props.taskItem.savePath }}</span>
+                </el-row>
+                <el-row>
+                    <span class="label">上传路径:</span>
+                    <span>{{ props.taskItem.uploadPath }}</span>
+                </el-row>
+                <el-row>
+                    <span class="label">上传方式:</span>
+                    <span>{{ props.taskItem.uploadType }}</span>
+                </el-row>
+                <el-row>
+                    <span class="label">文件数量:</span>
+                    <span>{{ props.taskItem.fileNum }} 个文件</span>
+                </el-row>
             </div>
         </template>
-
-        <div class="task-details">
-            <div class="detail-row">
-                <span class="label">保存路径:</span>
-                <span class="value">{{ props.taskItem.savePath }}</span>
-            </div>
-            <div class="detail-row">
-                <span class="label">上传路径:</span>
-                <span class="value">{{ props.taskItem.uploadPath }}</span>
-            </div>
-            <div class="detail-row">
-                <span class="label">上传方式:</span>
-                <span class="value">{{ props.taskItem.uploadType }}</span>
-            </div>
-            <div class="detail-row">
-                <span class="label">文件数量:</span>
-                <span class="value">{{ props.taskItem.fileNum }} 个文件</span>
-            </div>
-        </div>
     </el-card>
 </template>
 
@@ -69,11 +73,11 @@
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
-import { VideoPlay, VideoPause, Delete } from '@element-plus/icons-vue'
 const actionLoading = reactive({})
 
 const props = defineProps(['taskItem'])
 const emit = defineEmits(['refresh'])
+const showDetail = ref(false)
 // 状态映射
 const statusTextMap = {
     'ON_TASK': '上传中',
@@ -95,6 +99,17 @@ const statusTypeMap = {
     'PAUSED': 'info'
 }
 
+const processStatusMap = {
+    'ON_TASK': 'warning',
+    'ALL_FINISHED': 'success',
+    'ERROR': 'exception',
+    'PAUSED': 'warning',
+    'DOWNLOADED': 'success'
+}
+
+const getProcessStatus = (status) => {
+    return processStatusMap[status];
+}
 // 方法
 const getStatusText = (status) => {
     return statusTextMap[status] || status
@@ -154,26 +169,8 @@ const deleteTask = async (hash) => {
 </script>
 
 <style scoped>
-.tasks-container {
-    flex: 1;
-    overflow-y: auto;
-    padding-right: 8px;
-}
-
-.task-card {
-    margin-bottom: 16px;
-}
-
-.task-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
-}
-
-.task-info {
-    flex: 1;
-    min-width: 0;
+.el-button {
+    margin: 0;
 }
 
 .task-name {
@@ -186,64 +183,14 @@ const deleteTask = async (hash) => {
     text-overflow: ellipsis;
 }
 
-.task-meta {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
 .task-progress {
     font-size: 12px;
     color: var(--el-text-color-secondary);
-}
-
-.task-actions {
-    margin-left: 16px;
-    flex-shrink: 0;
-}
-
-.task-details {
-    margin-top: 16px;
-}
-
-.detail-row {
-    display: flex;
-    margin-bottom: 8px;
-    font-size: 14px;
-}
-
-.detail-row:last-child {
-    margin-bottom: 0;
 }
 
 .label {
     min-width: 80px;
     color: var(--el-text-color-secondary);
     font-weight: 500;
-}
-
-.value {
-    color: var(--el-text-color-primary);
-    word-break: break-all;
-}
-
-/* 滚动条样式 */
-.tasks-container::-webkit-scrollbar {
-    width: 6px;
-}
-
-.tasks-container::-webkit-scrollbar-track {
-    background: var(--el-fill-color-lighter);
-    border-radius: 3px;
-}
-
-.tasks-container::-webkit-scrollbar-thumb {
-    background: var(--el-border-color-darker);
-    border-radius: 3px;
-}
-
-.tasks-container::-webkit-scrollbar-thumb:hover {
-    background: var(--el-border-color-dark);
 }
 </style>

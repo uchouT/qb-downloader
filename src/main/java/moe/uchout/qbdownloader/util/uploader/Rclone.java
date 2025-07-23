@@ -14,7 +14,6 @@ import cn.hutool.http.ContentType;
 import cn.hutool.http.Header;
 import cn.hutool.http.HttpRequest;
 
-import java.io.File;
 import java.util.Map;
 
 @Slf4j
@@ -43,7 +42,7 @@ public class Rclone implements Uploader {
         String host = config.getRcloneHost();
         String username = config.getRcloneUserName();
         String password = config.getRclonePassword();
-        String src = task.getSavePath() + File.separator + task.getRootDir();
+        String src = task.getSavePath() + "/" + task.getRootDir();
         String dst = task.getUploadPath() + "/" + task.getRootDir();
         Map<String, Object> obj = Map.of(
                 "srcFs", src,
@@ -97,8 +96,7 @@ public class Rclone implements Uploader {
                         String message = jsonObject.get("error").getAsString();
                         log.error(message);
                         task.setStatus(Status.ERROR);
-                        // TODO
-                        throw new RuntimeException("Rclone 任务失败5: " + message);
+                        throw new RuntimeException("Rclone 任务失败: " + message);
                     }
                     return success;
                 });
