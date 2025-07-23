@@ -5,7 +5,7 @@
                 <el-text>{{ taskData.torrentRes.torrentName }}</el-text>
             </el-form-item>
             <el-form-item label="上传路径">
-                <el-input v-model="taskData.uploadPath" :placeholder="pathTips" />
+                <el-input v-model="taskData.uploadPath" :placeholder="uploadPath" />
             </el-form-item>
             <el-form-item label="文件大小限制" prop="maxSize">
                 <el-input-number v-model="taskData.maxSize" precision="0" :min="1" :max="999">
@@ -43,16 +43,16 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-
+import { computed, ref } from 'vue';
+import { ElMessage } from 'element-plus';
+import CONFIG from '../config';
+const uploadPath = computed(() => {
+    return CONFIG.value.defaultUploadPath || '请输入上传路径';
+});
 const taskData = defineModel('taskData')
 const emit = defineEmits(['ok', 'cancel'])
 const loading = ref(false)
 const formRef = ref(null)
-const pathTips = computed(() => {
-    return taskData.uploadType === 'rclone' ? 'dest:/path/to/upload' : '/path/to/upload'
-})
 const rules = ref({
     uploadType: [{ required: true, message: '请选择上传工具', trigger: 'change' }],
     maxSize: [{ required: true, message: '请输入文件大小限制', trigger: 'blur' }]

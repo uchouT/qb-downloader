@@ -12,7 +12,7 @@
                         </el-form-item>
                         <el-form-item label="保存路径" prop="savePath">
                             <el-input v-model:model-value="torrentUrl.savePath" type="textarea"
-                                :autosize="{ minRows: 1 }" :disabled="metadataDownloading" placeholder="保存路径" />
+                                :autosize="{ minRows: 1 }" :disabled="metadataDownloading" :placeholder="savepath" />
                         </el-form-item>
                     </el-form>
                 </el-tab-pane>
@@ -26,7 +26,7 @@
                     </el-upload>
 
                     <el-form-item label="保存路径" style="margin-top: 16px;">
-                        <el-input v-model:model-value="torrentFile.savePath" type="textarea" placeholder="保存路径"
+                        <el-input v-model:model-value="torrentFile.savePath" type="textarea" :placeholder="savepath"
                             :disabled="metadataDownloading" />
                     </el-form-item>
                     <template #tip>
@@ -57,7 +57,8 @@ import { ElMessage } from 'element-plus'
 import { useWindowSize } from '@vueuse/core'
 import api from '../api'
 import Task from './Task.vue'
-
+import CONFIG from '../config'
+const savepath = ref();
 const emit = defineEmits(['load'])
 const { width } = useWindowSize()
 const dialogVisible = ref(false)
@@ -73,7 +74,6 @@ const torrentUrl = ref({
 const torrentFile = ref({
     savePath: ''
 })
-
 const upload = ref(null)
 const rules = ref({
     url: [{ required: true, message: '请输入 torrent 链接', trigger: 'blur' }]
@@ -144,6 +144,7 @@ const dialogWidth = computed(() => {
 const show = () => {
     dialogVisible.value = true
     activeTab.value = 'url'
+    savepath.value = CONFIG.value.defaultSavePath || "请输入保存路径";
     fileSelected.value = false
     if (!torrentParsed) {
         taskAdd.value = {
@@ -263,13 +264,14 @@ const deleteTorrent = () => {
 }
 
 const handleCancel = () => {
-    deleteTorrent();
     if (metadataDownloading.value) {
+        deleteTorrent();
         //TODO:
         //  如果是 url，中断 export。
         // 如果是 File，中断上传
         metadataDownloading.value = false
     } else if (torrentParsed.value) {
+        deleteTorrent();
         torrentParsed.value = false
     }
     dialogVisible.value = false;
