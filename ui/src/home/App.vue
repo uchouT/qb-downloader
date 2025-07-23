@@ -36,7 +36,7 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useWindowSize } from "@vueuse/core";
 import { ElMessage } from 'element-plus';
 import { Plus, Setting, Tickets } from "@element-plus/icons-vue";
@@ -44,7 +44,9 @@ import Torrent from "./Torrent.vue";
 import Config from "./Config.vue";
 import List from "./List.vue";
 import api from "../api";
+import { loadConfig } from "../config";
 
+onMounted(loadConfig);
 // TODO: check
 const checkBeforeAddTask = async () => {
   let uploaderOk;
@@ -113,8 +115,6 @@ const handleTaskAdded = () => {
   width: 3.5rem;
   height: 3.5rem;
   z-index: 999;
-
-  transition: all 0.3s ease;
 }
 
 .logout-button:hover {

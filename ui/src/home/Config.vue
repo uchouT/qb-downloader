@@ -54,7 +54,8 @@
                                 <el-input v-model="config.rclonePassword" type="password" placeholder="secret" />
                             </el-form-item>
                             <el-form-item>
-                                <el-button @click="test('rclone')" bg text :loading="rcloneTestLoading" icon="Odometer">测试
+                                <el-button @click="test('rclone')" bg text :loading="rcloneTestLoading"
+                                    icon="Odometer">测试
                                 </el-button>
                             </el-form-item>
                             <el-form-item label="默认下载路径">
@@ -83,6 +84,9 @@ import { useWindowSize } from '@vueuse/core'
 import api from '../api';
 import CryptoJS from "crypto-js";
 import { ElMessage } from 'element-plus';
+import CONFIG from '../config';
+
+const config = ref();
 const { width } = useWindowSize()
 
 // 响应式对话框宽度
@@ -102,6 +106,7 @@ const saveConfig = () => {
     if (my_config.account.password) {
         my_config.account.password = CryptoJS.MD5(my_config.account.password).toString();
     }
+    Object.assign(CONFIG, config)
     api.post('api/config', my_config)
         .then(res => {
             ElMessage.success(res.message)
@@ -116,37 +121,15 @@ const qbTestLoading = ref(false)
 const rcloneTestLoading = ref(false)
 const dialogVisible = ref(false)
 const activeName = ref('first')
-const config = ref({
-    qbHost: "",
-    qbUsername: "",
-    qbPassword: '',
-    rcloneHost: '',
-    rcloneUserName: '',
-    rclonePassword: '',
-    onlyInnerIP: false,
-    verifyLoginIP: false,
-    account: {
-        username: '',
-        password: ''
-    },
-    defaultSavePath: '',
-    defaultUploadPath: '',
-    defaultRatioLimit: -2,
-    defaultSeedingTimeLimit: -2
-})
+
 
 const loading = ref(false)
 
 const show = () => {
-    dialogVisible.value = true
-    loading.value = true
-    api.get('api/config')
-        .then(res => {
-            config.value = res['data']
-        })
-        .finally(() => {
-            loading.value = false
-        })
+    dialogVisible.value = true;
+    loading.value = true;
+    Object.assign(config, CONFIG)
+    loading.value = false;
 }
 const emit = defineEmits(['load'])
 defineExpose({ show })
