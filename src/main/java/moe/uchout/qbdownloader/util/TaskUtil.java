@@ -22,13 +22,9 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 
 import moe.uchout.qbdownloader.api.entity.TorrentRes;
 import moe.uchout.qbdownloader.entity.Task;
-import com.dampcake.bencode.Bencode;
-
-// TODO: 抽象出 BencodeUtil
 
 /**
  * 任务执行相关
@@ -147,28 +143,12 @@ public class TaskUtil {
                     .setSeedingTimeLimit(seedingTimeLimit)
                     .setMaxSize(maxSize * 1024 * 1024 * 1024); // 单位为 GB
 
-            try (FileInputStream fis = new FileInputStream(TORRENT_FILE_PATH + hash + ".torrent")) {
-                Bencode bencode = new Bencode();
-                byte[] data = fis.readAllBytes();
-                Map<String, Object> torrentData = bencode.decode(data, com.dampcake.bencode.Type.DICTIONARY);
-                Object infoObj = torrentData.get("info");
-                @SuppressWarnings("unchecked")
-                Map<String, Object> info = (infoObj instanceof Map) ? (Map<String, Object>) infoObj : new HashMap<>();
-                String rootDir = (String) info.get("name");
-                @SuppressWarnings("unchecked")
-                List<LinkedHashMap<String, Object>> files = (ArrayList<LinkedHashMap<String, Object>>) info
-                        .get("files");
-                Assert.notNull(files, "种子为单文件种子");
-                int size = files.size();
-                List<Long> fileLengths = files.stream().map(file -> {
-                    return (Long) file.get("length");
-                }).toList();
-                List<List<Integer>> order = getTaskOrder(fileLengths, task.getMaxSize());
-                task.setRootDir(rootDir).setFileNum(size).setTotalPartNum(order.size()).setTaskOrder(order);
-            } catch (Exception e) {
-                log.error("添加任务失败: {}", e.getMessage(), e);
-                throw new RuntimeException(e);
-            }
+            TorrentInfoObj infoObj = BencodeUtil.getInfo(TORRENT_FILE_PATH + hash + ".torrent");
+            List<Long> fileLengthList = BencodeUtil.getFileLengthList(infoObj);
+            String rootDir = BencodeUtil.getRootDir(infoObj);
+            int size = fileLengthList.size();
+            List<List<Integer>> order = getTaskOrder(fileLengthList, task.getMaxSize());
+            task.setRootDir(rootDir).setFileNum(size).setTotalPartNum(order.size()).setTaskOrder(order);
 
             QbUtil.setShareLimit(hash, ratioLimit, seedingTimeLimit);
             startTask(0, hash, task);
