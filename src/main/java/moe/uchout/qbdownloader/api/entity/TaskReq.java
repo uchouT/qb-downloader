@@ -1,6 +1,7 @@
 package moe.uchout.qbdownloader.api.entity;
 
 import java.io.Serializable;
+import java.util.List;
 
 import lombok.Data;
 import lombok.experimental.Accessors;
@@ -15,4 +16,6 @@ public class TaskReq implements Serializable {
     private Long maxSize;
     private Integer seedingTimeLimit = ConfigUtil.CONFIG.getDefaultSeedingTimeLimit();
     private String ratioLimit = ConfigUtil.CONFIG.getDefaultRatioLimit();
+    private boolean cutsomizeContent = false;
+    private List<Long> fileLengthList;
 }

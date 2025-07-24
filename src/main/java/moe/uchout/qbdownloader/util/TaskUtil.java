@@ -1,6 +1,8 @@
 package moe.uchout.qbdownloader.util;
 
 import moe.uchout.qbdownloader.enums.*;
+import moe.uchout.qbdownloader.exception.OverLimitException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -128,7 +130,8 @@ public class TaskUtil {
      */
     @Synchronized("TASK_LIST")
     public static void addTask(TorrentRes torrentRes, String uploadType,
-            String uploadPath, long maxSize, int seedingTimeLimit, String ratioLimit) {
+            String uploadPath, long maxSize, int seedingTimeLimit, String ratioLimit, boolean cutsomizeContent,
+            List<Long> fileLengthList) {
         try {
             String hash = torrentRes.getHash();
             String savePath = torrentRes.getSavePath();
@@ -144,12 +147,14 @@ public class TaskUtil {
                     .setMaxSize(maxSize * 1024 * 1024 * 1024); // 单位为 GB
 
             TorrentInfoObj infoObj = BencodeUtil.getInfo(TORRENT_FILE_PATH + hash + ".torrent");
-            List<Long> fileLengthList = BencodeUtil.getFileLengthList(infoObj);
             String rootDir = BencodeUtil.getRootDir(infoObj);
-            int size = fileLengthList.size();
-            List<List<Integer>> order = getTaskOrder(fileLengthList, task.getMaxSize());
-            task.setRootDir(rootDir).setFileNum(size).setTotalPartNum(order.size()).setTaskOrder(order);
+            task.setRootDir(rootDir);
 
+            if (cutsomizeContent) {
+                addTask(task, fileLengthList);
+            } else {
+                addTask(task, infoObj);
+            }
             QbUtil.setShareLimit(hash, ratioLimit, seedingTimeLimit);
             startTask(0, hash, task);
             TASK_LIST.put(hash, task);
@@ -158,6 +163,27 @@ public class TaskUtil {
         } catch (Exception e) {
             log.error("添加任务失败: {}", e.getMessage(), e);
             throw new RuntimeException(e);
+        }
+    }
+
+    private static void addTask(Task task, TorrentInfoObj infoObj) {
+        try {
+            List<Long> fileLengthList = BencodeUtil.getFileLengthList(infoObj);
+            int size = fileLengthList.size();
+            List<List<Integer>> order = getTaskOrder(fileLengthList, task.getMaxSize());
+            task.setFileNum(size).setTotalPartNum(order.size()).setTaskOrder(order);
+        } catch (Exception e) {
+
+        }
+    }
+
+    private static void addTask(Task task, List<Long> fileLengthList) {
+        try {
+            List<List<Integer>> order = getTaskOrder(fileLengthList, task.getMaxSize());
+            int size = fileLengthList.size();
+            task.setFileNum(size).setTotalPartNum(order.size()).setTaskOrder(order);
+        } catch (Exception e) {
+
         }
     }
 
@@ -270,9 +296,9 @@ public class TaskUtil {
      * @return 二维数组，每个元素是 index 列表
      */
     public static List<List<Integer>> getTaskOrder(List<Long> torrentContentList, long maxSize)
-            throws Exception {
+            throws OverLimitException {
         if (!check(torrentContentList, maxSize)) {
-            throw new IllegalArgumentException("任务过大，无法分片");
+            throw new OverLimitException("任务过大，无法分片");
         }
         List<List<Integer>> TaskOrder = new ArrayList<>();
         List<Integer> onePart = new ArrayList<>();
