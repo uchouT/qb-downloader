@@ -2,6 +2,7 @@ package moe.uchout.qbdownloader.util;
 
 import moe.uchout.qbdownloader.enums.*;
 import moe.uchout.qbdownloader.exception.OverLimitException;
+import moe.uchout.qbdownloader.exception.SingleFileException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +28,7 @@ import java.util.HashMap;
 
 import moe.uchout.qbdownloader.api.entity.TorrentRes;
 import moe.uchout.qbdownloader.entity.Task;
+import moe.uchout.qbdownloader.entity.TorrentContentNode;
 
 /**
  * 任务执行相关
@@ -343,6 +345,19 @@ public class TaskUtil {
         for (String hash : hashList) {
             FileUtil.del(new File(TORRENT_FILE_PATH + hash + ".torrent"));
         }
+    }
+
+    /**
+     * 根据 hash 返回内容树
+     * 
+     * @param hash    该 hash 的种子内容已保存到 torrents 文件夹中
+     * @param rootDir 种子是多文件种子，且只有一个根目录
+     * @return
+     * @throws SingleFileException
+     */
+    public static List<TorrentContentNode> getTorrentTree(String hash) throws SingleFileException {
+        String path = TORRENT_FILE_PATH + hash + ".torrent";
+        return BencodeUtil.getContentTree(path);
     }
 }
 

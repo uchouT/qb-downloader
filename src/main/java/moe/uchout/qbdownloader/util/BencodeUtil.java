@@ -63,11 +63,6 @@ public class BencodeUtil {
         return files;
     }
 
-    private static List<Map<String, Object>> getFiles(String filename) throws SingleFileException {
-        TorrentInfoObj infoObj = getInfo(filename);
-        return getFiles(infoObj);
-    }
-
     /**
      * 返回种子的根目录
      * 
@@ -79,8 +74,8 @@ public class BencodeUtil {
         return (String) info.get("name");
     }
 
-    private static List<List<String>> getPathList(String filename) throws SingleFileException {
-        List<Map<String, Object>> files = getFiles(filename);
+    private static List<List<String>> getPathList(TorrentInfoObj infoObj) throws SingleFileException {
+        List<Map<String, Object>> files = getFiles(infoObj);
         @SuppressWarnings("unchecked")
         List<List<String>> pathList = files.stream().map(m -> (List<String>) m.get("path"))
                 .collect(Collectors.toList());
@@ -95,8 +90,10 @@ public class BencodeUtil {
      * @return
      * @throws SingleFileException
      */
-    public static List<TorrentContentNode> getContentTree(String filename, String rootDir) throws SingleFileException {
-        TorrentContentNode Tree = buildMapedTree(filename, rootDir);
+    public static List<TorrentContentNode> getContentTree(String filename) throws SingleFileException {
+        TorrentInfoObj infoObj = getInfo(filename);
+        String rootDir = getRootDir(infoObj);
+        TorrentContentNode Tree = buildMapedTree(infoObj, rootDir);
         ContentNodeMapToList(Tree);
         return List.of(Tree);
     }
@@ -111,8 +108,9 @@ public class BencodeUtil {
         }
     }
 
-    private static TorrentContentNode buildMapedTree(String filename, String rootDir) throws SingleFileException {
-        List<List<String>> pathList = getPathList(filename);
+    private static TorrentContentNode buildMapedTree(TorrentInfoObj infoObj, String rootDir)
+            throws SingleFileException {
+        List<List<String>> pathList = getPathList(infoObj);
         TorrentContentNode root = new TorrentContentNode("-1", rootDir);
         for (int i = 0, size = pathList.size(); i < size; ++i) {
             TorrentContentNode currentNode = root;

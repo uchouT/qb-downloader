@@ -89,7 +89,7 @@ const taskAdd = ref({
     uploadPath: null,
     maxSize: null,
     seedingTimeLimit: -2,
-    ratioLimit: -2
+    ratioLimit: -2,
 })
 
 const addTask = (fun) => {

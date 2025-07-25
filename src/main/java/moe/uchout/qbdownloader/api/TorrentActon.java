@@ -13,6 +13,7 @@ import moe.uchout.qbdownloader.annotation.Auth;
 import moe.uchout.qbdownloader.annotation.Path;
 import moe.uchout.qbdownloader.api.entity.TorrentReq;
 import moe.uchout.qbdownloader.api.entity.TorrentRes;
+import moe.uchout.qbdownloader.exception.SingleFileException;
 import moe.uchout.qbdownloader.util.ConfigUtil;
 import moe.uchout.qbdownloader.util.QbUtil;
 import moe.uchout.qbdownloader.util.TaskUtil;
@@ -43,11 +44,23 @@ public class TorrentActon implements BaseAction {
                 delete(req);
                 return;
             }
+            if ("GET".equalsIgnoreCase(method)) {
+                get(req);
+                return;
+            }
             resultErrorMsg("Unsupported method: " + method);
             return;
 
+        } catch (MissingParamException e) {
+            String msg = e.getMessage();
+            log.error("Error adding task: " + msg);
+            resultError(msg);
+        } catch (SingleFileException e) {
+            String msg = "不支持单文件种子";
+            log.warn(msg);
+            resultError(msg);
         } catch (Exception e) {
-            log.error("Error processing request: {}", e.getMessage());
+            log.error("Error processing request: {}", e.getMessage(), e);
             resultErrorMsg(e.getMessage());
         }
     }
@@ -97,5 +110,15 @@ public class TorrentActon implements BaseAction {
     private void delete(HttpServerRequest req) throws MissingParamException {
         String hash = getRequiredParam(req, "hash");
         TaskUtil.delete(hash, false);
+    }
+
+    /**
+     * 获取 torrent 内容树
+     * 
+     * @param req
+     */
+    private void get(HttpServerRequest req) throws MissingParamException, SingleFileException {
+        String hash = getRequiredParam(req, "hash");
+        resultSuccess(TaskUtil.getTorrentTree(hash));
     }
 }

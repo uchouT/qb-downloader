@@ -16,6 +16,6 @@ public class TaskReq implements Serializable {
     private Long maxSize;
     private Integer seedingTimeLimit = ConfigUtil.CONFIG.getDefaultSeedingTimeLimit();
     private String ratioLimit = ConfigUtil.CONFIG.getDefaultRatioLimit();
-    private boolean cutsomizeContent = false;
+    private boolean customizeContent = false;
     private List<Integer> selectedFileIndex;
 }
