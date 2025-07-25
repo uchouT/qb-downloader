@@ -99,7 +99,7 @@ public class TaskAction implements BaseAction {
 		taskReq.setUploadPath(rectifyHost(uploadPath));
 		TaskUtil.addTask(taskReq.getTorrentRes(), taskReq.getUploadType(), taskReq.getUploadPath(),
 				taskReq.getMaxSize(), taskReq.getSeedingTimeLimit(), taskReq.getRatioLimit(),
-				taskReq.isCutsomizeContent(), taskReq.getFileLengthList());
+				taskReq.isCutsomizeContent(), taskReq.getSelectedFileIndex());
 	}
 
 	private void delete(HttpServerRequest req) throws MissingParamException {

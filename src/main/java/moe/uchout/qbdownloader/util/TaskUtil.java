@@ -131,7 +131,7 @@ public class TaskUtil {
     @Synchronized("TASK_LIST")
     public static void addTask(TorrentRes torrentRes, String uploadType,
             String uploadPath, long maxSize, int seedingTimeLimit, String ratioLimit, boolean cutsomizeContent,
-            List<Long> fileLengthList) {
+            List<Integer> selectedFilesIndex) {
         try {
             String hash = torrentRes.getHash();
             String savePath = torrentRes.getSavePath();
@@ -148,13 +148,17 @@ public class TaskUtil {
 
             TorrentInfoObj infoObj = BencodeUtil.getInfo(TORRENT_FILE_PATH + hash + ".torrent");
             String rootDir = BencodeUtil.getRootDir(infoObj);
-            task.setRootDir(rootDir);
+            List<Long> fileLengthList = BencodeUtil.getFileLengthList(infoObj);
+            int size = fileLengthList.size();
+            List<List<Integer>> order;
 
             if (cutsomizeContent) {
-                addTask(task, fileLengthList);
+                order = getTaskOrder(fileLengthList, maxSize, selectedFilesIndex);
             } else {
-                addTask(task, infoObj);
+                order = getTaskOrder(fileLengthList, task.getMaxSize());
             }
+            task.setRootDir(rootDir).setFileNum(size).setTotalPartNum(order.size()).setTaskOrder(order);
+
             QbUtil.setShareLimit(hash, ratioLimit, seedingTimeLimit);
             startTask(0, hash, task);
             TASK_LIST.put(hash, task);
@@ -163,27 +167,6 @@ public class TaskUtil {
         } catch (Exception e) {
             log.error("添加任务失败: {}", e.getMessage(), e);
             throw new RuntimeException(e);
-        }
-    }
-
-    private static void addTask(Task task, TorrentInfoObj infoObj) {
-        try {
-            List<Long> fileLengthList = BencodeUtil.getFileLengthList(infoObj);
-            int size = fileLengthList.size();
-            List<List<Integer>> order = getTaskOrder(fileLengthList, task.getMaxSize());
-            task.setFileNum(size).setTotalPartNum(order.size()).setTaskOrder(order);
-        } catch (Exception e) {
-
-        }
-    }
-
-    private static void addTask(Task task, List<Long> fileLengthList) {
-        try {
-            List<List<Integer>> order = getTaskOrder(fileLengthList, task.getMaxSize());
-            int size = fileLengthList.size();
-            task.setFileNum(size).setTotalPartNum(order.size()).setTaskOrder(order);
-        } catch (Exception e) {
-
         }
     }
 
@@ -279,13 +262,21 @@ public class TaskUtil {
      * @param maxSize
      * @return 是否可以完成
      */
-    public static boolean check(List<Long> torrentContents, long maxSize) {
+    public static void check(List<Long> torrentContents, long maxSize) throws OverLimitException {
         for (Long torrentContent : torrentContents) {
             if (torrentContent > maxSize) {
-                return false;
+                throw new OverLimitException("种子单文件过大");
             }
         }
-        return true;
+    }
+
+    public static void check(List<Long> torrentContents, long maxSize, List<Integer> selectedFileIndex)
+            throws OverLimitException {
+        for (int i : selectedFileIndex) {
+            if (torrentContents.get(i) > maxSize) {
+                throw new OverLimitException("种子单文件过大");
+            }
+        }
     }
 
     /**
@@ -297,26 +288,46 @@ public class TaskUtil {
      */
     public static List<List<Integer>> getTaskOrder(List<Long> torrentContentList, long maxSize)
             throws OverLimitException {
-        if (!check(torrentContentList, maxSize)) {
-            throw new OverLimitException("任务过大，无法分片");
-        }
-        List<List<Integer>> TaskOrder = new ArrayList<>();
+        check(torrentContentList, maxSize);
+        List<List<Integer>> taskOrder = new ArrayList<>();
         List<Integer> onePart = new ArrayList<>();
         long currentSize = 0;
         for (int i = 0, size = torrentContentList.size(); i < size; i++) {
             long torrentContent = torrentContentList.get(i);
             if (currentSize + torrentContent > maxSize) {
-                TaskOrder.add(onePart);
+                taskOrder.add(onePart);
                 onePart = new ArrayList<>();
                 currentSize = 0;
             }
             onePart.add(i);
             if (i == size - 1) {
-                TaskOrder.add(onePart);
+                taskOrder.add(onePart);
             }
             currentSize += torrentContent;
         }
-        return TaskOrder;
+        return taskOrder;
+    }
+
+    public static List<List<Integer>> getTaskOrder(List<Long> torrentContentList, long maxSize,
+            List<Integer> selectedFileIndex) throws OverLimitException {
+        List<List<Integer>> taskOrder = new ArrayList<>();
+        List<Integer> onePart = new ArrayList<>();
+        long currentSize = 0;
+        for (int index = 0, size = selectedFileIndex.size(); index < size; ++index) {
+            int i = selectedFileIndex.get(index);
+            long torrentContent = torrentContentList.get(i);
+            if (currentSize + torrentContent > maxSize) {
+                taskOrder.add(onePart);
+                onePart = new ArrayList<>();
+                currentSize = 0;
+            }
+            onePart.add(i);
+            if (index == size - 1) {
+                taskOrder.add(onePart);
+            }
+            currentSize += torrentContent;
+        }
+        return taskOrder;
     }
 
     /**
