@@ -3,11 +3,12 @@ package moe.uchout.qbdownloader.util;
 import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import moe.uchout.qbdownloader.exception.SingleFileException;
+import moe.uchout.qbdownloader.entity.TorrentContentNode;
 import com.dampcake.bencode.Bencode;
 import com.dampcake.bencode.Type;
 
@@ -38,22 +39,33 @@ public class BencodeUtil {
     /**
      * 根据 infoObj 获取长度列表
      * 
-     * @param infoObj 
+     * @param infoObj
      * @return
      * @throws SingleFileException
      */
     public static List<Long> getFileLengthList(TorrentInfoObj infoObj) throws SingleFileException {
-        Map<String, Object> info = infoObj.value;
-        @SuppressWarnings("unchecked")
-        List<LinkedHashMap<String, Object>> files = (ArrayList<LinkedHashMap<String, Object>>) info
-                .get("files");
-        if (ObjectUtil.isNull(files)) {
-            throw new SingleFileException("种子为单文件种子");
-        }
+
+        List<Map<String, Object>> files = getFiles(infoObj);
         List<Long> fileLengthList = files.stream().map(file -> {
             return (Long) file.get("length");
         }).toList();
         return fileLengthList;
+    }
+
+    private static List<Map<String, Object>> getFiles(TorrentInfoObj infoObj) throws SingleFileException {
+        Map<String, Object> info = infoObj.value;
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> files = (List<Map<String, Object>>) info
+                .get("files");
+        if (ObjectUtil.isNull(files)) {
+            throw new SingleFileException("种子为单文件");
+        }
+        return files;
+    }
+
+    private static List<Map<String, Object>> getFiles(String filename) throws SingleFileException {
+        TorrentInfoObj infoObj = getInfo(filename);
+        return getFiles(infoObj);
     }
 
     /**
@@ -65,6 +77,61 @@ public class BencodeUtil {
     public static String getRootDir(TorrentInfoObj infoObj) {
         Map<String, Object> info = infoObj.value;
         return (String) info.get("name");
+    }
+
+    private static List<List<String>> getPathList(String filename) throws SingleFileException {
+        List<Map<String, Object>> files = getFiles(filename);
+        @SuppressWarnings("unchecked")
+        List<List<String>> pathList = files.stream().map(m -> (List<String>) m.get("path"))
+                .collect(Collectors.toList());
+        return pathList;
+    }
+
+    /**
+     * 获取种子文件内容树
+     * 
+     * @param filename .torrent 文件
+     * @param rootDir  .torrent 文件的 rootDir，不可以是单文件的种子
+     * @return
+     * @throws SingleFileException
+     */
+    public static List<TorrentContentNode> getContentTree(String filename, String rootDir) throws SingleFileException {
+        TorrentContentNode Tree = buildMapedTree(filename, rootDir);
+        ContentNodeMapToList(Tree);
+        return List.of(Tree);
+    }
+
+    private static void ContentNodeMapToList(TorrentContentNode node) {
+        if (ObjectUtil.isNotEmpty(node.childrenMap)) {
+            node.children = new ArrayList<>(node.childrenMap.values());
+            for (TorrentContentNode childNode : node.children) {
+                ContentNodeMapToList(childNode);
+            }
+            node.childrenMap = null;
+        }
+    }
+
+    private static TorrentContentNode buildMapedTree(String filename, String rootDir) throws SingleFileException {
+        List<List<String>> pathList = getPathList(filename);
+        TorrentContentNode root = new TorrentContentNode("-1", rootDir);
+        for (int i = 0, size = pathList.size(); i < size; ++i) {
+            TorrentContentNode currentNode = root;
+            List<String> currentFile = pathList.get(i);
+            StringBuilder folderId = new StringBuilder(Integer.toString(i));
+            for (int j = 0, length = currentFile.size(); j < length; ++j) {
+                String id;
+                String label = currentFile.get(j);
+                if (j < length - 1) { // 非最后一个节点
+                    folderId.append("-" + j);
+                    id = folderId.toString();
+                } else {
+                    id = Integer.toString(i);
+                }
+                currentNode.childrenMap.putIfAbsent(label, new TorrentContentNode(id, label));
+                currentNode = currentNode.childrenMap.get(label);
+            }
+        }
+        return root;
     }
 }
 
