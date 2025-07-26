@@ -11,7 +11,7 @@ public class TorrentContentNode implements Serializable {
      * 种子索引，为文件时应该为 filepath 列表的索引；为文件夹时，应该为非索引范围内的不重复内容，无意义
      * 暂定为 1-1 类似的格式
      */
-    public String id;
+    public int id;
 
     /**
      * 内容的名称
@@ -28,7 +28,7 @@ public class TorrentContentNode implements Serializable {
      */
     public List<TorrentContentNode> children;
 
-    public TorrentContentNode(String id, String label) {
+    public TorrentContentNode(int id, String label) {
         this.id = id;
         this.label = label;
         this.childrenMap = new HashMap<>();

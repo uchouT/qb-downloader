@@ -60,10 +60,6 @@
                     <span class="label">上传方式:</span>
                     <span>{{ props.taskItem.uploadType }}</span>
                 </el-row>
-                <el-row>
-                    <span class="label">文件数量:</span>
-                    <span>{{ props.taskItem.fileNum }} 个文件</span>
-                </el-row>
             </div>
         </template>
     </el-card>

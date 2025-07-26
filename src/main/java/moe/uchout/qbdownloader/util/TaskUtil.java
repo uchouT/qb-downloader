@@ -155,7 +155,7 @@ public class TaskUtil {
             List<List<Integer>> order;
 
             if (cutsomizeContent) {
-                order = getTaskOrder(fileLengthList, maxSize, selectedFilesIndex);
+                order = getTaskOrder(fileLengthList, task.getMaxSize(), selectedFilesIndex);
             } else {
                 order = getTaskOrder(fileLengthList, task.getMaxSize());
             }
@@ -312,6 +312,7 @@ public class TaskUtil {
 
     public static List<List<Integer>> getTaskOrder(List<Long> torrentContentList, long maxSize,
             List<Integer> selectedFileIndex) throws OverLimitException {
+        check(torrentContentList, maxSize, selectedFileIndex);
         List<List<Integer>> taskOrder = new ArrayList<>();
         List<Integer> onePart = new ArrayList<>();
         long currentSize = 0;

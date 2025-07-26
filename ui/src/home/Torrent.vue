@@ -90,6 +90,8 @@ const taskAdd = ref({
     maxSize: null,
     seedingTimeLimit: -2,
     ratioLimit: -2,
+    customizeContent: false,
+    selectedFileIndex: null
 })
 
 const addTask = (fun) => {
@@ -157,7 +159,9 @@ const show = () => {
             uploadPath: null,
             maxSize: null,
             seedingTimeLimit: -2,
-            ratioLimit: -2
+            ratioLimit: -2,
+            customizeContent: false,
+            selectedFileIndex: null
         }
     }
     torrentUrl.value = {

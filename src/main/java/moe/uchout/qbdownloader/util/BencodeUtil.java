@@ -111,19 +111,18 @@ public class BencodeUtil {
     private static TorrentContentNode buildMapedTree(TorrentInfoObj infoObj, String rootDir)
             throws SingleFileException {
         List<List<String>> pathList = getPathList(infoObj);
-        TorrentContentNode root = new TorrentContentNode("-1", rootDir);
+        TorrentContentNode root = new TorrentContentNode(-1, rootDir);
+        int _folder = -2;
         for (int i = 0, size = pathList.size(); i < size; ++i) {
             TorrentContentNode currentNode = root;
             List<String> currentFile = pathList.get(i);
-            StringBuilder folderId = new StringBuilder(Integer.toString(i));
             for (int j = 0, length = currentFile.size(); j < length; ++j) {
-                String id;
+                int id;
                 String label = currentFile.get(j);
                 if (j < length - 1) { // 非最后一个节点
-                    folderId.append("-" + j);
-                    id = folderId.toString();
+                    id = _folder--;
                 } else {
-                    id = Integer.toString(i);
+                    id = i;
                 }
                 currentNode.childrenMap.putIfAbsent(label, new TorrentContentNode(id, label));
                 currentNode = currentNode.childrenMap.get(label);
