@@ -32,7 +32,7 @@ public class ConfigUtil {
                 .setRcloneUserName("admin")
                 // .setTotalSizeLimit(0L)
                 .setOnlyInnerIP(false)
-                .setVerifyLoginIp(false)
+                .setVerifyLoginIp(true)
                 .setDefaultSavePath("")
                 .setAccount(new Login().setUsername("admin").setPassword(password))
                 .setDefaultRatioLimit("-2")
@@ -98,6 +98,7 @@ public class ConfigUtil {
      * 加载配置文件
      */
     public static synchronized void load() {
+        log.info("版本: v" + VersionUtil.getVersion());
         File file = new File(CONFIG_DIR, "config.yaml");
         if (!file.exists()) {
             log.debug("配置文件不存在, 使用默认配置");

@@ -17,7 +17,8 @@
                         做种中
                     </el-tag>
                 </el-space>
-                <div><el-progress :text-inside="true" :status="getProcessStatus(props.taskItem.status)"
+                <div><el-progress :text-inside="true" :show-text="false"
+                        :status="getProcessStatus(props.taskItem.status)"
                         :percentage="(props.taskItem.progress * 100).toFixed(2)">
                     </el-progress></div>
 

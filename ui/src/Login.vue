@@ -46,10 +46,7 @@
       <div style="height: 30px;"></div>
       <div class="login-footer flex-center">
         <a href="https://github.com/uchouT/qb-downloader" target="_blank" class="github-link">
-          <el-icon>
-            <Link />
-          </el-icon>
-          GitHub
+          {{ version === 'GitHub' ? 'GitHub' : 'v' + version }}
         </a>
       </div>
     </div>
@@ -64,7 +61,7 @@ import CryptoJS from "crypto-js"
 import App from "./home/App.vue";
 import api from "./api.js";
 import { useDark, useLocalStorage } from '@vueuse/core'
-import { Key, User, Right, Link } from "@element-plus/icons-vue";
+import { Key, User, Right } from "@element-plus/icons-vue";
 
 let loading = ref(false)
 
@@ -85,6 +82,7 @@ let rememberThePassword = useLocalStorage('rememberThePassword', {
   password: ''
 })
 
+let version = useLocalStorage('version', 'GitHub');
 let login = () => {
   loading.value = true
   user.value.password = user.value.password.trim()
@@ -134,10 +132,18 @@ let test = () => {
     })
 }
 
+const getVersion = () => {
+  api.get('/api/version')
+    .then(res => {
+      version.value = res.data
+    })
+}
+
 useDark()
 
 onMounted(() => {
   test()
+  getVersion()
   let { remember, username, password } = rememberThePassword.value;
   if (remember && username && password) {
     user.value.username = username

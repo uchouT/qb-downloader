@@ -6,7 +6,7 @@
 
     <groupId>uchout.qbdownloader</groupId>
     <artifactId>qbdownloader</artifactId>
-    <version>1.2.0</version>
+    <version>1.2.1</version>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -132,6 +132,11 @@
                             <addClasspath>true</addClasspath>
                             <mainClass>moe.uchout.qbdownloader.Main</mainClass>
                         </manifest>
+                        <manifestEntries>
+                            <Implementation-Version>${project.version}</Implementation-Version>
+                            <Implementation-Title>${project.artifactId}</Implementation-Title>
+                            <Implementation-Vendor>${project.groupId}</Implementation-Vendor>
+                        </manifestEntries>
                     </archive>
                     <finalName>qb-downloader</finalName>
                     <appendAssemblyId>false</appendAssemblyId>

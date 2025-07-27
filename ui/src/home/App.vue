@@ -8,14 +8,14 @@
           <img src="../../public/icon.png" class="app-icon" style=" width: 32px; height: 32px; flex-shrink: 0;" />
           <h1 class="app-title" style="margin: 0; font-size: 1.5rem; font-weight: 700;">b-downloader</h1>
         </div>
-        <nav class="header-actions" style="">
+        <nav class="header-actions">
           <el-button class="action-button add-button" type="primary" @click="addTask">
             <el-icon>
               <Plus />
             </el-icon>
             <span v-if="isNotMobile()">添加任务</span>
           </el-button>
-          <el-button class="action-button config-button" @click="config?.show()">
+          <el-button class="action-button config-button" @click="config?.show">
             <el-icon>
               <Setting />
             </el-icon>
@@ -29,8 +29,11 @@
       <List ref="taskList" />
     </main>
 
-    <el-button class="logout-button" @click="logout" type="danger">
-      退出
+    <el-button class="logout-button action-button" @click="logout" type="danger">
+      <el-icon>
+        <LogOut />
+      </el-icon>
+      <span v-if="isNotMobile()">退出</span>
     </el-button>
   </div>
 </template>
@@ -39,7 +42,8 @@
 import { onMounted, ref } from "vue";
 import { useWindowSize } from "@vueuse/core";
 import { ElMessage } from 'element-plus';
-import { Plus, Setting, Tickets } from "@element-plus/icons-vue";
+import { Plus, Setting } from "@element-plus/icons-vue";
+import { LogOut } from "lucide-vue-next";
 import Torrent from "./Torrent.vue";
 import Config from "./Config.vue";
 import List from "./List.vue";
@@ -61,7 +65,7 @@ const checkBeforeAddTask = async () => {
 
 
 // 响应式数据
-const { width, height } = useWindowSize();
+const { width } = useWindowSize();
 const torrent = ref();
 const config = ref();
 const taskList = ref();
@@ -112,13 +116,6 @@ const handleTaskAdded = () => {
   position: fixed;
   bottom: 2rem;
   right: 2rem;
-  width: 3.5rem;
-  height: 3.5rem;
   z-index: 999;
-}
-
-.logout-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(245, 108, 108, 0.4);
 }
 </style>

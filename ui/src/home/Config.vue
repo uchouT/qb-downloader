@@ -21,7 +21,7 @@
                             <el-form-item label="仅限内网 IP">
                                 <el-switch v-model="config.onlyInnerIP" />
                             </el-form-item>
-                            <el-form-item label="IP 验证">
+                            <el-form-item label="登录过期">
                                 <el-switch v-model="config.verifyLoginIP" />
                             </el-form-item>
                             <el-form-item label="Username">
@@ -41,8 +41,9 @@
                         </el-form>
                     </el-scrollbar>
                 </el-tab-pane>
-                <el-scrollbar>
-                    <el-tab-pane label="Uploader" name="second">
+                <el-tab-pane label="Uploader" name="second">
+                    <el-scrollbar>
+
                         <el-form label-position="right" label-width="140px">
                             <el-form-item label="Rclone Host">
                                 <el-input v-model="config.rcloneHost" placeholder="http://localhost:5572" />
@@ -65,8 +66,15 @@
                                 <el-input v-model="config.defaultUploadPath" placeholder="/uploads" />
                             </el-form-item>
                         </el-form>
-                    </el-tab-pane>
-                </el-scrollbar>
+                    </el-scrollbar>
+                </el-tab-pane>
+                <el-tab-pane label="About" name="third" class="flex-center-column">
+                    <h2 style="color: var(--el-color-primary)">v{{ useLocalStorage('version', '0.0.0') }}</h2>
+
+                    <a href="https://github.com/uchouT/qb-downloader" style="color: inherit;" target="_blank">
+                        <Github />
+                    </a>
+                </el-tab-pane>
             </el-tabs>
         </div>
         <template #footer>
@@ -80,7 +88,8 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import { useWindowSize } from '@vueuse/core'
+import { useWindowSize, useLocalStorage } from '@vueuse/core'
+import { Github } from 'lucide-vue-next';
 import api from '../api';
 import CryptoJS from "crypto-js";
 import { ElMessage } from 'element-plus';

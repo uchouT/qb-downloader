@@ -10,17 +10,28 @@
 
         <div v-else class="tasks-container flex-center" style="flex-direction:column; gap: 16px;">
             <ListItem v-for="task in tasks" :taskItem="task" :key="task.hash" @refresh="refreshTasks"
-                style="min-width: 500px;width: 50%;" />
+                :style="{ width: listWidth }" />
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import api from '../api'
 import ListItem from './ListItem.vue'
+import { useWindowSize } from '@vueuse/core'
 
 // 响应式数据
+const { width } = useWindowSize();
+const listWidth = computed(() => {
+    if (width.value <= 768) {
+        return '95%'
+    } else if (width.value <= 1024) {
+        return '70%'
+    } else {
+        return '50%'
+    }
+})
 const tasks = ref([])
 const loading = ref(false)
 let pollingTimer = null
