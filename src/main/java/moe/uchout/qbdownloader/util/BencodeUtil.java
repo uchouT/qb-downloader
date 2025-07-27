@@ -95,6 +95,7 @@ public class BencodeUtil {
         String rootDir = getRootDir(infoObj);
         TorrentContentNode Tree = buildMapedTree(infoObj, rootDir);
         ContentNodeMapToList(Tree);
+        sortChildren(Tree);
         return List.of(Tree);
     }
 
@@ -129,6 +130,27 @@ public class BencodeUtil {
             }
         }
         return root;
+    }
+
+    private static void sortChildren(TorrentContentNode node) {
+        if (ObjectUtil.isEmpty(node.children)) {
+            return;
+        }
+        node.children.sort((a, b) -> {
+            boolean aIsFolder = ObjectUtil.isNotEmpty(a.children);
+            boolean bIsFolder = ObjectUtil.isNotEmpty(b.children);
+            if (aIsFolder != bIsFolder) {
+                return bIsFolder ? 1 : -1;
+            }
+            return (a.label).compareTo(b.label);
+        });
+
+        for (TorrentContentNode child : node.children) {
+            if (ObjectUtil.isEmpty(child.children)) {
+                break;
+            }
+            sortChildren(child);
+        }
     }
 }
 
