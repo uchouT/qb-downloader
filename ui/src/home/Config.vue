@@ -1,7 +1,7 @@
 <template>
     <el-dialog v-model="dialogVisible" title="设置" :width="dialogWidth" class="config-dialog">
         <div v-loading="loading">
-            <el-tabs v-model="activeName" type="card" class="demo-tabs" @tab-click="handleClick">
+            <el-tabs v-model="activeName" type="card" class="demo-tabs">
                 <el-tab-pane label="Basic" name="first">
                     <el-scrollbar>
                         <el-form label-position="right" label-width="140px">
@@ -111,18 +111,17 @@ const dialogWidth = computed(() => {
 
 const saveConfig = () => {
     loading.value = true
-    let my_config = JSON.parse(JSON.stringify(config.value))
-    if (my_config.account.password) {
-        my_config.account.password = CryptoJS.MD5(my_config.account.password).toString();
+    Object.assign(CONFIG.value, config.value)
+    if (config.value.account.password) {
+        config.value.account.password = CryptoJS.MD5(config.value.account.password).toString();
     }
-    Object.assign(CONFIG, config)
-    api.post('api/config', my_config)
+    api.post('api/config', config.value)
         .then(res => {
             ElMessage.success(res.message)
-            emit('load')
             dialogVisible.value = false
         })
         .finally(() => {
+            config.value = null
             loading.value = false
         })
 }
@@ -137,10 +136,9 @@ const loading = ref(false)
 const show = () => {
     dialogVisible.value = true;
     loading.value = true;
-    Object.assign(config, CONFIG)
+    config.value = { ...CONFIG.value }
     loading.value = false;
 }
-const emit = defineEmits(['load'])
 defineExpose({ show })
 
 const test = (type) => {
