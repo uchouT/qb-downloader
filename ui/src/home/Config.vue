@@ -70,10 +70,18 @@
                 </el-tab-pane>
                 <el-tab-pane label="About" name="third" class="flex-center-column">
                     <h2 style="color: var(--el-color-primary)">v{{ useLocalStorage('version', '0.0.0') }}</h2>
-
-                    <a href="https://github.com/uchouT/qb-downloader" style="color: inherit;" target="_blank">
-                        <Github />
-                    </a>
+                    <img src="../../public/icon.png" alt="icon" style="width: 80px;" />
+                    <div class="description" style="max-width:  60%;">
+                        <p>这是作者为满足自身需求以及自娱自乐的一个项目，同时也是作者学习软件开发过程中练手的一个项目。</p>
+                        <p>有任何问题或者建议欢迎提 <a href="https://github.com/uchouT/qb-downloader/issues"
+                                target="_blank">Issues</a>。如果它帮助到了你哪怕一丝一毫，都是对我莫大的鼓励。</p>
+                    </div>
+                    <el-space>
+                        <a href="https://t.me/uchouT" target="_blank" style="color: inherit">
+                            <i class="fa-brands fa-telegram fa-xl"></i></a>
+                        <a href="https://github.com/uchouT/qb-downloader" style="color: inherit;" target="_blank">
+                            <i class="fa-brands fa-github fa-xl"></i></a>
+                    </el-space>
                 </el-tab-pane>
             </el-tabs>
         </div>
@@ -89,7 +97,6 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useWindowSize, useLocalStorage } from '@vueuse/core'
-import { Github } from 'lucide-vue-next';
 import api from '../api';
 import CryptoJS from "crypto-js";
 import { ElMessage } from 'element-plus';

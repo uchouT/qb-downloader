@@ -1,18 +1,16 @@
 <div align="center">
 <img src="ui/public/android-chrome-512x512.png" height="100"/>
 <h1 style="margin-top: 0">Qb-downloader</h1>
+<img src="img/home.png" />
 </div>
 
-
-[中文](README-CN.md)
-
-*Currently in development...*
+[中文](README_CN.md)
 
 ## Description
 
 Qb-downloader allows you to complete your qBittorrent tasks part by part and upload them to your cloud drive. This enables you to download large torrent tasks even if they exceed your maximum available storage.
 
-Supported uploaders: [Rclone rcd](https://rclone.org/commands/rclone_rcd/) (recommended).
+Supported uploaders: [Rclone rcd](https://rclone.org/commands/rclone_rcd/)
 A typical qb-downloader workflow includes:
 1. Splitting the torrent task into multiple parts.
 2. Downloading each part sequentially.
@@ -20,9 +18,9 @@ A typical qb-downloader workflow includes:
 
 ## TODO
 
-- [ ] Adding support for customizing torrent contents.
+- [x] Adding support for customizing torrent contents.
 - [ ] Forced continuation when error occurs.
-- [ ] Improving ui experience.
+- [x] Improving ui experience.
 - [ ] Adding support for hot update.
 
 ## Usage
@@ -30,6 +28,9 @@ A typical qb-downloader workflow includes:
 ### prerequisite
 
 This tool requires qBittorrent and an uploader to be running. Make sure you have configured them properly.
+
+> [!IMPORTANT]
+> make sure you haven't enabled options like "Delete torrent after completion" in your qBittorrent.
 
 Example [rclone rcd](https://rclone.org/commands/rclone_rcd/) service configuration:
 ```ini

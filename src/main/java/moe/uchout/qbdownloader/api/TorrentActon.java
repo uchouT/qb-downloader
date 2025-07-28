@@ -54,11 +54,11 @@ public class TorrentActon implements BaseAction {
         } catch (MissingParamException e) {
             String msg = e.getMessage();
             log.error("Error adding task: " + msg);
-            resultError(msg);
+            resultErrorMsg(msg);
         } catch (SingleFileException e) {
             String msg = "不支持单文件种子";
             log.warn(msg);
-            resultError(msg);
+            resultErrorMsg(msg);
         } catch (Exception e) {
             log.error("Error processing request: {}", e.getMessage(), e);
             resultErrorMsg(e.getMessage());

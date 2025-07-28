@@ -148,7 +148,7 @@ const show = () => {
     activeTab.value = 'url'
     savepath.value = CONFIG.value.defaultSavePath || "请输入保存路径";
     fileSelected.value = false
-    if (!torrentParsed) {
+    if (!torrentParsed.value) {
         taskAdd.value = {
             torrentRes: {
                 torrentName: '',

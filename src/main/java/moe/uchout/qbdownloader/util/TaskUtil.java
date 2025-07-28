@@ -13,6 +13,7 @@ import com.google.gson.reflect.TypeToken;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.thread.ThreadUtil;
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 
 import java.lang.reflect.Type;
@@ -154,7 +155,7 @@ public class TaskUtil {
             int size = fileLengthList.size();
             List<List<Integer>> order;
 
-            if (cutsomizeContent) {
+            if (cutsomizeContent && ObjectUtil.isNotEmpty(selectedFilesIndex)) {
                 order = getTaskOrder(fileLengthList, task.getMaxSize(), selectedFilesIndex);
             } else {
                 order = getTaskOrder(fileLengthList, task.getMaxSize());

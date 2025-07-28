@@ -25,14 +25,12 @@
       </div>
     </header>
     <main
-      style="width: 100%;max-width: 100%; height:100%; padding: 2rem; overflow: hidden; display: flex; flex-direction: column;">
+      style="width: 100%; padding: 2rem; overflow: auto; display: flex; flex-direction: column;">
       <List ref="taskList" />
     </main>
 
     <el-button class="logout-button action-button" @click="logout" type="danger">
-      <el-icon>
-        <LogOut />
-      </el-icon>
+      <i class="fa-solid fa-arrow-right-from-bracket">&nbsp;</i>
       <span v-if="isNotMobile()">退出</span>
     </el-button>
   </div>
@@ -43,7 +41,6 @@ import { onMounted, ref } from "vue";
 import { useWindowSize } from "@vueuse/core";
 import { ElMessage } from 'element-plus';
 import { Plus, Setting } from "@element-plus/icons-vue";
-import { LogOut } from "lucide-vue-next";
 import Torrent from "./Torrent.vue";
 import Config from "./Config.vue";
 import List from "./List.vue";
