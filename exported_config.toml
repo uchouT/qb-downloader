@@ -1,0 +1,18 @@
+qb_host = "http://192.168.1.100:8080"
+qb_username = "admin"
+qb_password = "newpassword"
+rclone_host = "http://192.168.1.100:5572"
+rclone_username = "rclone_user"
+rclone_password = "rclone_pass"
+is_only_inner_ip = true
+verify_login_ip = true
+default_save_path = "/home/downloads"
+default_upload_path = "/mnt/storage/uploads"
+default_ratio_limit = 2.0
+default_seeding_time_limit = 7200
+
+[login]
+ip = ""
+username = "admin"
+password = "f6fdffe48c908deb0f4c3bd36c032e72"
+key = ""
