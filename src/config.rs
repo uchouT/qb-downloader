@@ -70,7 +70,7 @@ impl Login {
 }
 
 pub struct Config {
-    value: ConfigValue,
+    pub value: ConfigValue,
     filepath: PathBuf,
 }
 
@@ -134,7 +134,7 @@ fn save_config(config: &Config) -> Result<(), Box<dyn Error>> {
 }
 
 /// Get the global configuration read lock
-pub fn get() -> RwLockReadGuard<'static, Config> {
+fn get() -> RwLockReadGuard<'static, Config> {
     CONFIG
         .get()
         .expect("Config not initialized")
@@ -149,4 +149,9 @@ pub fn get_mut() -> RwLockWriteGuard<'static, Config> {
         .expect("Config not initialized")
         .write()
         .expect("Config lock poisoned")
+}
+
+pub fn read<T, F: Fn(&ConfigValue) -> T>(f: F) -> T {
+    let config = get();
+    f(&config.value)
 }

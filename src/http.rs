@@ -1,4 +1,4 @@
-use reqwest::{Client, RequestBuilder, cookie::Jar};
+use reqwest::{Client, RequestBuilder, cookie::Jar, header};
 use std::{
     sync::{Arc, OnceLock},
     time::Duration,
@@ -19,18 +19,28 @@ fn get_client() -> &'static Client {
     })
 }
 
-pub fn post(url: &str) -> RequestBuilder {
-    get_client().post(url)
+pub fn post<T: AsRef<str>>(url: T) -> RequestBuilder {
+    get_client().post(url.as_ref())
 }
 
-pub fn get(url: &str) -> RequestBuilder {
-    get_client().get(url)
+pub fn get<T: AsRef<str>>(url: T) -> RequestBuilder {
+    get_client().get(url.as_ref())
 }
 
-pub fn delete(url: &str) -> RequestBuilder {
-    get_client().delete(url)
+pub fn delete<T: AsRef<str>>(url: T) -> RequestBuilder {
+    get_client().delete(url.as_ref())
 }
 
-pub fn put(url: &str) -> RequestBuilder {
-    get_client().put(url)
+pub fn put<T: AsRef<str>>(url: T) -> RequestBuilder {
+    get_client().put(url.as_ref())
+}
+
+pub trait DisableCookie {
+    fn disable_cookie(self) -> RequestBuilder;
+}
+
+impl DisableCookie for RequestBuilder {
+    fn disable_cookie(self) -> RequestBuilder {
+        self.header(header::COOKIE, "")
+    }
 }
