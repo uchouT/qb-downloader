@@ -1,16 +1,16 @@
-use log::{error, info};
+use log::info;
 use md5::compute;
 use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
     fs,
     path::PathBuf,
-    sync::{Arc, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 use crate::{CONFIG_FILE_NAME, get_base_dir};
 
-static CONFIG: OnceLock<Arc<RwLock<Config>>> = OnceLock::new();
+static CONFIG: OnceLock<RwLock<Config>> = OnceLock::new();
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 pub struct ConfigValue {
@@ -93,21 +93,21 @@ impl Config {
 pub fn init(custom_file_path: Option<PathBuf>) -> Result<(), Box<dyn Error>> {
     let mut config = Config::new(custom_file_path);
     load(&mut config)?;
-    CONFIG.set(Arc::new(RwLock::new(config))).map_err(|_| {
+    CONFIG.set(RwLock::new(config)).map_err(|_| {
         Box::new(std::io::Error::new(
             std::io::ErrorKind::AlreadyExists,
             "Config already initialized",
         ))
     })?;
+    info!("Config loaded.");
     Ok(())
 }
 
 /// load config from file
 fn load(config: &mut Config) -> Result<(), Box<dyn Error>> {
     if !config.filepath.exists() {
-        fs::create_dir_all(config.filepath.parent().unwrap())?;
-        fs::write(&config.filepath, toml::to_string_pretty(&config.value)?)?;
-        return Ok(());
+        // If the file does not exist, create it with default values
+        return save_config(config);
     }
     let content = fs::read_to_string(&config.filepath)?;
     let config_value: ConfigValue = toml::from_str(&content)?;
@@ -117,8 +117,8 @@ fn load(config: &mut Config) -> Result<(), Box<dyn Error>> {
 
 /// save the current configuration to file
 pub fn save() -> Result<(), Box<dyn Error>> {
-    let config = get_mut();
-    save_config(&config)?;
+    let config = get();
+    save_config(&*config)?;
     Ok(())
 }
 
@@ -135,10 +135,18 @@ fn save_config(config: &Config) -> Result<(), Box<dyn Error>> {
 
 /// Get the global configuration read lock
 pub fn get() -> RwLockReadGuard<'static, Config> {
-    CONFIG.get().unwrap().read().unwrap()
+    CONFIG
+        .get()
+        .expect("Config not initialized")
+        .read()
+        .expect("Config lock poisoned")
 }
 
 /// Get the global configuration write lock
 pub fn get_mut() -> RwLockWriteGuard<'static, Config> {
-    CONFIG.get().unwrap().write().unwrap()
+    CONFIG
+        .get()
+        .expect("Config not initialized")
+        .write()
+        .expect("Config lock poisoned")
 }
