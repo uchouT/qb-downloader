@@ -1,9 +1,9 @@
-use reqwest::{Client, RequestBuilder, cookie::Jar, header};
+use crate::error::Error;
+use reqwest::{Client, RequestBuilder, Response, cookie::Jar, header};
 use std::{
     sync::{Arc, OnceLock},
     time::Duration,
 };
-
 static HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
 
 fn get_client() -> &'static Client {
@@ -35,12 +35,39 @@ pub fn put<T: AsRef<str>>(url: T) -> RequestBuilder {
     get_client().put(url.as_ref())
 }
 
-pub trait DisableCookie {
+pub trait Extra {
     fn disable_cookie(self) -> RequestBuilder;
+    fn then<V, F: FnOnce(Response) -> Fut, Fut: Future<Output = Result<V, Error>>>(
+        self,
+        f: F,
+    ) -> impl Future<Output = Result<V, Error>>;
 }
 
-impl DisableCookie for RequestBuilder {
+impl Extra for RequestBuilder {
     fn disable_cookie(self) -> RequestBuilder {
         self.header(header::COOKIE, "")
+    }
+    fn then<V, F: FnOnce(Response) -> Fut, Fut: Future<Output = Result<V, Error>>>(
+        self,
+        f: F,
+    ) -> impl Future<Output = Result<V, Error>> {
+        async move {
+            let result = self.send().await;
+            match result {
+                Ok(res) => {
+                    if !res.status().is_success() {
+                        return Err(Error::Qb(
+                            format!(
+                                "Failed to process request: {}",
+                                res.text().await.unwrap_or_default()
+                            )
+                            .into(),
+                        ));
+                    }
+                    f(res).await
+                }
+                Err(e) => Err(Error::Network(e.to_string())),
+            }
+        }
     }
 }
