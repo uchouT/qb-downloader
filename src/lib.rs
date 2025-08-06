@@ -1,9 +1,11 @@
 pub mod config;
+pub mod error;
 pub mod http;
 pub mod qb;
-use directories_next::BaseDirs;
-use std::path::PathBuf;
 
+pub use crate::error::{Error, format_error_chain};
+use std::path::PathBuf;
+use directories_next::BaseDirs;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const CONFIG_FILE_NAME: &str = "config.toml";
 
