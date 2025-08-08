@@ -134,6 +134,7 @@ fn save_config(config: &Config) -> Result<(), Error> {
 pub fn get() -> RwLockReadGuard<'static, Config> {
     Config::get(CONFIG.get().expect("Config not initialized"))
 }
+
 impl Entity for Config {
     type LockedValue = Config;
     type Target = ConfigValue;

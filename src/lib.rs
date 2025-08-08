@@ -31,7 +31,26 @@ pub trait Entity {
     type LockedValue;
     type Target;
 
-    fn get(locked: &'static RwLock<Self::LockedValue>) -> RwLockReadGuard<'static, Self::LockedValue>;
+    fn get(
+        locked: &'static RwLock<Self::LockedValue>,
+    ) -> RwLockReadGuard<'static, Self::LockedValue>;
     fn read<T, F: Fn(&Self::Target) -> T>(f: F) -> T;
-    fn get_mut(locked: &'static RwLock<Self::LockedValue>) -> RwLockWriteGuard<'static, Self::LockedValue>;
+    fn get_mut(
+        locked: &'static RwLock<Self::LockedValue>,
+    ) -> RwLockWriteGuard<'static, Self::LockedValue>;
+}
+
+/// Trait for instances with RwLock
+pub trait InstanceEntity {
+    type LockedValue;
+    fn get(&self) -> RwLockReadGuard<'_, Self::LockedValue>;
+    fn get_mut(&mut self) -> RwLockWriteGuard<'_, Self::LockedValue>;
+    fn write<T, F: FnOnce(&mut Self::LockedValue) -> T>(&mut self, f: F) -> T {
+        let mut guard = self.get_mut();
+        f(&mut *guard)
+    }
+    fn read<T, F: Fn(&Self::LockedValue) -> T>(&self, f: F) -> T {
+        let read_guard = self.get();
+        f(&*&read_guard)
+    }
 }

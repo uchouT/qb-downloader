@@ -1,9 +1,10 @@
 use crate::{
-    Entity, Error,
+    Entity, Error, InstanceEntity,
     config::Config,
     format_error_chain,
     http::{self, Extra},
     remove_slash,
+    task::Task,
 };
 use log::error;
 use reqwest::multipart;
@@ -137,10 +138,10 @@ pub async fn get_torrent_info() -> Result<Vec<TorrentInfo>, Error> {
     http::get(format!("{}/api/v2/torrents/info", host))
         .form(&param)
         .then(async |res| {
-            let torrent_info_list: Vec<TorrentInfo> = res
-                .json()
-                .await
-                .map_err(|e| Error::Qb(format!("Failed to parse torrent info: {}", e).into()))?;
+            let torrent_info_list: Vec<TorrentInfo> = res.json().await.map_err(|e| {
+                let msg = format!("Failed to parse torrent info: {}", e);
+                Error::Qb(msg)
+            })?;
             Ok(torrent_info_list)
         })
         .await
@@ -275,7 +276,16 @@ pub async fn set_prio(hash: &str, priority: u8, index_list: &[u32]) -> Result<()
         .await
 }
 
-//TODO:  set not download of a task
+/// set the task not download, usually used when a new part of task is added
+pub async fn set_not_download(task: &Task) -> Result<(), Error> {
+    let (hash, file_num) = task.read(|v| (v.hash.clone(), v.file_num));
+    set_prio(
+        hash.as_str(),
+        0,
+        (0..file_num).collect::<Vec<u32>>().as_slice(),
+    )
+    .await
+}
 
 /// set the share limit of a torrent
 pub async fn set_share_limit(
@@ -328,10 +338,11 @@ pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, Error> {
     http::get(format!("{}/api/v2/torrents/info", host))
         .form(&param)
         .then(async |res| {
-            let json_array: Vec<Value> = res
-                .json()
-                .await
-                .map_err(|e| Error::Qb(format!("Failed to parse torrent info: {}", e).into()))?;
+            let json_array: Vec<Value> = res.json().await.map_err(|e| {
+                let msg = format!("Failed to get torrent list: {}", e);
+                error!("{}", msg);
+                Error::Qb(msg)
+            })?;
             let hash_list = json_array
                 .iter()
                 .filter_map(|v| v.get("hash").and_then(|h| h.as_str().map(String::from)))

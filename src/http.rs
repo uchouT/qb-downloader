@@ -1,4 +1,5 @@
 use crate::error::Error;
+use log::error;
 use reqwest::{Client, RequestBuilder, Response, cookie::Jar, header};
 use std::{
     sync::{Arc, OnceLock},
@@ -49,24 +50,28 @@ impl Extra for RequestBuilder {
     }
     fn then<V, F: FnOnce(Response) -> Fut, Fut: Future<Output = Result<V, Error>>>(
         self,
-        f: F,
+        res: F,
     ) -> impl Future<Output = Result<V, Error>> {
         async move {
             let result = self.send().await;
             match result {
-                Ok(res) => {
-                    if !res.status().is_success() {
-                        return Err(Error::Qb(
-                            format!(
-                                "Failed to process request: {}",
-                                res.text().await.unwrap_or_default()
-                            )
-                            .into(),
-                        ));
+                Ok(response) => {
+                    if !response.status().is_success() {
+                        let msg = format!(
+                            "Qbittorrent error: {} \n{}",
+                            response.status(),
+                            response.text().await.unwrap_or_default()
+                        );
+                        error!("{}", msg);
+                        return Err(Error::Qb(msg));
                     }
-                    f(res).await
+                    res(response).await
                 }
-                Err(e) => Err(Error::Network(e.to_string())),
+                Err(e) => {
+                    let msg = format!("Network error: {}", e);
+                    error!("{}", msg);
+                    Err(Error::Network(msg))
+                }
             }
         }
     }
