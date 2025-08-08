@@ -2,14 +2,13 @@ use log::{debug, info};
 use md5::compute;
 use serde::{Deserialize, Serialize};
 use std::{
-    fs,
     path::PathBuf,
-    sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::{OnceLock, RwLock},
 };
 
 use crate::{CONFIG_FILE_NAME, Entity, error::Error, get_base_dir};
 
-static CONFIG: OnceLock<RwLock<Config>> = OnceLock::new();
+pub static CONFIG: OnceLock<RwLock<Config>> = OnceLock::new();
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 pub struct ConfigValue {
@@ -71,11 +70,11 @@ impl Login {
 #[derive(Debug)]
 pub struct Config {
     pub value: ConfigValue,
-    filepath: PathBuf,
+    pub filepath: PathBuf,
 }
 
-impl Config {
-    pub fn new(filepath: Option<PathBuf>) -> Self {
+impl Entity for Config {
+    fn new(filepath: Option<PathBuf>) -> Self {
         let filepath = if let Some(path) = filepath {
             path
         } else {
@@ -87,72 +86,16 @@ impl Config {
             filepath,
         }
     }
-}
 
-/// initialize the global configuration
-pub fn init(custom_file_path: Option<PathBuf>) -> Result<(), Error> {
-    let mut config = Config::new(custom_file_path);
-    load(&mut config)?;
-    info!("Config loaded from: {}", &config.filepath.display());
-    debug!("Config content: {:?}", &config.value);
-    CONFIG
-        .set(RwLock::new(config))
-        .expect("Failed to set global config");
-    info!("Config loaded.");
-    Ok(())
-}
-
-/// load config from file
-fn load(config: &mut Config) -> Result<(), Error> {
-    if !config.filepath.exists() {
-        // If the file does not exist, create it with default values
-        return save_config(config);
-    }
-    let content = fs::read_to_string(&config.filepath)?;
-    let config_value: ConfigValue = toml::from_str(&content)?;
-    config.value = config_value;
-    Ok(())
-}
-
-/// save the current configuration to file
-pub fn save() -> Result<(), Error> {
-    let config = get();
-    save_config(&*config)?;
-    Ok(())
-}
-
-fn save_config(config: &Config) -> Result<(), Error> {
-    let content = toml::to_string_pretty(&config.value)?;
-    let config_filepath = &config.filepath;
-
-    if let Some(parent) = config_filepath.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(config_filepath, content)?;
-    Ok(())
-}
-pub fn get() -> RwLockReadGuard<'static, Config> {
-    Config::get(CONFIG.get().expect("Config not initialized"))
-}
-
-impl Entity for Config {
-    type LockedValue = Config;
-    type Target = ConfigValue;
-
-    fn get(
-        locked: &'static RwLock<Self::LockedValue>,
-    ) -> RwLockReadGuard<'static, Self::LockedValue> {
-        locked.read().expect("Config lock poisoned")
-    }
-
-    fn read<T, F: Fn(&Self::Target) -> T>(f: F) -> T {
-        let read_guard = get();
-        f(&read_guard.value)
-    }
-
-    fn get_mut(
-        locked: &'static RwLock<Self::LockedValue>,
-    ) -> RwLockWriteGuard<'static, Self::LockedValue> {
-        locked.write().expect("Config lock poisoned")
+    fn init(path: Option<PathBuf>) -> Result<(), Error> {
+        let mut config = Config::new(path);
+        Config::load(&mut config)?;
+        info!("Config loaded from: {}", &config.filepath.display());
+        debug!("Config content: {:?}", &config.value);
+        CONFIG
+            .set(RwLock::new(config))
+            .expect("Failed to set global config");
+        info!("Config loaded.");
+        Ok(())
     }
 }

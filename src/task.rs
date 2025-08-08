@@ -1,18 +1,24 @@
 //! qb-downloader task manager
 
-use std::sync::RwLock;
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{OnceLock, RwLock},
+};
 
-use log::{error, info};
+use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Error,
+    Entity, Error, get_base_dir,
     upload::{UploadCheck, Uploader},
 };
 
+pub static TASK_LIST: OnceLock<RwLock<Task>> = OnceLock::new();
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Task {
-    pub filepath: String,
+    pub filepath: PathBuf,
+    pub value: HashMap<String, TaskItem>,
 }
 
 /// task value
@@ -86,5 +92,31 @@ impl TaskItem {
             self.status = Status::Error;
             Error::Upload(msg)
         })
+    }
+}
+
+impl Entity for Task {
+    fn new(path: Option<PathBuf>) -> Self {
+        let filepath = if let Some(filepath) = path {
+            filepath
+        } else {
+            get_base_dir().join("tasks.toml")
+        };
+        Task {
+            filepath,
+            value: HashMap::new(),
+        }
+    }
+
+    fn init(path: Option<PathBuf>) -> Result<(), Error> {
+        let mut task_list = Self::new(path);
+        Self::load(&mut task_list)?;
+        info!("Task list loaded from: {}", &task_list.filepath.display());
+        debug!("Task list content: {:?}", &task_list.value);
+        TASK_LIST
+            .set(RwLock::new(task_list))
+            .expect("failed to set task list");
+        info!("Task list initialized.");
+        Ok(())
     }
 }
