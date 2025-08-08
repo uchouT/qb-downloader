@@ -6,18 +6,18 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Error, InstanceEntity,
+    Error,
     upload::{UploadCheck, Uploader},
 };
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Task {
-    pub value: RwLock<TaskValue>,
+    pub filepath: String,
 }
 
 /// task value
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TaskValue {
+pub struct TaskItem {
     pub hash: String,
     pub name: String,
 
@@ -64,41 +64,27 @@ pub enum Status {
     Paused,
 }
 
-impl Task {
+impl TaskItem {
     pub async fn run_interval(&mut self) -> Result<(), Error> {
-        self.write(|v| {
-            v.status = Status::OnTask;
-        });
-        let uploader = self.read(|v| {
-            info!("Running interval task for: {}", v.name);
-            v.uploader.clone()
-        });
+        self.status = Status::OnTask;
+        info!("Running interval task for: {}", self.name);
+
+        let uploader = self.uploader.clone();
         uploader.upload(self).await.map_err(|e| {
             let msg = format!("Upload failed: {}", e);
             error!("{}", msg);
-            self.write(|v| v.status = Status::Error);
+            self.status = Status::Error;
             Error::Upload(msg)
         })
     }
 
     pub async fn run_check(&mut self) -> Result<bool, Error> {
-        let uploader = self.read(|v| v.uploader.clone());
+        let uploader = self.uploader.clone();
         uploader.check(self).await.map_err(|e| {
-            let msg = format!("Upload check failed: {}", e);
+            let msg = format!("Check failed: {}", e);
             error!("{}", msg);
-            self.write(|v| v.status = Status::Error);
+            self.status = Status::Error;
             Error::Upload(msg)
         })
-    }
-}
-
-impl InstanceEntity for Task {
-    type LockedValue = TaskValue;
-
-    fn get(&self) -> std::sync::RwLockReadGuard<'_, Self::LockedValue> {
-        self.value.read().expect("Task lock poisoned")
-    }
-    fn get_mut(&mut self) -> std::sync::RwLockWriteGuard<'_, Self::LockedValue> {
-        self.value.write().expect("Task lock poisoned")
     }
 }

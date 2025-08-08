@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{
-    Entity, Error, InstanceEntity,
+    Entity, Error,
     config::Config,
     http::{self, Extra},
-    task::Task,
+    task::TaskItem,
 };
 
 /// upload type, currently support rclone
@@ -20,19 +20,19 @@ pub enum Uploader {
 
 pub trait UploadCheck {
     /// submit async upload task
-    async fn upload(&self, task: &mut Task) -> Result<(), Error>;
+    async fn upload(&self, task: &mut TaskItem) -> Result<(), Error>;
     /// check if the upload task is finished
-    async fn check(&self, task: &mut Task) -> Result<bool, Error>;
+    async fn check(&self, task: &mut TaskItem) -> Result<bool, Error>;
 }
 
 impl UploadCheck for Uploader {
-    async fn check(&self, task: &mut Task) -> Result<bool, Error> {
+    async fn check(&self, task: &mut TaskItem) -> Result<bool, Error> {
         match self {
             Uploader::Rclone(_) => Rclone::check(task).await,
         }
     }
 
-    async fn upload(&self, task: &mut Task) -> Result<(), Error> {
+    async fn upload(&self, task: &mut TaskItem) -> Result<(), Error> {
         match self {
             Uploader::Rclone(_) => Rclone::upload(task).await,
         }
@@ -43,7 +43,7 @@ struct Rclone;
 
 impl Rclone {
     /// submit upload task to rclone, and store the job ID in the task
-    async fn upload(task: &mut Task) -> Result<(), Error> {
+    async fn upload(task: &mut TaskItem) -> Result<(), Error> {
         let (host, username, password) = Config::read(|config| {
             (
                 config.rclone_host.clone(),
@@ -51,12 +51,10 @@ impl Rclone {
                 config.rclone_password.clone(),
             )
         });
-        let (src, dst) = task.read(|value| {
-            (
-                format!("{}/{}", value.save_path, value.root_dir),
-                format!("{}/{}", value.upload_path, value.root_dir),
-            )
-        });
+        let (src, dst) = (
+            format!("{}:{}", task.upload_path, task.name),
+            format!("{}:{}", task.save_path, task.name),
+        );
         let body = json!({
             "srcFs": src,
             "dstFs": dst,
@@ -70,9 +68,7 @@ impl Rclone {
             .then(async |res| {
                 let value: Value = res.json().await?;
                 if let Some(job_id) = value.get("jobid").and_then(|v| v.as_i64()) {
-                    task.write(|value| {
-                        value.uploader = Uploader::Rclone(Some(job_id as i32));
-                    });
+                    task.uploader = Uploader::Rclone(Some(job_id as i32));
                     Ok(())
                 } else {
                     Err(Error::Upload(
@@ -83,7 +79,7 @@ impl Rclone {
             .await
     }
 
-    async fn check(task: &mut Task) -> Result<bool, Error> {
+    async fn check(task: &mut TaskItem) -> Result<bool, Error> {
         let (host, username, password) = Config::read(|config| {
             (
                 config.rclone_host.clone(),
@@ -91,7 +87,7 @@ impl Rclone {
                 config.rclone_password.clone(),
             )
         });
-        if let Uploader::Rclone(Some(job_id)) = task.read(|v| v.uploader.clone()) {
+        if let Uploader::Rclone(Some(job_id)) = task.uploader {
             http::post(format!("{}/job/status", host))
                 .basic_auth(username, Some(password))
                 .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))

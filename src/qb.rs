@@ -1,10 +1,10 @@
 use crate::{
-    Entity, Error, InstanceEntity,
+    Entity, Error,
     config::Config,
     format_error_chain,
     http::{self, Extra},
     remove_slash,
-    task::Task,
+    task::TaskItem,
 };
 use log::error;
 use reqwest::multipart;
@@ -277,8 +277,8 @@ pub async fn set_prio(hash: &str, priority: u8, index_list: &[u32]) -> Result<()
 }
 
 /// set the task not download, usually used when a new part of task is added
-pub async fn set_not_download(task: &Task) -> Result<(), Error> {
-    let (hash, file_num) = task.read(|v| (v.hash.clone(), v.file_num));
+pub async fn set_not_download(task: &TaskItem) -> Result<(), Error> {
+    let (hash, file_num) = (&task.hash, task.file_num as u32);
     set_prio(
         hash.as_str(),
         0,
