@@ -1,16 +1,15 @@
+use crate::{Entity, error::CommonError};
+use directories_next::BaseDirs;
 use log::{debug, info};
 use md5::compute;
 use serde::{Deserialize, Serialize};
-use std::{
-    path::PathBuf,
-    sync::{OnceLock, RwLock},
-};
-
-use crate::{CONFIG_FILE_NAME, Entity, error::Error, get_base_dir};
+use std::{path::PathBuf, sync::OnceLock};
+use tokio::sync::RwLock;
+const CONFIG_FILE_NAME: &str = "config.toml";
 
 pub static CONFIG: OnceLock<RwLock<Config>> = OnceLock::new();
 
-#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ConfigValue {
     pub qb_host: String,
     pub qb_username: String,
@@ -34,8 +33,8 @@ pub struct Login {
     pub key: String,
 }
 
-impl ConfigValue {
-    pub fn default() -> Self {
+impl Default for ConfigValue {
+    fn default() -> Self {
         ConfigValue {
             qb_host: String::from("http://localhost:8080"),
             qb_username: String::from("admin"),
@@ -57,7 +56,7 @@ impl ConfigValue {
 impl Login {
     fn default() -> Self {
         let digest = compute("adminadmin");
-        let password = format!("{:x}", digest);
+        let password = format!("{digest:x}");
         Login {
             ip: String::from(""),
             username: String::from("admin"),
@@ -78,7 +77,11 @@ impl Entity for Config {
         let filepath = if let Some(path) = filepath {
             path
         } else {
-            get_base_dir().join(CONFIG_FILE_NAME)
+            BaseDirs::new()
+                .expect("Failed to get config dir.")
+                .config_dir()
+                .join("qb-downloader")
+                .join(CONFIG_FILE_NAME)
         };
 
         Config {
@@ -87,10 +90,10 @@ impl Entity for Config {
         }
     }
 
-    fn init(path: Option<PathBuf>) -> Result<(), Error> {
+    fn init(path: Option<PathBuf>) -> Result<(), CommonError> {
         let mut config = Config::new(path);
         Config::load(&mut config)?;
-        info!("Config loaded from: {}", &config.filepath.display());
+        debug!("Config loaded from: {}", &config.filepath.display());
         debug!("Config content: {:?}", &config.value);
         CONFIG
             .set(RwLock::new(config))

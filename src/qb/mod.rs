@@ -1,22 +1,20 @@
+//! This module provides API to interact with qBittorrent
+
+pub mod error;
 use crate::{
-    Entity, Error,
+    Entity,
     config::Config,
-    format_error_chain,
     http::{self, Extra},
     remove_slash,
-    task::TaskItem,
+    task::TaskValue,
 };
+use error::{QbError, QbErrorKind};
 use log::error;
 use reqwest::multipart;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::Write,
-    sync::{OnceLock, RwLock},
-};
-use tokio::time::sleep;
+use std::{collections::HashMap, fs::File, io::Write, sync::OnceLock};
+use tokio::{sync::RwLock, time::sleep};
 const CATEGORY: &str = "QBD";
 
 /// qBittorrent tag
@@ -62,104 +60,95 @@ impl TorrentInfo {
 }
 static QB: OnceLock<RwLock<Qb>> = OnceLock::new();
 
-pub fn init() -> Result<(), Error> {
-    let _ = QB
-        .set(RwLock::new(Qb::new()))
+pub async fn init() -> Result<(), QbError> {
+    QB.set(RwLock::new(Qb::new().await))
         .expect("Failed to initialize qBittorrent client");
     Ok(())
 }
 impl Qb {
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
         Qb {
-            host: Config::read(|c| c.qb_host.clone()),
+            host: Config::read(|c| c.qb_host.clone()).await,
             logined: false,
         }
     }
 }
-
-fn get_host() -> Result<String, Error> {
-    let qb = QB
-        .get()
-        .unwrap()
-        .read()
-        .map_err(|e| {
-            let poison_error = Error::Qb(e.to_string().into());
-            error!(
-                "Failed to read qBittorrent client: {}",
-                format_error_chain(&poison_error)
-            );
-        })
-        .expect("Failed to read qBittorrent client");
+pub async fn is_logined() -> bool {
+    QB.get().unwrap().read().await.logined
+}
+async fn get_host() -> Result<String, QbError> {
+    let qb = QB.get().unwrap().read().await;
     if qb.logined {
         Ok(qb.host.clone())
     } else {
         error!("qBittorrent access denied");
-        Err(Error::Qb("Not logged in to qBittorrent".into()))
+        Err(QbError {
+            kind: QbErrorKind::NotLogin,
+        })
     }
 }
 /// login to qBittorrent, and update the host and logined status
-pub async fn login() -> bool {
+pub async fn login()  {
     let (host, username, pass) = Config::read(|c| {
         (
             c.qb_host.clone(),
             c.qb_username.clone(),
             c.qb_password.clone(),
         )
-    });
+    })
+    .await;
+
     let refined_host = remove_slash(host);
-    let logined = test_login(&refined_host.as_str(), username.as_str(), pass.as_str()).await;
-    if let Ok(mut qb) = QB.get().unwrap().write() {
-        qb.host = refined_host;
-        qb.logined = logined;
-    }
-    logined
+    let logined = test_login(refined_host.as_str(), username.as_str(), pass.as_str()).await;
+
+    let mut qb = QB.get().unwrap().write().await;
+    qb.host = refined_host;
+    qb.logined = logined;
 }
 
 pub async fn test_login(host: &str, username: &str, pass: &str) -> bool {
-    let refined_host = remove_slash(&host);
+    let refined_host = remove_slash(host);
     let mut form = HashMap::new();
     form.insert("username", username);
     form.insert("password", pass);
-    let result = http::post(format!("{}/api/v2/auth/login", refined_host).as_str())
+    let result = http::post(format!("{refined_host}/api/v2/auth/login").as_str())
         .form(&form)
         .disable_cookie()
         .send()
         .await;
-    match result {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+
+    result.is_ok()
 }
 
-/// get to torrent info list, with CATEGORY
-pub async fn get_torrent_info() -> Result<Vec<TorrentInfo>, Error> {
-    let host = get_host()?;
+/// get all torrent infos with CATEGORY
+pub async fn get_torrent_info() -> Result<Vec<TorrentInfo>, QbError> {
+    let host = get_host().await?;
     let param = HashMap::from([("category", CATEGORY)]);
-    http::get(format!("{}/api/v2/torrents/info", host))
+    http::get(format!("{host}/api/v2/torrents/info"))
         .form(&param)
         .then(async |res| {
-            let torrent_info_list: Vec<TorrentInfo> = res.json().await.map_err(|e| {
-                let msg = format!("Failed to parse torrent info: {}", e);
-                Error::Qb(msg)
-            })?;
+            let torrent_info_list: Vec<TorrentInfo> = res.json().await?;
             Ok(torrent_info_list)
         })
         .await
 }
 
 /// get the new added torrent hash, and remove the marked tag
-pub async fn get_hash() -> Result<String, Error> {
-    let host = get_host()?;
+pub async fn get_hash() -> Result<String, QbError> {
+    let host = get_host().await?;
     let mut param = HashMap::new();
     param.insert("category", CATEGORY);
     param.insert("tag", Tag::NEW.as_ref());
 
-    http::get(format!("{}/api/v2/torrents/info", host))
+    http::get(format!("{host}/api/v2/torrents/info"))
         .form(&param)
         .then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
+            // Always occurs when a same torrent is added
             if json_array.is_empty() {
-                return Err(Error::Qb("No new torrents found".into()));
+                return Err(QbError {
+                    kind: QbErrorKind::NoNewTorrents,
+                });
             }
             let hash = json_array[0].get("hash").and_then(|v| v.as_str()).unwrap();
             remove_tag(hash, Tag::NEW).await?;
@@ -168,67 +157,64 @@ pub async fn get_hash() -> Result<String, Error> {
         .await
 }
 
-async fn manage_tag(hash: &str, tag: Tag, action: &str) -> Result<(), Error> {
-    let host = get_host()?;
+async fn manage_tag(hash: &str, tag: Tag, action: &str) -> Result<(), QbError> {
+    let host = get_host().await?;
     let param = HashMap::from([("hashes", hash), ("tags", tag.as_ref())]);
-    http::post(format!("{}/api/v2/torrents/{}", host, action))
+    http::post(format!("{host}/api/v2/torrents/{action}"))
         .form(&param)
         .then(async |_| Ok(()))
         .await
 }
 
 /// remove the tag of the corresponding torrent
-pub async fn remove_tag(hash: &str, tag: Tag) -> Result<(), Error> {
+pub async fn remove_tag(hash: &str, tag: Tag) -> Result<(), QbError> {
     manage_tag(hash, tag, "removeTags").await
 }
 
 /// add tag to the corresponding torrent
-pub async fn add_tag(hash: &str, tag: Tag) -> Result<(), Error> {
+pub async fn add_tag(hash: &str, tag: Tag) -> Result<(), QbError> {
     manage_tag(hash, tag, "addTags").await
 }
 
 /// manage torrent task
-async fn manage(hash: &str, action: &str) -> Result<(), Error> {
-    let host = get_host()?;
-    http::post(format!("{}/api/v2/torrents/{}", host, action))
+async fn manage(hash: &str, action: &str) -> Result<(), QbError> {
+    let host = get_host().await?;
+    http::post(format!("{host}/api/v2/torrents/{action}"))
         .form(&HashMap::from([("hashes", hash)]))
         .then(async |_| Ok(()))
         .await
 }
 
 /// start a torrent
-pub async fn start(hash: &str) -> Result<(), Error> {
+pub async fn start(hash: &str) -> Result<(), QbError> {
     manage(hash, "start").await
 }
 
 /// stop a torrent
-pub async fn stop(hash: &str) -> Result<(), Error> {
+pub async fn stop(hash: &str) -> Result<(), QbError> {
     manage(hash, "stop").await
 }
 
 /// delete a torrent
-pub async fn delete(hash: &str, delete_files: bool) -> Result<(), Error> {
-    let host = get_host()?;
+pub async fn delete(hash: &str, delete_files: bool) -> Result<(), QbError> {
+    let host = get_host().await?;
     let param = HashMap::from([
         ("hashes", hash),
         ("deleteFiles", if delete_files { "true" } else { "false" }),
     ]);
-    http::post(format!("{}/api/v2/torrents/delete", host))
+    http::post(format!("{host}/api/v2/torrents/delete"))
         .form(&param)
         .then(async |_| Ok(()))
         .await
 }
 
 /// get the state of a torrent
-pub async fn get_state(hash: &str) -> Result<String, Error> {
-    let host = get_host()?;
-    http::get(format!("{}/api/v2/torrents/info", host))
+pub async fn get_state(hash: &str) -> Result<String, QbError> {
+    let host = get_host().await?;
+    http::get(format!("{host}/api/v2/torrents/info"))
         .form(&HashMap::from([("hashes", hash)]))
         .then(async |res| {
-            let json_array: Vec<Value> = res
-                .json()
-                .await
-                .map_err(|e| Error::Qb(format!("Failed to parse torrent info: {}", e).into()))?;
+            let json_array: Vec<Value> = res.json().await?;
             let state = json_array[0].get("state").and_then(|v| v.as_str()).unwrap();
             Ok(state.to_string())
         })
@@ -236,15 +222,12 @@ pub async fn get_state(hash: &str) -> Result<String, Error> {
 }
 
 /// get the name of a torrent by its hash
-pub async fn get_name(hash: &str) -> Result<String, Error> {
-    let host = get_host()?;
-    http::get(format!("{}/api/v2/torrents/info", host))
+pub async fn get_name(hash: &str) -> Result<String, QbError> {
+    let host = get_host().await?;
+    http::get(format!("{host}/api/v2/torrents/info"))
         .form(&HashMap::from([("hashes", hash)]))
         .then(async |res| {
-            let json_array: Vec<Value> = res
-                .json()
-                .await
-                .map_err(|e| Error::Qb(format!("Failed to parse torrent info: {}", e).into()))?;
+            let json_array: Vec<Value> = res.json().await?;
             let name = json_array[0].get("name").and_then(|v| v.as_str()).unwrap();
             Ok(name.to_string())
         })
@@ -256,8 +239,8 @@ pub async fn get_name(hash: &str) -> Result<String, Error> {
 /// * `hash` - The hash of the torrent.
 /// * `priority` - 1 for download, 0 for not download.
 /// * `index_list` - the index list of files need to set.
-pub async fn set_prio(hash: &str, priority: u8, index_list: &[u32]) -> Result<(), Error> {
-    let host = get_host()?;
+pub async fn set_prio(hash: &str, priority: u8, index_list: &[u32]) -> Result<(), QbError> {
+    let host = get_host().await?;
     let id = index_list
         .iter()
         .map(|i| i.to_string())
@@ -270,15 +253,15 @@ pub async fn set_prio(hash: &str, priority: u8, index_list: &[u32]) -> Result<()
         ("priority", prio.as_str()),
         ("id", id.as_str()),
     ]);
-    http::post(format!("{}/api/v2/torrents/filePrio", host))
+    http::post(format!("{host}/api/v2/torrents/filePrio"))
         .form(&param)
         .then(async |_| Ok(()))
         .await
 }
 
 /// set the task not download, usually used when a new part of task is added
-pub async fn set_not_download(task: &TaskItem) -> Result<(), Error> {
-    let (hash, file_num) = (&task.hash, task.file_num as u32);
+pub async fn set_not_download(task: &TaskValue) -> Result<(), QbError> {
+    let (hash, file_num) = (&task.hash, task.file_num);
     set_prio(
         hash.as_str(),
         0,
@@ -292,38 +275,35 @@ pub async fn set_share_limit(
     hash: &str,
     ratio_limit: f64,
     seeding_time_limit: i32,
-) -> Result<(), Error> {
-    let host = get_host()?;
+) -> Result<(), QbError> {
+    let host = get_host().await?;
     let param = HashMap::from([
         ("hashes", hash.to_string()),
         ("ratioLimit", ratio_limit.to_string()),
         ("seedingTimeLimit", seeding_time_limit.to_string()),
         ("inactiveSeedingTimeLimit", "-2".to_string()),
     ]);
-    http::post(format!("{}/api/v2/torrents/setShareLimits", host))
+    http::post(format!("{host}/api/v2/torrents/setShareLimits"))
         .form(&param)
         .then(async |_| Ok(()))
         .await
 }
 
 /// export .torrent file to a specified path
-pub async fn export(hash: &str, path: &str) -> Result<(), Error> {
+pub async fn export(hash: &str, path: &str) -> Result<(), QbError> {
     // wait for the torrent to fetch meta data
     loop {
         let state = get_state(hash).await?;
-        if vec!["stoppedUP", "pausedUP", "stoppedDL", "pausedDL"].contains(&state.as_str()) {
+        if ["stoppedUP", "pausedUP", "stoppedDL", "pausedDL"].contains(&state.as_str()) {
             break;
         }
         sleep(std::time::Duration::from_secs(1)).await;
     }
-    let host = get_host()?;
-    http::post(format!("{}/api/v2/torrents/export", host))
+    let host = get_host().await?;
+    http::post(format!("{host}/api/v2/torrents/export"))
         .form(&HashMap::from([("hash", hash)]))
         .then(async |res| {
-            let data = res
-                .bytes()
-                .await
-                .map_err(|e| Error::Qb(format!("Failed to read response bytes: {}", e).into()))?;
+            let data = res.bytes().await?;
             let mut file = File::create(path)?;
             file.write_all(&data)?;
             Ok(())
@@ -332,17 +312,13 @@ pub async fn export(hash: &str, path: &str) -> Result<(), Error> {
 }
 
 /// get the hash list of torrents with a specific tag
-pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, Error> {
-    let host = get_host()?;
+pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, QbError> {
+    let host = get_host().await?;
     let param = HashMap::from([("category", CATEGORY), ("tag", tag.as_ref())]);
-    http::get(format!("{}/api/v2/torrents/info", host))
+    http::get(format!("{host}/api/v2/torrents/info"))
         .form(&param)
         .then(async |res| {
-            let json_array: Vec<Value> = res.json().await.map_err(|e| {
-                let msg = format!("Failed to get torrent list: {}", e);
-                error!("{}", msg);
-                Error::Qb(msg)
-            })?;
+            let json_array: Vec<Value> = res.json().await?;
             let hash_list = json_array
                 .iter()
                 .filter_map(|v| v.get("hash").and_then(|h| h.as_str().map(String::from)))
@@ -353,8 +329,8 @@ pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, Error> {
 }
 
 /// add a torrent to qBittorrent by URL
-pub async fn add_by_url(url: &str, save_path: &str) -> Result<(), Error> {
-    let host = get_host()?;
+pub async fn add_by_url(url: &str, save_path: &str) -> Result<(), QbError> {
+    let host = get_host().await?;
     let param = HashMap::from([
         ("urls", url),
         ("savepath", save_path),
@@ -362,7 +338,7 @@ pub async fn add_by_url(url: &str, save_path: &str) -> Result<(), Error> {
         ("tags", Tag::NEW.as_ref()),
         ("stopCondition", "MetadataReceived"),
     ]);
-    http::post(format!("{}/api/v2/torrents/add", host))
+    http::post(format!("{host}/api/v2/torrents/add"))
         .form(&param)
         .then(async |_| Ok(()))
         .await
@@ -375,8 +351,8 @@ pub async fn add_by_file(
     save_path: &str,
     seeding_time_limit: i32,
     ratio_limit: f64,
-) -> Result<(), Error> {
-    let host = get_host()?;
+) -> Result<(), QbError> {
+    let host = get_host().await?;
     let file_part = multipart::Part::file(torrent_path).await?;
     let form = multipart::Form::new()
         .part("torrents", file_part)
@@ -385,7 +361,7 @@ pub async fn add_by_file(
         .text("seedingTimeLimit", seeding_time_limit.to_string())
         .text("ratioLimit", ratio_limit.to_string())
         .text("stopped", "true");
-    http::post(format!("{}/api/v2/torrents/add", host))
+    http::post(format!("{host}/api/v2/torrents/add"))
         .multipart(form)
         .then(async |_| Ok(()))
         .await
@@ -393,8 +369,8 @@ pub async fn add_by_file(
 
 // TODO: test after ui is finished
 /// add a torrent to qBittorrent by bytes
-pub async fn add_by_bytes(file_name: &str, save_path: &str, data: &[u8]) -> Result<(), Error> {
-    let host = get_host()?;
+pub async fn add_by_bytes(file_name: &str, save_path: &str, data: &[u8]) -> Result<(), QbError> {
+    let host = get_host().await?;
     let file_part = multipart::Part::bytes(data.to_vec()).file_name(file_name.to_string());
     let form = multipart::Form::new()
         .part("torrents", file_part)
@@ -402,7 +378,7 @@ pub async fn add_by_bytes(file_name: &str, save_path: &str, data: &[u8]) -> Resu
         .text("category", CATEGORY)
         .text("stopped", "true")
         .text("tags", Tag::NEW.as_ref());
-    http::post(format!("{}/api/v2/torrents/add", host))
+    http::post(format!("{host}/api/v2/torrents/add"))
         .multipart(form)
         .then(async |_| Ok(()))
         .await

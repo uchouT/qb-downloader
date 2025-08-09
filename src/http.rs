@@ -1,7 +1,8 @@
-use crate::error::Error;
-use log::error;
+use crate::error::CommonError;
+
 use reqwest::{Client, RequestBuilder, Response, cookie::Jar, header};
 use std::{
+    future::Future,
     sync::{Arc, OnceLock},
     time::Duration,
 };
@@ -38,41 +39,34 @@ pub fn put<T: AsRef<str>>(url: T) -> RequestBuilder {
 
 pub trait Extra {
     fn disable_cookie(self) -> RequestBuilder;
-    fn then<V, F: FnOnce(Response) -> Fut, Fut: Future<Output = Result<V, Error>>>(
+    fn then<V, E, F: FnOnce(Response) -> Fut, Fut: Future<Output = Result<V, E>>>(
         self,
         f: F,
-    ) -> impl Future<Output = Result<V, Error>>;
+    ) -> impl Future<Output = Result<V, E>>
+    where
+        CommonError: Into<E>;
 }
 
 impl Extra for RequestBuilder {
     fn disable_cookie(self) -> RequestBuilder {
         self.header(header::COOKIE, "")
     }
-    fn then<V, F: FnOnce(Response) -> Fut, Fut: Future<Output = Result<V, Error>>>(
+    async fn then<V, E, F: FnOnce(Response) -> Fut, Fut: Future<Output = Result<V, E>>>(
         self,
         res: F,
-    ) -> impl Future<Output = Result<V, Error>> {
-        async move {
-            let result = self.send().await;
-            match result {
-                Ok(response) => {
-                    if !response.status().is_success() {
-                        let msg = format!(
-                            "Qbittorrent error: {} \n{}",
-                            response.status(),
-                            response.text().await.unwrap_or_default()
-                        );
-                        error!("{}", msg);
-                        return Err(Error::Qb(msg));
-                    }
-                    res(response).await
+    ) -> Result<V, E>
+    where
+        CommonError: Into<E>,
+    {
+        let result = self.send().await;
+        match result {
+            Ok(response) => {
+                if !response.status().is_success() {
+                    return Err(CommonError::Response(response.status().as_u16()).into());
                 }
-                Err(e) => {
-                    let msg = format!("Network error: {}", e);
-                    error!("{}", msg);
-                    Err(Error::Network(msg))
-                }
+                res(response).await
             }
+            Err(e) => Err(CommonError::Network(e).into()),
         }
     }
 }

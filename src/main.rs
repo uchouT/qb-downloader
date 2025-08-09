@@ -1,17 +1,37 @@
-use qb_downloader_rust::config;
-use std::error::Error;
+use qb_downloader_rust::{Entity, config::Config, error::Error, task::Task};
+use std::path::PathBuf;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Error> {
+    init()?;
+
+    Ok(())
+}
+
+fn init() -> Result<(), Error> {
+    let args: Vec<String> = std::env::args().collect();
+    let mut config_path = None;
+    let mut task_path = None;
+    args.iter()
+        .enumerate()
+        .for_each(|(i, arg)| match arg.as_str() {
+            "--config" | "-c" => {
+                config_path = Some(PathBuf::from(args.get(i + 1).expect("invalid arguments")));
+            }
+            "--task-path" => {
+                task_path = Some(PathBuf::from(args.get(i + 1).expect("invalid arguments")));
+            }
+            "--log-level" => unsafe {
+                std::env::set_var("RUST_LOG", args.get(i + 1).expect("invalid arguments"));
+            },
+            _ => {}
+        });
     if std::env::var("RUST_LOG").is_err() {
         unsafe {
             std::env::set_var("RUST_LOG", "info");
         }
     }
-    
     env_logger::init();
-    config::init(None)?;
-    
-    println!("Application started successfully!");
-    
+    Config::init(config_path)?;
+    Task::init(task_path)?;
     Ok(())
 }

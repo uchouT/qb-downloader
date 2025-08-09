@@ -1,37 +1,67 @@
+pub use crate::qb::error::QbError;
+pub use crate::task::error::TaskError;
 use std::{
     error::Error as StdError,
     fmt::{Display, Formatter, Result as FmtResult},
 };
+
 #[derive(Debug)]
-pub enum Error {
-    Qb(String),
-    Upload(String),
-    Network(String),
-    Io(String),
+pub struct Error {
+    pub kind: ErrorKind,
+}
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum ErrorKind {
+    Qb(QbError),
+    Task(TaskError),
+    Common(CommonError),
     Other(String),
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        match self {
-            Error::Qb(msg) => write!(f, "qBittorrent error: {}", msg),
-            Error::Upload(msg) => write!(f, "Upload error: {}", msg),
-            Error::Network(msg) => write!(f, "Network error: {}", msg),
-            Error::Io(msg) => write!(f, "I/O error: {}", msg),
-            Error::Other(msg) => write!(f, "Other error: {}", msg),
+        write!(f, "App error occurred")
+    }
+}
+
+impl StdError for Error {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        Some(&self.kind)
+    }
+}
+
+impl Display for ErrorKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match *self {
+            Self::Qb(ref e) => write!(f, "Qbittorrent error: {e}"),
+            Self::Task(ref e) => write!(f, "Task error: {e}"),
+            Self::Common(ref e) => write!(f, "{e}"),
+
+            _ => write!(f, "Unknown error"),
         }
     }
 }
 
-impl StdError for Error {}
+impl StdError for ErrorKind {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Self::Qb(e) => Some(e),
+            Self::Task(e) => Some(e),
+            Self::Common(e) => Some(e),
 
-pub fn format_error_chain(err: &dyn StdError) -> String {
-    let mut result = format!("Error: {}", err);
+            _ => None,
+        }
+    }
+}
+
+/// print error chain
+pub fn format_error_chain(err: impl StdError) -> String {
+    let mut result = format!("Error: {err}");
     let mut source = err.source();
     let mut level = 1;
 
     while let Some(err) = source {
-        result.push_str(&format!("\n  Caused by ({}): {}", level, err));
+        result.push_str(&format!("\n  Caused by ({level}): {err}"));
         source = err.source();
         level += 1;
     }
@@ -39,26 +69,79 @@ pub fn format_error_chain(err: &dyn StdError) -> String {
     result
 }
 
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Self {
-        Error::Io(err.to_string())
+impl From<CommonError> for Error {
+    fn from(value: CommonError) -> Self {
+        Error {
+            kind: ErrorKind::Common(value),
+        }
     }
 }
 
-impl From<reqwest::Error> for Error {
+#[derive(Debug)]
+pub enum CommonError {
+    Io(std::io::Error),
+    /// Connect failed
+    Network(reqwest::Error),
+    /// response is not success
+    Response(u16),
+
+    Deserialize(toml::de::Error),
+    Serialize(toml::ser::Error),
+    Json(serde_json::Error),
+}
+
+impl Display for CommonError {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        match *self {
+            Self::Io(ref err) => write!(f, "I/O error: {err}"),
+            Self::Network(_) => f.write_str("Request failed due to network"),
+            Self::Response(code) => write!(f, "Request failed, response code: {code}"),
+            Self::Deserialize(ref e) => write!(f, "TOML deserialization error: {e}"),
+            Self::Serialize(ref e) => write!(f, "TOML serialization error: {e}"),
+            Self::Json(ref e) => write!(f, "JSON error: {e}"),
+        }
+    }
+}
+
+impl StdError for CommonError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Self::Io(err) => Some(err),
+            Self::Network(source) => Some(source),
+            Self::Deserialize(e) => Some(e),
+            Self::Serialize(e) => Some(e),
+            Self::Json(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<reqwest::Error> for CommonError {
     fn from(err: reqwest::Error) -> Self {
-        Error::Network(err.to_string())
+        CommonError::Network(err)
     }
 }
 
-impl From<toml::de::Error> for Error {
+impl From<std::io::Error> for CommonError {
+    fn from(value: std::io::Error) -> Self {
+        CommonError::Io(value)
+    }
+}
+
+impl From<toml::de::Error> for CommonError {
     fn from(value: toml::de::Error) -> Self {
-        Error::Other(value.to_string())
+        CommonError::Deserialize(value)
     }
 }
 
-impl From<toml::ser::Error> for Error {
+impl From<toml::ser::Error> for CommonError {
     fn from(value: toml::ser::Error) -> Self {
-        Error::Other(value.to_string())
+        CommonError::Serialize(value)
+    }
+}
+
+impl From<serde_json::Error> for CommonError {
+    fn from(value: serde_json::Error) -> Self {
+        CommonError::Json(value)
     }
 }
