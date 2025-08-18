@@ -9,7 +9,7 @@ use crate::{
     task::TaskValue,
 };
 use error::{QbError, QbErrorKind};
-use log::error;
+use log::{error, info, warn};
 use reqwest::multipart;
 use serde::Deserialize;
 use serde_json::Value;
@@ -88,7 +88,7 @@ async fn get_host() -> Result<String, QbError> {
     }
 }
 /// login to qBittorrent, and update the host and logined status
-pub async fn login()  {
+pub async fn login() {
     let (host, username, pass) = Config::read(|c| {
         (
             c.qb_host.clone(),
@@ -104,6 +104,11 @@ pub async fn login()  {
     let mut qb = QB.get().unwrap().write().await;
     qb.host = refined_host;
     qb.logined = logined;
+    if logined {
+        info!("qBittorrent login successful");
+    } else {
+        warn!("qBittorrent login failed");
+    }
 }
 
 pub async fn test_login(host: &str, username: &str, pass: &str) -> bool {
@@ -117,7 +122,11 @@ pub async fn test_login(host: &str, username: &str, pass: &str) -> bool {
         .send()
         .await;
 
-    result.is_ok()
+    if let Ok(res) = result {
+        res.text().await.unwrap_or_default() == "Ok."
+    } else {
+        false
+    }
 }
 
 /// get all torrent infos with CATEGORY

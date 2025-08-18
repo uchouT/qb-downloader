@@ -1,6 +1,6 @@
 //! qb-downloader task manager
 pub mod error;
-pub mod process;
+pub mod handle;
 use std::{
     collections::HashMap,
     path::PathBuf,

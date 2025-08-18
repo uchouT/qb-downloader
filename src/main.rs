@@ -1,9 +1,10 @@
-use qb_downloader_rust::{Entity, config::Config, error::Error, task::Task};
+use qb_downloader_rust::{Entity, app, config::Config, error::Error, task::Task};
 use std::path::PathBuf;
 
 fn main() -> Result<(), Error> {
     init()?;
-
+    let application = app::Application::default();
+    application.run()?;
     Ok(())
 }
 

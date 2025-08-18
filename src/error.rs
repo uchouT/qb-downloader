@@ -77,6 +77,14 @@ impl From<CommonError> for Error {
     }
 }
 
+impl From<TaskError> for Error {
+    fn from(value: TaskError) -> Self {
+        Self {
+            kind: ErrorKind::Task(value),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum CommonError {
     Io(std::io::Error),

@@ -1,3 +1,5 @@
+//! This module handle task process
+
 use crate::{
     Entity, format_error_chain, qb,
     task::{Status, Task, TaskItem, error::TaskError, launch},
@@ -21,15 +23,11 @@ const FINISHED_SEEDING: [&str; 2] = ["stoppedUP", "pausedUP"];
 const ERROR: [&str; 2] = ["error", "missingFiles"];
 
 pub async fn run(running: Arc<AtomicBool>) -> Result<(), TaskError> {
+    qb::init().await?;
     qb::login().await;
-    let mut first_login = true;
 
     while running.load(Ordering::Relaxed) {
         while qb::is_logined().await && running.load(Ordering::Relaxed) {
-            if first_login {
-                first_login = false;
-                info!("qBittorrent login successful");
-            }
             if let Err(e) = process_task_list().await {
                 error!("Failed to process task list: {}", format_error_chain(e));
             }
@@ -148,6 +146,8 @@ async fn update_task() -> Result<(), TaskError> {
                 }
                 continue;
             }
+
+            // check if seeding finished
             if FINISHED_SEEDING.contains(&info.state.as_str()) && current_seeding {
                 let mut task_write_guard = task.0.write().await;
                 task_write_guard.is_seeding = false;
@@ -169,33 +169,33 @@ async fn add_next_part(task: Arc<TaskItem>, hash: &str) -> Result<(), TaskError>
         error!("Failed to delete {hash} \n{}", format_error_chain(e));
     })?;
 
-    if current_part_num < total_parts - 1 {
-        let name = {
-            let read_guard = task.0.read().await;
-            let name = &read_guard.name;
-            qb::add_by_file(
-                &read_guard.torrent_path,
-                &read_guard.save_path,
-                read_guard.seeding_time_limit,
-                read_guard.ratio_limit,
-            )
-            .await
-            .inspect_err(|e| {
-                error!(
-                    "Failed to add next part for task: {name} \n {}",
-                    format_error_chain(e)
-                );
-            })?;
-            name.clone()
-        };
-        let new_part_num = current_part_num + 1;
-        sleep(Duration::from_millis(500)).await;
-        launch(new_part_num, hash, &mut *task.0.write().await).await?;
-        info!("Added next part {} for task: {name}", new_part_num + 1);
-    } else {
+    if current_part_num == total_parts - 1 {
         task.0.write().await.status = Status::Done;
         info!("Task: {} completed", task.0.read().await.name);
+        return Ok(());
     }
 
+    let name = {
+        let read_guard = task.0.read().await;
+        let name = &read_guard.name;
+        qb::add_by_file(
+            &read_guard.torrent_path,
+            &read_guard.save_path,
+            read_guard.seeding_time_limit,
+            read_guard.ratio_limit,
+        )
+        .await
+        .inspect_err(|e| {
+            error!(
+                "Failed to add next part for task: {name} \n {}",
+                format_error_chain(e)
+            );
+        })?;
+        name.clone()
+    };
+    let new_part_num = current_part_num + 1;
+    sleep(Duration::from_millis(500)).await; // TODO: maybe can delete this line
+    launch(new_part_num, hash, &mut *task.0.write().await).await?;
+    info!("Added next part {} for task: {name}", new_part_num + 1);
     Ok(())
 }
