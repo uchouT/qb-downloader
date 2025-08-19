@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use crate::{
     Entity,
     config::Config,
-    http::{self, Extra},
+    request::{self, RequestBuilderExt},
     task::{Status, TaskValue, error::*},
 };
 
@@ -62,7 +62,7 @@ impl Rclone {
             "_async": true,
             "createEmptySrcDirs": true
         });
-        http::post(format!("{host}/sync/copy"))
+        request::post(format!("{host}/sync/copy"))
             .basic_auth(username, Some(password))
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
             .json(&body)
@@ -91,7 +91,7 @@ impl Rclone {
         })
         .await;
         if let Uploader::Rclone(Some(job_id)) = task.uploader {
-            http::post(format!("{host}/job/status"))
+            request::post(format!("{host}/job/status"))
                 .basic_auth(username, Some(password))
                 .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
                 .json(&json!({

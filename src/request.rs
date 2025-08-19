@@ -1,3 +1,5 @@
+//! http request module
+
 use crate::error::CommonError;
 
 use reqwest::{Client, RequestBuilder, Response, cookie::Jar, header};
@@ -38,7 +40,7 @@ pub fn put<T: AsRef<str>>(url: T) -> RequestBuilder {
     get_client().put(url.as_ref())
 }
 
-pub trait Extra {
+pub trait RequestBuilderExt {
     fn disable_cookie(self) -> RequestBuilder;
     fn then<V, E, F: FnOnce(Response) -> Fut, Fut: Future<Output = Result<V, E>>>(
         self,
@@ -48,7 +50,7 @@ pub trait Extra {
         CommonError: Into<E>;
 }
 
-impl Extra for RequestBuilder {
+impl RequestBuilderExt for RequestBuilder {
     fn disable_cookie(self) -> RequestBuilder {
         self.header(header::COOKIE, "")
     }

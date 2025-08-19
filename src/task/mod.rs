@@ -8,6 +8,9 @@ use std::{
 };
 
 use directories_next::BaseDirs;
+use futures::{
+    future::{join, join_all}
+};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, sync::RwLock, time::sleep};
@@ -91,14 +94,14 @@ impl TaskItem {
         guard.status = Status::OnTask;
         info!("Running interval task for: {}", &guard.name);
         let uploader = guard.uploader;
-        uploader.upload(&mut *guard).await
+        uploader.upload(&mut guard).await
     }
 
     /// Check if the upload is complete
     pub async fn run_check(self: Arc<Self>) -> Result<bool, TaskError> {
         let mut guard = self.0.write().await;
         let uploader = guard.uploader;
-        uploader.check(&mut *guard).await
+        uploader.check(&mut guard).await
     }
 }
 
@@ -186,7 +189,10 @@ pub async fn stop(hash: &str) -> Result<(), TaskError> {
 pub async fn clean(hash: &str) -> Result<(), TaskError> {
     fs::remove_file(TORRENT_DIR.get().unwrap().join(format!("{hash}.torrent")))
         .await
-        .map_err(CommonError::from)?;
+        .map_err(|e| {
+            error!("Failed to clean waited torrent file: {hash}");
+            CommonError::from(e)
+        })?;
     Ok(())
 }
 
@@ -309,18 +315,27 @@ pub fn get_task_order(
 /// clean waited torrents, always occurs when a task-adding is canceled.
 pub async fn clean_waited() -> Result<(), TaskError> {
     let hash_list = qb::get_tag_torrent_list(qb::Tag::WAITED).await?;
-    for hash in &hash_list {
-        clean(hash).await.map_err(|e| {
-            let msg = format!("Failed to clean torrent file for hash {hash}: {e}");
-            error!("{msg}");
-            e
-        })?;
-    }
+
     if hash_list.is_empty() {
         return Ok(());
     }
-    let hash = hash_list.join("|");
-    qb::delete(hash.as_str(), true).await?;
+
+    let clean_file_fut = async {
+        let clean_task = hash_list.iter().map(|hash| clean(hash)).collect::<Vec<_>>();
+        join_all(clean_task).await;
+    };
+
+    let clean_qb_fut = async {
+        let hash = hash_list.join("|");
+        qb::delete(hash.as_str(), true).await?;
+        Ok::<(), TaskError>(())
+    };
+
+    let (_, qb_clean_result) = join(clean_file_fut, clean_qb_fut).await;
+    if let Err(e) = qb_clean_result {
+        error!("Failed to clean waited torrents in qBittorrent: {e}");
+    }
+
     Ok(())
 }
 

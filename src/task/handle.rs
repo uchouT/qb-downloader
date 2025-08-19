@@ -1,16 +1,16 @@
 //! This module handle task process
 
 use crate::{
-    Entity, format_error_chain, qb,
-    task::{Status, Task, TaskItem, error::TaskError, launch},
+    Entity, Error, format_error_chain, qb,
+    task::{self, Status, Task, TaskItem, error::TaskError, launch},
 };
-use futures::future::join_all;
+use futures::{FutureExt, future::join_all, select};
 use log::{error, info, warn};
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
+use std::sync::Arc;
+use tokio::{
+    sync::broadcast,
+    time::{Duration, interval, sleep},
 };
-use tokio::time::{Duration, sleep};
 
 const SEEDING: [&str; 5] = [
     "uploading",
@@ -22,19 +22,36 @@ const SEEDING: [&str; 5] = [
 const FINISHED_SEEDING: [&str; 2] = ["stoppedUP", "pausedUP"];
 const ERROR: [&str; 2] = ["error", "missingFiles"];
 
-pub async fn run(running: Arc<AtomicBool>) -> Result<(), TaskError> {
-    qb::init().await?;
+pub async fn run(mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), Error> {
+    qb::init().await;
     qb::login().await;
-
-    while running.load(Ordering::Relaxed) {
-        while qb::is_logined().await && running.load(Ordering::Relaxed) {
-            if let Err(e) = process_task_list().await {
-                error!("Failed to process task list: {}", format_error_chain(e));
+    let mut task_interval = interval(Duration::from_secs(5));
+    loop {
+        select! {
+            _ = shutdown_rx.recv().fuse() => {
+                break;
             }
-            sleep(Duration::from_secs(5)).await;
+
+            _ = task_interval.tick().fuse() => {
+                if !qb::is_logined().await {
+                    continue;
+                }
+                 if let Err(e) = process_task_list().await {
+                error!("Failed to process task list: {e}");
+                }
+            }
         }
-        // qBittorrent not logined, retry after 10 secs
-        sleep(Duration::from_secs(10)).await;
+    }
+    info!("Task handler starting shutdown...");
+    select! {
+        result = shutdown().fuse() => {
+            if let Err(e) = result {
+                error!("Failed to shutdown task handler: {e}");
+            }
+        }
+        _ = sleep(Duration::from_secs(5)).fuse() => {
+            warn!("Task handler shutdown timed out, continuing...");
+        }
     }
     Ok(())
 }
@@ -197,5 +214,10 @@ async fn add_next_part(task: Arc<TaskItem>, hash: &str) -> Result<(), TaskError>
     sleep(Duration::from_millis(500)).await; // TODO: maybe can delete this line
     launch(new_part_num, hash, &mut *task.0.write().await).await?;
     info!("Added next part {} for task: {name}", new_part_num + 1);
+    Ok(())
+}
+
+async fn shutdown() -> Result<(), crate::error::CommonError> {
+    task::Task::save().await?;
     Ok(())
 }

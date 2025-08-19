@@ -18,21 +18,35 @@ pub struct ConfigValue {
     pub rclone_username: String,
     pub rclone_password: String,
     pub is_only_inner_ip: bool,
-    pub verify_login_ip: bool,
-    pub login: Login,
+    pub multi_login: bool,
+    pub account: Account,
     pub default_save_path: String,
     pub default_upload_path: String,
     pub default_ratio_limit: f64,
     pub default_seeding_time_limit: i32,
 }
-#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Login {
-    pub ip: String,
-    pub username: String,
-    pub password: String,
+    pub account: Account,
     pub key: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Account {
+    pub username: String,
+    pub password: String,
+}
+
+impl Default for Account {
+    fn default() -> Self {
+        let digest = compute("adminadmin");
+        let password = format!("{digest:x}");
+        Self {
+            username: String::from("admin"),
+            password,
+        }
+    }
+}
 impl Default for ConfigValue {
     fn default() -> Self {
         ConfigValue {
@@ -43,8 +57,8 @@ impl Default for ConfigValue {
             rclone_username: String::from("admin"),
             rclone_password: String::from("password"),
             is_only_inner_ip: false,
-            verify_login_ip: true,
-            login: Login::default(),
+            multi_login: true,
+            account: Account::default(),
             default_save_path: String::new(),
             default_upload_path: String::new(),
             default_ratio_limit: -2.0,
@@ -53,14 +67,10 @@ impl Default for ConfigValue {
     }
 }
 
-impl Login {
+impl Default for Login {
     fn default() -> Self {
-        let digest = compute("adminadmin");
-        let password = format!("{digest:x}");
         Login {
-            ip: String::from(""),
-            username: String::from("admin"),
-            password,
+            account: Account::default(),
             key: String::from(""),
         }
     }

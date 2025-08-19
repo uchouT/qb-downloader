@@ -1,4 +1,5 @@
 pub use crate::qb::error::QbError;
+use crate::server::error::ServerError;
 pub use crate::task::error::TaskError;
 use std::{
     error::Error as StdError,
@@ -16,11 +17,12 @@ pub enum ErrorKind {
     Task(TaskError),
     Common(CommonError),
     Other(String),
+    Server(ServerError),
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        write!(f, "App error occurred")
+        write!(f, "App error occurred{:?}", format_error_cause_chain(self))
     }
 }
 
@@ -36,7 +38,7 @@ impl Display for ErrorKind {
             Self::Qb(ref e) => write!(f, "Qbittorrent error: {e}"),
             Self::Task(ref e) => write!(f, "Task error: {e}"),
             Self::Common(ref e) => write!(f, "{e}"),
-
+            Self::Server(ref e) => write!(f, "Server error: {e}"),
             _ => write!(f, "Unknown error"),
         }
     }
@@ -48,7 +50,7 @@ impl StdError for ErrorKind {
             Self::Qb(e) => Some(e),
             Self::Task(e) => Some(e),
             Self::Common(e) => Some(e),
-
+            Self::Server(e) => Some(e),
             _ => None,
         }
     }
@@ -57,6 +59,21 @@ impl StdError for ErrorKind {
 /// print error chain
 pub fn format_error_chain(err: impl StdError) -> String {
     let mut result = format!("Error: {err}");
+    let mut source = err.source();
+    let mut level = 1;
+
+    while let Some(err) = source {
+        result.push_str(&format!("\n  Caused by ({level}): {err}"));
+        source = err.source();
+        level += 1;
+    }
+
+    result
+}
+
+/// print error souce chain
+pub fn format_error_cause_chain(err: impl StdError) -> String {
+    let mut result = String::new();
     let mut source = err.source();
     let mut level = 1;
 
@@ -81,6 +98,14 @@ impl From<TaskError> for Error {
     fn from(value: TaskError) -> Self {
         Self {
             kind: ErrorKind::Task(value),
+        }
+    }
+}
+
+impl From<ServerError> for Error {
+    fn from(value: ServerError) -> Self {
+        Self {
+            kind: ErrorKind::Server(value),
         }
     }
 }

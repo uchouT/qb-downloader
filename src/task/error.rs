@@ -1,7 +1,7 @@
 use std::error::Error as StdError;
 use std::fmt::Display;
 
-use crate::error::{CommonError, QbError};
+use crate::error::{CommonError, QbError, format_error_cause_chain};
 #[derive(Debug)]
 pub struct TaskError {
     pub kind: TaskErrorKind,
@@ -20,7 +20,7 @@ pub enum TaskErrorKind {
 
 impl Display for TaskError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Task error occurred")
+        write!(f, "Task error occurred{:?}", format_error_cause_chain(self))
     }
 }
 

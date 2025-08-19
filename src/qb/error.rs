@@ -1,4 +1,4 @@
-use crate::error::CommonError;
+use crate::error::{CommonError, format_error_cause_chain};
 use std::error::Error as StdError;
 use std::fmt::Display;
 #[derive(Debug)]
@@ -19,7 +19,11 @@ pub enum QbErrorKind {
 
 impl Display for QbError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Qbittorrent error occurred")
+        write!(
+            f,
+            "Qbittorrent error occurred{:?}",
+            format_error_cause_chain(self)
+        )
     }
 }
 
