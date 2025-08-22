@@ -21,7 +21,7 @@ impl Display for QbError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Qbittorrent error occurred{:?}",
+            "Qbittorrent error occurred{}",
             format_error_cause_chain(self)
         )
     }

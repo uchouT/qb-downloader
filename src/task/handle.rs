@@ -169,8 +169,6 @@ async fn update_task() -> Result<(), TaskError> {
                 let mut task_write_guard = task.0.write().await;
                 task_write_guard.is_seeding = false;
             }
-        } else {
-            warn!("No task found for torrent {}", info.hash);
         }
     }
     Ok(())

@@ -1,7 +1,10 @@
 use std::error::Error as StdError;
 use std::fmt::Display;
 
-use crate::error::{CommonError, QbError, format_error_cause_chain};
+use crate::{
+    bencode::error::BencodeError,
+    error::{CommonError, QbError, format_error_cause_chain},
+};
 #[derive(Debug)]
 pub struct TaskError {
     pub kind: TaskErrorKind,
@@ -13,6 +16,7 @@ pub enum TaskErrorKind {
     Upload(String),
     Download,
     Common(CommonError),
+    Bencode(BencodeError),
     Qb(QbError),
     Other(String),
     OverSize,
@@ -20,7 +24,7 @@ pub enum TaskErrorKind {
 
 impl Display for TaskError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Task error occurred{:?}", format_error_cause_chain(self))
+        write!(f, "Task error occurred{}", format_error_cause_chain(self))
     }
 }
 
@@ -38,6 +42,7 @@ impl Display for TaskErrorKind {
             Self::Common(ref e) => write!(f, "{e}"),
             Self::Qb(ref e) => write!(f, "{e}"),
             Self::Other(ref msg) => f.write_str(msg),
+            Self::Bencode(ref e) => write!(f, "error parse torrent: {e}"),
             Self::OverSize => f.write_str("Selected files exceed maximum length"),
         }
     }
@@ -50,6 +55,7 @@ impl StdError for TaskErrorKind {
             Self::Download => None,
             Self::Common(e) => Some(e),
             Self::Qb(e) => Some(e),
+            Self::Bencode(e) => Some(e),
             _ => None,
         }
     }
@@ -75,6 +81,14 @@ impl From<QbError> for TaskError {
     fn from(value: QbError) -> Self {
         TaskError {
             kind: TaskErrorKind::Qb(value),
+        }
+    }
+}
+
+impl From<BencodeError> for TaskError {
+    fn from(value: BencodeError) -> Self {
+        TaskError {
+            kind: TaskErrorKind::Bencode(value),
         }
     }
 }

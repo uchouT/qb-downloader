@@ -1,10 +1,8 @@
+pub mod api;
 pub mod error;
-use crate::{
-    config::Config,
-    error::CommonError,
-    {Entity, Error},
-};
-use error::ServerError;
+use crate::{Entity, Error, config::Config, error::CommonError};
+use api::Action;
+use error::handle;
 use futures::{FutureExt, select};
 use http_body_util::{BodyExt, Empty, Full};
 use hyper::{
@@ -16,13 +14,54 @@ use hyper::{
 use hyper_util::rt::TokioIo;
 use log::{debug, error, info, warn};
 use serde::Serialize;
-use std::net::{IpAddr, SocketAddr};
-use std::time::Duration;
+use std::{
+    convert::Infallible,
+    net::{IpAddr, SocketAddr},
+    time::Duration,
+};
 use tokio::{net::TcpListener, sync::broadcast, time::sleep};
 
-pub type BoxBody = http_body_util::combinators::BoxBody<Bytes, ServerError>;
-pub type ServerResult<T> = std::result::Result<T, ServerError>;
+pub type BoxBody = http_body_util::combinators::BoxBody<Bytes, Infallible>;
+type ServerResult<T> = std::result::Result<T, Infallible>;
 pub type Req = Request<Incoming>;
+
+macro_rules! define_routes {
+    ($($path: literal => $action_type: ty), * $(,)?) => {
+        async fn route(req: Req, socket_addr: SocketAddr) -> ServerResult<Response<BoxBody>> {
+            if Config::read(|c| c.is_only_inner_ip && !is_inner_ip(socket_addr)).await {
+                return Ok(ResultResponse::error_with_code(StatusCode::FORBIDDEN));
+            }
+            match req.uri().path() {
+                $(
+                    $path => {
+                        let action =  <$action_type>::default();
+                        if action.needs_auth() {
+                            if let Err(e) = action.auth(&req) {
+                                return handle(e);
+                            }
+                        }
+                        match action.execute(req).await {
+                            Ok(res) => Ok(res),
+                            Err(e) => handle(e),
+                        }
+                    }
+                )*
+                _ => match api::asset::AssetAPI.execute(req).await {
+                    Ok(res) => Ok(res),
+                    Err(e) => handle(e),
+                }
+            }
+        }
+    };
+}
+
+define_routes! {
+    "/api/config" => api::config_action::ConfigAPI,
+    "/api/task" => api::task_action::TaskAPI,
+    "/api/torrent" => api::torrent_action::TorrentAPI,
+    "/api/login" => api::login_action::LoginAPI,
+    "/api/test" => api::test_action::TestAPI,
+}
 
 pub async fn run(
     mut shutdown_rx: broadcast::Receiver<()>,
@@ -51,7 +90,8 @@ pub async fn run(
                             } else {
                                 debug!("Connection from {socket_addr} closed");
                             }
-                        });}
+                        });
+                    }
 
                     Err(e) => {
                         error!("Failed to accept connection: {e:?}");
@@ -79,27 +119,14 @@ pub async fn run(
     Ok(())
 }
 
-fn full<T: Into<Bytes>>(chunk: T) -> BoxBody {
+pub fn full<T: Into<Bytes>>(chunk: T) -> BoxBody {
     Full::new(chunk.into())
         .map_err(|never| match never {})
         .boxed()
 }
 
-fn empty() -> BoxBody {
+pub fn empty() -> BoxBody {
     Empty::new().map_err(|never| match never {}).boxed()
-}
-
-async fn route(req: Req, socket_addr: SocketAddr) -> ServerResult<Response<BoxBody>> {
-    if Config::read(|c| c.is_only_inner_ip && !is_inner_ip(socket_addr)).await {
-        return Ok(ResultResponse::forbidden());
-    }
-    match req.uri().path() {
-        _ => {
-            let mut res = Response::new(empty());
-            *res.status_mut() = StatusCode::NOT_FOUND;
-            Ok(res)
-        }
-    }
 }
 
 fn is_inner_ip(socket_addr: SocketAddr) -> bool {
@@ -177,17 +204,36 @@ impl ResultResponse<()> {
             .unwrap()
     }
 
-    fn forbidden() -> Response<BoxBody> {
+    fn unauthorized() -> Response<BoxBody> {
         let result = Self {
-            message: Some("Forbidden".to_string()),
+            message: Some("unauthorized".to_string()),
             data: None,
         };
         let json = serde_json::to_string(&result).unwrap();
         Response::builder()
-            .status(StatusCode::FORBIDDEN)
+            .status(StatusCode::UNAUTHORIZED)
             .header(header::CONTENT_TYPE, "application/json")
             .body(full(json))
             .unwrap()
+    }
+
+    fn bad_request(message: Option<String>) -> Response<BoxBody> {
+        let result = Self {
+            message: message,
+            data: None,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(full(json))
+            .unwrap()
+    }
+
+    pub fn error_with_code(code: StatusCode) -> Response<BoxBody> {
+        let mut res = Response::new(empty());
+        *res.status_mut() = code;
+        res
     }
 }
 

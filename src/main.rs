@@ -1,4 +1,5 @@
-use qb_downloader_rust::{Entity, app, config::Config, error::Error, task::Task};
+use log::info;
+use qb_downloader_rust::{Entity, VERSION, app, config::Config, error::Error, task::Task};
 use std::path::PathBuf;
 
 fn main() -> Result<(), Error> {
@@ -39,7 +40,8 @@ fn init() -> Result<u16, Error> {
             std::env::set_var("RUST_LOG", "info");
         }
     }
-    env_logger::init();
+    pretty_env_logger::init();
+    info!("qb-downloader-rust v{VERSION} starting...");
     Config::init(config_path)?;
     Task::init(task_path)?;
     Ok(port)

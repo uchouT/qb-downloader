@@ -3,12 +3,15 @@
 use reqwest::header::{CONTENT_TYPE, HeaderValue};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-
+use log::debug;
 use crate::{
     Entity,
-    config::Config,
+    config::{Config, ConfigValue},
     request::{self, RequestBuilderExt},
-    task::{Status, TaskValue, error::*},
+    task::{
+        Status, TaskValue,
+        error::{TaskError, TaskErrorKind},
+    },
 };
 
 /// upload type, currently support rclone
@@ -23,6 +26,8 @@ pub trait UploadCheck {
     fn upload(&self, task: &mut TaskValue) -> impl Future<Output = Result<(), TaskError>>;
     /// check if the upload task is finished
     fn check(&self, task: &mut TaskValue) -> impl Future<Output = Result<bool, TaskError>>;
+    /// test if the uploader is ready
+    fn test(&self, config: &ConfigValue) -> impl Future<Output = Result<bool, TaskError>>;
 }
 
 impl UploadCheck for Uploader {
@@ -35,6 +40,18 @@ impl UploadCheck for Uploader {
     async fn upload(&self, task: &mut TaskValue) -> Result<(), TaskError> {
         match self {
             Uploader::Rclone(_) => Rclone::upload(task).await,
+        }
+    }
+    async fn test(&self, config: &ConfigValue) -> Result<bool, TaskError> {
+        match self {
+            Uploader::Rclone(_) => {
+                let (rclone_host, rclone_password, rclone_username) = (
+                    &config.rclone_host,
+                    &config.rclone_password,
+                    &config.rclone_username,
+                );
+                Rclone::test(&rclone_host, &rclone_username, &rclone_password).await
+            }
         }
     }
 }
@@ -118,5 +135,20 @@ impl Rclone {
                 kind: TaskErrorKind::Upload("No rclone job ID found".into()),
             })
         }
+    }
+
+    async fn test(host: &str, username: &str, password: &str) -> Result<bool, TaskError> {
+        request::post(format!("{host}/core/version"))
+            .basic_auth(username, Some(password))
+            .then(async |res| {
+                let value: Value = res.json().await?;
+                let version = value
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+                debug!("Rclone version: {}", version);
+                Ok(true)
+            })
+            .await
     }
 }

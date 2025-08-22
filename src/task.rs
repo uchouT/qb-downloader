@@ -8,24 +8,25 @@ use std::{
 };
 
 use directories_next::BaseDirs;
-use futures::{
-    future::{join, join_all}
-};
+use futures::future::{join, join_all};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
-use tokio::{fs, sync::RwLock, time::sleep};
+use tokio::{
+    fs,
+    sync::{Mutex, RwLock},
+};
 
 use crate::{
-    Entity,
+    Entity, bencode,
     error::{CommonError, TaskError},
-    qb,
+    format_error_chain, qb,
     task::error::TaskErrorKind,
     upload::{UploadCheck, Uploader},
 };
 
 const TASK_FILE_NAME: &str = "tasks.toml";
 const TORRENT_DIR_NAME: &str = "torrents";
-
+static ADD_TORRENT_LOCK: Mutex<()> = Mutex::const_new(());
 pub static TASK_LIST: OnceLock<RwLock<Task>> = OnceLock::new();
 static TORRENT_DIR: OnceLock<PathBuf> = OnceLock::new();
 
@@ -51,15 +52,15 @@ pub struct TaskValue {
     pub save_path: String,
     pub upload_path: String,
     pub uploader: Uploader,
-    pub total_part_num: u32,
-    pub current_part_num: u32,
-    pub task_order: Vec<Vec<u32>>,
+    pub total_part_num: usize,
+    pub current_part_num: usize,
+    pub task_order: Vec<Vec<usize>>,
 
     /// total file count, which is used to set not download.
-    pub file_num: u32,
-    pub torrent_path: String,
+    pub file_num: usize,
+    pub torrent_path: PathBuf,
     pub is_seeding: bool,
-    pub max_size: u64,
+    pub max_size: i64,
     pub seeding_time_limit: i32,
     pub ratio_limit: f64,
     pub progress: f64,
@@ -187,20 +188,29 @@ pub async fn stop(hash: &str) -> Result<(), TaskError> {
 
 /// clean the cached torrent file according to hash
 pub async fn clean(hash: &str) -> Result<(), TaskError> {
-    fs::remove_file(TORRENT_DIR.get().unwrap().join(format!("{hash}.torrent")))
-        .await
-        .map_err(|e| {
-            error!("Failed to clean waited torrent file: {hash}");
-            CommonError::from(e)
-        })?;
+    fs::remove_file(get_torrent_path(hash)).await.map_err(|e| {
+        error!("Failed to clean waited torrent file: {hash}");
+        CommonError::from(e)
+    })?;
     Ok(())
 }
 
-/// Delete task, both qBittorrent task and cached torrent file
-pub async fn delete(hash: &str, delete_files: bool) -> Result<(), TaskError> {
-    qb::delete(hash, delete_files).await?;
-    clean(hash).await?;
-    Task::write(|task_list| task_list.remove(hash)).await;
+/// Delete task, both qBittorrent task and cached torrent file.
+/// If `added` is true, the task will be removed from the task list.
+pub async fn delete(hash: &str, added: bool) -> Result<(), TaskError> {
+    let (qb_delete_res, file_clean_res) = join(qb::delete(hash, true), clean(hash)).await;
+    if let Err(e) = qb_delete_res {
+        error!(
+            "Failed to delete torrent in qBittorrent: {}",
+            format_error_chain(e)
+        );
+    }
+    if let Err(e) = file_clean_res {
+        error!("Failed to clean torrent file: {}", format_error_chain(e));
+    }
+    if added {
+        Task::write(|task_list| task_list.remove(hash)).await;
+    }
     info!("Task deleted for hash: {hash}");
     Ok(())
 }
@@ -216,13 +226,17 @@ pub async fn add_torrent(
     url: &str,
     save_path: &str,
 ) -> Result<String, TaskError> {
-    if let Some(file) = file {
-        qb::add_by_bytes(url, save_path, file).await?;
-    } else {
-        qb::add_by_url(url, save_path).await?;
-    }
-    sleep(std::time::Duration::from_millis(500)).await;
-    let hash = qb::get_hash().await?;
+    let hash = {
+        let _lock = ADD_TORRENT_LOCK.lock().await;
+        if let Some(file) = file {
+            qb::add_by_bytes(url, save_path, file).await?;
+        } else {
+            qb::add_by_url(url, save_path).await?;
+        }
+        qb::get_hash().await?
+    };
+    // NOTE: removing this line may cause unexpected bugs
+    // sleep(std::time::Duration::from_millis(500)).await;
     export(hash.as_str(), file).await?;
     qb::add_tag(hash.as_str(), qb::Tag::WAITED).await?;
     Ok(hash)
@@ -230,7 +244,7 @@ pub async fn add_torrent(
 
 /// Cache torrent file for fastly re-adding
 pub async fn export(hash: &str, file_data: Option<&[u8]>) -> Result<(), TaskError> {
-    let path = TORRENT_DIR.get().unwrap().join(format!("{hash}.torrent"));
+    let path = get_torrent_path(hash);
     if let Some(data) = file_data {
         fs::write(path, data).await.map_err(CommonError::from)?;
     } else {
@@ -239,13 +253,67 @@ pub async fn export(hash: &str, file_data: Option<&[u8]>) -> Result<(), TaskErro
     Ok(())
 }
 
-// TODO: add task
+pub fn get_torrent_path(hash: &str) -> PathBuf {
+    TORRENT_DIR.get().unwrap().join(format!("{hash}.torrent"))
+}
+
+/// add task from [`TaskReq`]
+pub async fn add(
+    hash: String,
+    name: String,
+    save_path: String,
+    upload_path: String,
+    uploader: Uploader,
+    selected_file_index: Option<Vec<usize>>,
+    max_size: i64,
+    ratio_limit: f64,
+    seeding_time_limit: i32,
+) -> Result<(), TaskError> {
+    let torrent_path = get_torrent_path(&hash);
+    let (root_dir, file_num, task_order) = {
+        let value = bencode::get_value(&torrent_path).await?;
+        let (root_dir, torrent_lengths_list) = bencode::parse_torrent(&value)?;
+        let file_num = torrent_lengths_list.len();
+        let task_order = get_task_order(
+            &torrent_lengths_list,
+            max_size,
+            selected_file_index.as_deref(),
+        )?;
+        (root_dir, file_num, task_order)
+    };
+    let mut task_value = TaskValue {
+        hash: hash.clone(),
+        name,
+        root_dir,
+        status: Status::Paused,
+        save_path,
+        upload_path,
+        uploader,
+        total_part_num: task_order.len(),
+        current_part_num: 0,
+        task_order,
+        file_num,
+        torrent_path,
+        is_seeding: false,
+        max_size,
+        seeding_time_limit,
+        ratio_limit,
+        progress: 0.0,
+    };
+    qb::set_share_limit(&hash, ratio_limit, seeding_time_limit).await?;
+    launch(0, &hash, &mut task_value).await?;
+    info!("Task added: {}", &hash);
+    Task::write(|task_list| task_list.insert(hash, Arc::new(TaskItem(RwLock::new(task_value)))))
+        .await;
+    Task::save().await?;
+    Ok(())
+}
 
 /// launch a task
-pub async fn launch(index: u32, hash: &str, task: &mut TaskValue) -> Result<(), TaskError> {
+pub async fn launch(index: usize, hash: &str, task: &mut TaskValue) -> Result<(), TaskError> {
     task.current_part_num = index;
-    qb::set_not_download(task).await?;
-    qb::set_prio(hash, 1, task.task_order.get(index as usize).unwrap()).await?;
+    qb::set_not_download(hash, task.file_num).await?;
+    qb::set_prio(hash, 1, task.task_order.get(index).unwrap()).await?;
     qb::start(hash).await?;
     qb::remove_tag(hash, qb::Tag::WAITED).await?;
     task.status = Status::Downloading;
@@ -258,39 +326,39 @@ pub async fn launch(index: u32, hash: &str, task: &mut TaskValue) -> Result<(), 
 /// - `torrents_length_list`: The list of torrent lengths.
 /// - `max`: The maximum allowed length.
 /// - `selected_file_index`: The indices of the selected files.
-pub fn check(torrent_lengths_list: &[u64], max: u64, selected_file_index: Option<&[u32]>) -> bool {
+fn check(torrent_lengths_list: &[&i64], max: i64, selected_file_index: Option<&[usize]>) -> bool {
     match selected_file_index {
-        None => torrent_lengths_list.iter().all(|&length| length <= max),
+        None => torrent_lengths_list.iter().all(|&&length| length <= max),
         Some(index_list) => index_list
             .iter()
-            .all(|&index| torrent_lengths_list[index as usize] <= max),
+            .all(|&index| *torrent_lengths_list[index] <= max),
     }
 }
 
 /// Get the task order, which can customized by selected_file_index
-pub fn get_task_order(
-    torrent_lengths_list: &[u64],
-    max: u64,
-    selected_file_index: Option<&[u32]>,
-) -> Result<Vec<Vec<u32>>, TaskError> {
+fn get_task_order(
+    torrent_lengths_list: &[&i64],
+    max: i64,
+    selected_file_index: Option<&[usize]>,
+) -> Result<Vec<Vec<usize>>, TaskError> {
     if !check(torrent_lengths_list, max, selected_file_index) {
         return Err(TaskError {
             kind: TaskErrorKind::OverSize,
         });
     }
 
-    let mut task_order: Vec<Vec<u32>> = Vec::new();
-    let mut current_part: Vec<u32> = Vec::new();
-    let mut current_size: u64 = 0;
+    let mut task_order: Vec<Vec<usize>> = Vec::new();
+    let mut current_part: Vec<usize> = Vec::new();
+    let mut current_size: i64 = 0;
 
     match selected_file_index {
         None => {
-            for (i, &length) in torrent_lengths_list.iter().enumerate() {
+            for (i, &&length) in torrent_lengths_list.iter().enumerate() {
                 if !current_part.is_empty() && current_size + length > max {
                     task_order.push(std::mem::take(&mut current_part));
                     current_size = 0;
                 }
-                current_part.push(i as u32);
+                current_part.push(i);
                 current_size += length;
             }
         }
@@ -339,4 +407,15 @@ pub async fn clean_waited() -> Result<(), TaskError> {
     Ok(())
 }
 
+impl Task {
+    pub async fn get_task_map() -> HashMap<String, TaskValue> {
+        let task_list = TASK_LIST.get().expect("Task list get error").read().await;
+        let tasks: Vec<_> = task_list
+            .value
+            .iter()
+            .map(|(hash, value)| async { (hash.clone(), value.0.read().await.clone()) })
+            .collect();
+        join_all(tasks).await.into_iter().collect()
+    }
+}
 // TODO: return content tree according to hash

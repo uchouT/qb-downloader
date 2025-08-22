@@ -1,34 +1,38 @@
-use crate::{Entity, error::CommonError};
+use crate::{
+    Entity,
+    auth::{TOKEN, encode},
+    error::CommonError,
+    remove_slash,
+};
 use directories_next::BaseDirs;
 use log::{debug, info};
-use md5::compute;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::{path::PathBuf, sync::OnceLock};
 use tokio::sync::RwLock;
+
 const CONFIG_FILE_NAME: &str = "config.toml";
 
 pub static CONFIG: OnceLock<RwLock<Config>> = OnceLock::new();
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ConfigValue {
+    #[serde(deserialize_with = "strip_slash")]
     pub qb_host: String,
     pub qb_username: String,
     pub qb_password: String,
+    #[serde(deserialize_with = "strip_slash")]
     pub rclone_host: String,
     pub rclone_username: String,
     pub rclone_password: String,
     pub is_only_inner_ip: bool,
     pub multi_login: bool,
     pub account: Account,
+    #[serde(deserialize_with = "strip_slash")]
     pub default_save_path: String,
+    #[serde(deserialize_with = "strip_slash")]
     pub default_upload_path: String,
-    pub default_ratio_limit: f64,
-    pub default_seeding_time_limit: i32,
-}
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Login {
-    pub account: Account,
-    pub key: String,
+    pub default_ratio_limit: Option<f64>,
+    pub default_seeding_time_limit: Option<i32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -39,8 +43,7 @@ pub struct Account {
 
 impl Default for Account {
     fn default() -> Self {
-        let digest = compute("adminadmin");
-        let password = format!("{digest:x}");
+        let password = encode("adminadmin");
         Self {
             username: String::from("admin"),
             password,
@@ -61,17 +64,8 @@ impl Default for ConfigValue {
             account: Account::default(),
             default_save_path: String::new(),
             default_upload_path: String::new(),
-            default_ratio_limit: -2.0,
-            default_seeding_time_limit: -2,
-        }
-    }
-}
-
-impl Default for Login {
-    fn default() -> Self {
-        Login {
-            account: Account::default(),
-            key: String::from(""),
+            default_ratio_limit: Some(-2.0),
+            default_seeding_time_limit: Some(-2),
         }
     }
 }
@@ -102,6 +96,9 @@ impl Entity for Config {
 
     fn init(path: Option<PathBuf>) -> Result<(), CommonError> {
         let mut config = Config::new(path);
+        TOKEN
+            .set(std::sync::RwLock::new(String::new()))
+            .expect("Failed to set global token");
         Config::load(&mut config)?;
         debug!("Config loaded from: {}", &config.filepath.display());
         debug!("Config content: {:?}", &config.value);
@@ -111,4 +108,10 @@ impl Entity for Config {
         info!("Config loaded.");
         Ok(())
     }
+}
+
+/// nomalize the path and host field
+pub fn strip_slash<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    let s = String::deserialize(deserializer)?;
+    Ok(remove_slash(&s))
 }

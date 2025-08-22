@@ -6,14 +6,13 @@ use crate::{
     config::Config,
     remove_slash,
     request::{self, RequestBuilderExt},
-    task::TaskValue,
 };
 use error::{QbError, QbErrorKind};
 use log::{error, info, warn};
 use reqwest::multipart;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::HashMap, fs::File, io::Write, sync::OnceLock};
+use std::{collections::HashMap, fs::File, io::Write, path::Path, sync::OnceLock};
 use tokio::{sync::RwLock, time::sleep};
 const CATEGORY: &str = "QBD";
 
@@ -247,7 +246,7 @@ pub async fn get_name(hash: &str) -> Result<String, QbError> {
 /// * `hash` - The hash of the torrent.
 /// * `priority` - 1 for download, 0 for not download.
 /// * `index_list` - the index list of files need to set.
-pub async fn set_prio(hash: &str, priority: u8, index_list: &[u32]) -> Result<(), QbError> {
+pub async fn set_prio(hash: &str, priority: u8, index_list: &[usize]) -> Result<(), QbError> {
     let host = get_host().await?;
     let id = index_list
         .iter()
@@ -268,14 +267,8 @@ pub async fn set_prio(hash: &str, priority: u8, index_list: &[u32]) -> Result<()
 }
 
 /// set the task not download, usually used when a new part of task is added
-pub async fn set_not_download(task: &TaskValue) -> Result<(), QbError> {
-    let (hash, file_num) = (&task.hash, task.file_num);
-    set_prio(
-        hash.as_str(),
-        0,
-        (0..file_num).collect::<Vec<u32>>().as_slice(),
-    )
-    .await
+pub async fn set_not_download(hash: &str, file_num: usize) -> Result<(), QbError> {
+    set_prio(hash, 0, (0..file_num).collect::<Vec<usize>>().as_slice()).await
 }
 
 /// set the share limit of a torrent
@@ -355,7 +348,7 @@ pub async fn add_by_url(url: &str, save_path: &str) -> Result<(), QbError> {
 /// add a torrent to qBittorrent by file path,
 /// aiming to fast recover from cached .torrrent file
 pub async fn add_by_file(
-    torrent_path: &str,
+    torrent_path: &Path,
     save_path: &str,
     seeding_time_limit: i32,
     ratio_limit: f64,

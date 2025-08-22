@@ -22,7 +22,7 @@ pub enum ErrorKind {
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        write!(f, "App error occurred{:?}", format_error_cause_chain(self))
+        write!(f, "App error occurred{}", format_error_cause_chain(self))
     }
 }
 
@@ -60,12 +60,10 @@ impl StdError for ErrorKind {
 pub fn format_error_chain(err: impl StdError) -> String {
     let mut result = format!("Error: {err}");
     let mut source = err.source();
-    let mut level = 1;
 
     while let Some(err) = source {
-        result.push_str(&format!("\n  Caused by ({level}): {err}"));
+        result.push_str(&format!("\n  Caused by: {err}"));
         source = err.source();
-        level += 1;
     }
 
     result
@@ -75,12 +73,10 @@ pub fn format_error_chain(err: impl StdError) -> String {
 pub fn format_error_cause_chain(err: impl StdError) -> String {
     let mut result = String::new();
     let mut source = err.source();
-    let mut level = 1;
 
     while let Some(err) = source {
-        result.push_str(&format!("\n  Caused by ({level}): {err}"));
+        result.push_str(&format!("\n  Caused by: {err}"));
         source = err.source();
-        level += 1;
     }
 
     result
