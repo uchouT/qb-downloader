@@ -56,11 +56,12 @@ macro_rules! define_routes {
 }
 
 define_routes! {
-    "/api/config" => api::config_action::ConfigAPI,
-    "/api/task" => api::task_action::TaskAPI,
-    "/api/torrent" => api::torrent_action::TorrentAPI,
-    "/api/login" => api::login_action::LoginAPI,
-    "/api/test" => api::test_action::TestAPI,
+    "/api/config" => api::config::ConfigAPI,
+    "/api/task" => api::task::TaskAPI,
+    "/api/torrent" => api::torrent::TorrentAPI,
+    "/api/login" => api::login::LoginAPI,
+    "/api/test" => api::test::TestAPI,
+    "/api/version" => api::version::VersionAPI,
 }
 
 pub async fn run(

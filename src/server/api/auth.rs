@@ -3,7 +3,6 @@ use std::sync::{OnceLock, RwLock};
 use crate::config::Account;
 use md5::compute;
 use serde::Serialize;
-// TODO: init
 pub static TOKEN: OnceLock<RwLock<String>> = OnceLock::new();
 
 /// auth the Authorization header.

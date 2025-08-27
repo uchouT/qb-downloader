@@ -2,7 +2,7 @@
 pub mod error;
 pub mod handle;
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     path::PathBuf,
     sync::{Arc, OnceLock},
 };
@@ -24,13 +24,13 @@ use crate::{
     upload::Uploader,
 };
 
-const TASK_FILE_NAME: &str = "tasks.toml";
+const TASK_FILE_NAME: &str = "tasks.json";
 const TORRENT_DIR_NAME: &str = "torrents";
 static ADD_TORRENT_LOCK: Mutex<()> = Mutex::const_new(());
 pub static TASK_LIST: OnceLock<RwLock<Task>> = OnceLock::new();
 static TORRENT_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-pub type TaskMap = HashMap<String, Arc<TaskItem>>;
+pub type TaskMap = BTreeMap<String, Arc<TaskItem>>;
 #[derive(Debug)]
 pub struct Task {
     pub filepath: PathBuf,
@@ -95,14 +95,18 @@ impl TaskItem {
         guard.status = Status::OnTask;
         info!("Running interval task for: {}", &guard.name);
         let uploader = guard.uploader;
-        uploader.upload(&mut guard).await
+        uploader.upload(&mut guard).await.inspect_err(|e| {
+            error!("Failed to run interval task for {}: {e}", &guard.name);
+        })
     }
 
     /// Check if the upload is complete
     pub async fn run_check(self: Arc<Self>) -> Result<bool, TaskError> {
         let mut guard = self.0.write().await;
         let uploader = guard.uploader;
-        uploader.check(&mut guard).await
+        uploader.check(&mut guard).await.inspect_err(|e| {
+            error!("Error occurred while uploading {}: {e}", &guard.name);
+        })
     }
 }
 
@@ -119,7 +123,7 @@ impl Entity for Task {
         };
         Task {
             filepath,
-            value: HashMap::new(),
+            value: BTreeMap::new(),
         }
     }
 
@@ -211,6 +215,9 @@ pub async fn delete(hash: &str, added: bool) -> Result<(), TaskError> {
     }
     if added {
         Task::write(|task_list| task_list.remove(hash)).await;
+        if let Err(e) = Task::save().await {
+            error!("Failed to save task list: {e}");
+        }
     }
     info!("Task deleted for hash: {hash}");
     Ok(())
@@ -409,7 +416,7 @@ pub async fn clean_waited() -> Result<(), TaskError> {
 }
 
 impl Task {
-    pub async fn get_task_map() -> HashMap<String, TaskValue> {
+    pub async fn get_task_map() -> BTreeMap<String, TaskValue> {
         let task_list = TASK_LIST.get().expect("Task list get error").read().await;
         let tasks: Vec<_> = task_list
             .value

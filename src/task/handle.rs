@@ -2,7 +2,7 @@
 
 use crate::{
     Entity, Error, format_error_chain, qb,
-    task::{self, Status, Task, TaskItem, error::TaskError, launch},
+    task::{self, Status, TASK_LIST, Task, TaskItem, error::TaskError, launch},
 };
 use futures::{FutureExt, future::join_all, select};
 use log::{error, info, warn};
@@ -125,8 +125,9 @@ async fn process_task(task: Arc<TaskItem>, hash: String) -> Result<(), TaskError
 /// update task status
 async fn update_task() -> Result<(), TaskError> {
     let torrent_infos = qb::get_torrent_info().await?;
+    let task_list = &TASK_LIST.get().unwrap().read().await.value;
     for info in torrent_infos {
-        let task = Task::read(|task_list| task_list.get(&info.hash).cloned()).await;
+        let task = task_list.get(&info.hash).cloned();
         if let Some(task) = task {
             let (current_status, current_seeding) = {
                 let task_read = task.0.read().await;
@@ -178,42 +179,36 @@ async fn update_task() -> Result<(), TaskError> {
 
 /// Add the next part of the task
 async fn add_next_part(task: Arc<TaskItem>, hash: &str) -> Result<(), TaskError> {
-    let (current_part_num, total_parts) = {
-        let read_guard = task.0.read().await;
-        (read_guard.current_part_num, read_guard.total_part_num)
-    };
+    let mut task = task.0.write().await;
+    let (current_part_num, total_parts) = { (task.current_part_num, task.total_part_num) };
     qb::delete(hash, true).await.inspect_err(|e| {
-        error!("Failed to delete {hash} \n{}", format_error_chain(e));
+        error!("Failed to delete {hash} \n{e}");
     })?;
 
     if current_part_num == total_parts - 1 {
-        task.0.write().await.status = Status::Done;
-        info!("Task: {} completed", task.0.read().await.name);
+        task.status = Status::Done;
+        info!("Task: {} completed", &task.name);
         return Ok(());
     }
 
-    let name = {
-        let read_guard = task.0.read().await;
-        let name = &read_guard.name;
-        qb::add_by_file(
-            &read_guard.torrent_path,
-            &read_guard.save_path,
-            read_guard.seeding_time_limit,
-            read_guard.ratio_limit,
-        )
-        .await
-        .inspect_err(|e| {
-            error!(
-                "Failed to add next part for task: {name} \n {}",
-                format_error_chain(e)
-            );
-        })?;
-        name.clone()
-    };
+    qb::add_by_file(
+        &task.torrent_path,
+        &task.save_path,
+        task.seeding_time_limit,
+        task.ratio_limit,
+    )
+    .await
+    .inspect_err(|e| {
+        error!(
+            "Failed to add next part for task: {} \n {}",
+            &task.name,
+            format_error_chain(e)
+        );
+    })?;
+
     let new_part_num = current_part_num + 1;
-    sleep(Duration::from_millis(500)).await; // TODO: maybe can delete this line
-    launch(new_part_num, hash, &mut *task.0.write().await).await?;
-    info!("Added next part {} for task: {name}", new_part_num + 1);
+    launch(new_part_num, hash, &mut *task).await?;
+    info!("Added part {} for task: {}", new_part_num + 1, &task.name);
     Ok(())
 }
 

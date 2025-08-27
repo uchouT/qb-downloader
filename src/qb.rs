@@ -368,7 +368,6 @@ pub async fn add_by_file(
         .await
 }
 
-// TODO: test after ui is finished
 /// add a torrent to qBittorrent by bytes
 pub async fn add_by_bytes(file_name: &str, save_path: &str, data: &[u8]) -> Result<(), QbError> {
     let host = get_host().await?;

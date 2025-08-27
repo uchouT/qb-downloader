@@ -20,7 +20,7 @@ use hyper::{Method, Response, StatusCode};
 use log::error;
 use serde::Deserialize;
 
-use super::{Action, BoxBody, Req, ServerResult, torrent_action::TorrentRes};
+use super::{Action, BoxBody, Req, ServerResult, torrent::TorrentRes};
 
 #[derive(Debug, Default)]
 pub struct TaskAPI;

@@ -8,7 +8,7 @@ use crate::{
     qb,
     server::{
         ResultResponse,
-        api::{from_json_owned, login_action::gen_key},
+        api::{from_json_owned, login::gen_key},
         error::{ServerError, ServerErrorKind},
     },
 };
@@ -31,7 +31,6 @@ impl Action for ConfigAPI {
 }
 
 /// Change config from post
-/// TODO: test
 async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     let mut config: ConfigValue = from_json_owned(req).await?;
     let account_bak = Config::read(|c| c.account.clone()).await;

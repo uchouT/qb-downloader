@@ -4,7 +4,7 @@ mod sealed {
         error::CommonError,
         task::{TASK_LIST, Task, TaskItem, TaskMap, TaskValue},
     };
-    use std::{collections::HashMap, path::PathBuf, sync::Arc};
+    use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
     use tokio::{
         fs,
@@ -67,7 +67,7 @@ mod sealed {
         }
 
         async fn serialize(entity: &Self::Target) -> Result<String, CommonError> {
-            let mut content = HashMap::with_capacity(entity.len());
+            let mut content = BTreeMap::new();
             for (k, v) in entity {
                 content.insert(k.as_str(), v.0.read().await.clone());
             }
@@ -76,8 +76,8 @@ mod sealed {
         }
 
         fn deserialize(data: &str) -> Result<Self::Target, CommonError> {
-            let content: HashMap<String, TaskValue> = serde_json::from_str(data)?;
-            let mut deserialized = HashMap::new();
+            let content: BTreeMap<String, TaskValue> = serde_json::from_str(data)?;
+            let mut deserialized = BTreeMap::new();
             for (k, v) in content {
                 deserialized.insert(k, Arc::new(TaskItem(RwLock::new(v))));
             }

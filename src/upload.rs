@@ -44,8 +44,8 @@ impl Uploader {
         }
     }
 
-    // TODO: check if uploader is ready
-    // TODO: split config into separate struct``
+    // TODO: check if uploader is ready before adding a task
+    // TODO: split config into separate struct
     pub async fn test(&self, config: &ConfigValue) -> bool {
         match self {
             Uploader::Rclone(_) => {
@@ -74,8 +74,8 @@ impl UploaderTrait for Rclone {
         })
         .await;
         let (src, dst) = (
-            format!("{}:{}", task.upload_path, task.name),
-            format!("{}:{}", task.save_path, task.name),
+            format!("{}/{}", task.save_path, task.root_dir),
+            format!("{}/{}", task.upload_path, task.root_dir),
         );
         let body = json!({
             "srcFs": src,
