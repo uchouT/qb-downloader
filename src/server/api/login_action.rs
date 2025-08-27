@@ -27,7 +27,7 @@ impl Action for LoginAPI {
             let key = if c.multi_login { "" } else { &gen_key(32) };
             let login = Login {
                 account: &c.account,
-                key: &key,
+                key,
             };
             let new_token = encode(&serde_json::to_string(&login).unwrap_or_default());
             *TOKEN.get().unwrap().write().unwrap() = new_token.clone();

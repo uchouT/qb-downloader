@@ -87,14 +87,14 @@ async fn add_by_file(req: Req) -> ServerResult<(Option<Bytes>, String, String)> 
 
     if data.is_none() {
         return Err(ServerError {
-            kind: ServerErrorKind::MissingParams("torrent file".to_string()),
+            kind: ServerErrorKind::MissingParams("torrent file"),
         });
     }
     if save_path.is_none() {
         let default_path = Config::read(|c| c.default_save_path.clone()).await;
         if default_path.is_empty() {
             return Err(ServerError {
-                kind: ServerErrorKind::MissingParams("save_path".to_string()),
+                kind: ServerErrorKind::MissingParams("save_path"),
             });
         } else {
             save_path = Some(default_path);
@@ -111,7 +111,7 @@ async fn add_by_url(req: Req) -> ServerResult<(Option<Bytes>, String, String)> {
             let default_path = Config::read(|c| c.default_save_path.clone()).await;
             if default_path.is_empty() {
                 return Err(ServerError {
-                    kind: ServerErrorKind::MissingParams("save_path".to_string()),
+                    kind: ServerErrorKind::MissingParams("save_path"),
                 });
             } else {
                 default_path
@@ -128,19 +128,19 @@ async fn add_by_url(req: Req) -> ServerResult<(Option<Bytes>, String, String)> {
 async fn get(req: Req) -> ServerResult<Response<BoxBody>> {
     let hash = {
         let params = get_param_map(&req).ok_or(ServerError {
-            kind: ServerErrorKind::MissingParams("hash".to_string()),
+            kind: ServerErrorKind::MissingParams("hash"),
         })?;
         get_required_param::<String>(&params, "hash")?
     };
     let torrent_path = get_torrent_path(&hash);
     let file_tree = FileNode::get_tree(&torrent_path).await?;
-    Ok(ResultResponse::success_data(file_tree))
+    Ok(ResultResponse::success_data(vec![file_tree]))
 }
 
 /// delete aborted torrent (not added as task)
 async fn delete(req: Req) -> ServerResult<Response<BoxBody>> {
     let params = get_param_map(&req).ok_or(ServerError {
-        kind: ServerErrorKind::MissingParams("hash".to_string()),
+        kind: ServerErrorKind::MissingParams("hash"),
     })?;
     let hash: String = get_required_param(&params, "hash")?;
     task::delete(&hash, false).await?;

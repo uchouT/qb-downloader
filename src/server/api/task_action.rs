@@ -65,7 +65,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
         if task_req.upload_path.is_empty() {
             if c.default_upload_path.is_empty() {
                 return Err(ServerError {
-                    kind: ServerErrorKind::MissingParams("upload_path".to_string()),
+                    kind: ServerErrorKind::MissingParams("upload_path"),
                 });
             } else {
                 task_req.upload_path = c.default_upload_path.clone();
@@ -75,13 +75,13 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
             .seeding_time_limit
             .or(c.default_seeding_time_limit)
             .ok_or(ServerError {
-                kind: ServerErrorKind::MissingParams("seeding_time_limit".to_string()),
+                kind: ServerErrorKind::MissingParams("seeding_time_limit"),
             })?;
         task_req
             .ratio_limit
             .or(c.default_ratio_limit)
             .ok_or(ServerError {
-                kind: ServerErrorKind::MissingParams("ratio_limit".to_string()),
+                kind: ServerErrorKind::MissingParams("ratio_limit"),
             })?;
         Ok::<(), ServerError>(())
     })
@@ -108,7 +108,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
 async fn put(req: Req) -> ServerResult<Response<BoxBody>> {
     let (hash, manipulate_type) = {
         let params = get_param_map(&req).ok_or(ServerError {
-            kind: ServerErrorKind::MissingParams(String::from("type and hash")),
+            kind: ServerErrorKind::MissingParams("hash or type"),
         })?;
         (
             get_required_param::<String>(&params, "hash")?,
@@ -116,12 +116,10 @@ async fn put(req: Req) -> ServerResult<Response<BoxBody>> {
         )
     };
     match manipulate_type.as_str() {
-        "start" => qb::start(&hash).await?,
-        "stop" => qb::stop(&hash).await?,
+        "start" => task::start(&hash).await?,
+        "stop" => task::stop(&hash).await?,
         _ => {
-            return Ok(ResultResponse::bad_request(Some(
-                "Invalid type".to_string(),
-            )));
+            return Ok(ResultResponse::bad_request(Some("Invalid type")));
         }
     }
     Ok(ResultResponse::success())
@@ -129,7 +127,7 @@ async fn put(req: Req) -> ServerResult<Response<BoxBody>> {
 async fn delete(req: Req) -> ServerResult<Response<BoxBody>> {
     let hash = {
         let params = get_param_map(&req).ok_or(ServerError {
-            kind: ServerErrorKind::MissingParams(String::from("hash")),
+            kind: ServerErrorKind::MissingParams("hash"),
         })?;
         get_required_param::<String>(&params, "hash")?
     };

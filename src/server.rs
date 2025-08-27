@@ -141,8 +141,9 @@ fn is_inner_ip(socket_addr: SocketAddr) -> bool {
 #[derive(Debug, Serialize)]
 pub struct ResultResponse<T: Serialize> {
     /// Response message which will show in the frontend
-    pub message: Option<String>,
+    pub message: Option<&'static str>,
 
+    pub code: u16,
     /// Contain the actual response data
     pub data: Option<T>,
 }
@@ -151,8 +152,9 @@ impl ResultResponse<()> {
     /// Create a successful response without data
     pub fn success() -> Response<BoxBody> {
         let result = Self {
-            message: Some("Success".to_string()),
+            message: Some("Success"),
             data: None,
+            code: StatusCode::OK.as_u16(),
         };
         let json = serde_json::to_string(&result).unwrap();
         Response::builder()
@@ -163,10 +165,11 @@ impl ResultResponse<()> {
     }
 
     /// Create a successful response with a custom message
-    pub fn success_msg(msg: &str) -> Response<BoxBody> {
+    pub fn success_msg(msg: &'static str) -> Response<BoxBody> {
         let result = Self {
-            message: Some(msg.to_string()),
+            message: Some(msg),
             data: None,
+            code: StatusCode::OK.as_u16(),
         };
         let json = serde_json::to_string(&result).unwrap();
         Response::builder()
@@ -179,8 +182,9 @@ impl ResultResponse<()> {
     /// Create a error response
     pub fn error() -> Response<BoxBody> {
         let result = Self {
-            message: Some("Error".to_string()),
+            message: Some("Error"),
             data: None,
+            code: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
         };
         let json = serde_json::to_string(&result).unwrap();
         Response::builder()
@@ -191,10 +195,11 @@ impl ResultResponse<()> {
     }
 
     /// Create a error response with message
-    pub fn error_msg(msg: &str) -> Response<BoxBody> {
+    pub fn error_msg(msg: &'static str) -> Response<BoxBody> {
         let result = Self {
-            message: Some(msg.to_string()),
+            message: Some(msg),
             data: None,
+            code: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
         };
         let json = serde_json::to_string(&result).unwrap();
         Response::builder()
@@ -206,8 +211,9 @@ impl ResultResponse<()> {
 
     fn unauthorized() -> Response<BoxBody> {
         let result = Self {
-            message: Some("unauthorized".to_string()),
+            message: Some("unauthorized"),
             data: None,
+            code: StatusCode::FORBIDDEN.as_u16(),
         };
         let json = serde_json::to_string(&result).unwrap();
         Response::builder()
@@ -217,10 +223,11 @@ impl ResultResponse<()> {
             .unwrap()
     }
 
-    fn bad_request(message: Option<String>) -> Response<BoxBody> {
+    fn bad_request(message: Option<&'static str>) -> Response<BoxBody> {
         let result = Self {
-            message: message,
+            message,
             data: None,
+            code: StatusCode::BAD_REQUEST.as_u16(),
         };
         let json = serde_json::to_string(&result).unwrap();
         Response::builder()
@@ -241,8 +248,9 @@ impl<T: Serialize> ResultResponse<T> {
     /// Create a successful response with data
     pub fn success_data(data: T) -> Response<BoxBody> {
         let result = Self {
-            message: Some("Success".to_string()),
+            message: Some("Success"),
             data: Some(data),
+            code: StatusCode::OK.as_u16(),
         };
         let json = serde_json::to_string(&result).unwrap();
         Response::builder()

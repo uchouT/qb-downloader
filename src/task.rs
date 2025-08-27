@@ -21,7 +21,7 @@ use crate::{
     error::{CommonError, TaskError},
     format_error_chain, qb,
     task::error::TaskErrorKind,
-    upload::{UploadCheck, Uploader},
+    upload::Uploader,
 };
 
 const TASK_FILE_NAME: &str = "tasks.toml";
@@ -148,10 +148,9 @@ impl Entity for Task {
 
 pub async fn start(hash: &str) -> Result<(), TaskError> {
     qb::start(hash).await?;
-    Task::read(|task_list| {
+    let task = Task::read(|task_list| {
         if let Some(task) = task_list.get(hash) {
-            task.0.blocking_write().status = Status::Downloading;
-            Ok(())
+            Ok(task.clone())
         } else {
             let msg = format!("Task not found for hash: {hash}");
             error!("{msg}");
@@ -161,6 +160,7 @@ pub async fn start(hash: &str) -> Result<(), TaskError> {
         }
     })
     .await?;
+    task.0.write().await.status = Status::Downloading;
     Task::save().await?;
     info!("Task started for hash: {hash}");
     Ok(())
@@ -168,10 +168,9 @@ pub async fn start(hash: &str) -> Result<(), TaskError> {
 
 pub async fn stop(hash: &str) -> Result<(), TaskError> {
     qb::stop(hash).await?;
-    Task::read(|task_list| {
+    let task = Task::read(|task_list| {
         if let Some(task) = task_list.get(hash) {
-            task.0.blocking_write().status = Status::Paused;
-            Ok(())
+            Ok(task.clone())
         } else {
             let msg = format!("Task not found for hash: {hash}");
             error!("{msg}");
@@ -181,6 +180,8 @@ pub async fn stop(hash: &str) -> Result<(), TaskError> {
         }
     })
     .await?;
+    // TODO: many locks, can be optimized?
+    task.0.write().await.status = Status::Paused;
     Task::save().await?;
     info!("Task stopped for hash: {hash}");
     Ok(())
@@ -364,7 +365,7 @@ fn get_task_order(
         }
         Some(file_index) => {
             for &index in file_index {
-                let length = torrent_lengths_list[index as usize];
+                let length = torrent_lengths_list[index];
                 if !current_part.is_empty() && current_size + length > max {
                     task_order.push(std::mem::take(&mut current_part));
                     current_size = 0;

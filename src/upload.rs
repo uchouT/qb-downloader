@@ -1,64 +1,68 @@
 //! deal with upload
 
-use reqwest::header::{CONTENT_TYPE, HeaderValue};
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-use log::debug;
 use crate::{
     Entity,
     config::{Config, ConfigValue},
+    error::CommonError,
     request::{self, RequestBuilderExt},
     task::{
         Status, TaskValue,
         error::{TaskError, TaskErrorKind},
     },
 };
+use log::debug;
+use reqwest::header::{CONTENT_TYPE, HeaderValue};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 
 /// upload type, currently support rclone
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
+#[serde(tag = "type", content = "job")]
 pub enum Uploader {
     /// the containing value is rclone job id
     Rclone(Option<i32>),
 }
 
-pub trait UploadCheck {
-    /// submit async upload task
-    fn upload(&self, task: &mut TaskValue) -> impl Future<Output = Result<(), TaskError>>;
-    /// check if the upload task is finished
-    fn check(&self, task: &mut TaskValue) -> impl Future<Output = Result<bool, TaskError>>;
-    /// test if the uploader is ready
-    fn test(&self, config: &ConfigValue) -> impl Future<Output = Result<bool, TaskError>>;
+pub trait UploaderTrait {
+    fn upload(task: &mut TaskValue) -> impl Future<Output = Result<(), TaskError>>;
+    fn check(task: &mut TaskValue) -> impl Future<Output = Result<bool, TaskError>>;
+    fn test(host: &str, username: &str, password: &str) -> impl Future<Output = bool>;
 }
 
-impl UploadCheck for Uploader {
-    async fn check(&self, task: &mut TaskValue) -> Result<bool, TaskError> {
+impl Uploader {
+    /// Check if upload is completed
+    pub async fn check(&self, task: &mut TaskValue) -> Result<bool, TaskError> {
         match self {
             Uploader::Rclone(_) => Rclone::check(task).await,
         }
     }
 
-    async fn upload(&self, task: &mut TaskValue) -> Result<(), TaskError> {
+    /// Submit upload task
+    pub async fn upload(&self, task: &mut TaskValue) -> Result<(), TaskError> {
         match self {
             Uploader::Rclone(_) => Rclone::upload(task).await,
         }
     }
-    async fn test(&self, config: &ConfigValue) -> Result<bool, TaskError> {
+
+    // TODO: check if uploader is ready
+    // TODO: split config into separate struct``
+    pub async fn test(&self, config: &ConfigValue) -> bool {
         match self {
             Uploader::Rclone(_) => {
-                let (rclone_host, rclone_password, rclone_username) = (
+                Rclone::test(
                     &config.rclone_host,
-                    &config.rclone_password,
                     &config.rclone_username,
-                );
-                Rclone::test(&rclone_host, &rclone_username, &rclone_password).await
+                    &config.rclone_password,
+                )
+                .await
             }
         }
     }
 }
 
-struct Rclone;
+pub struct Rclone;
 
-impl Rclone {
+impl UploaderTrait for Rclone {
     /// submit upload task to rclone, and store the job ID in the task
     async fn upload(task: &mut TaskValue) -> Result<(), TaskError> {
         let (host, username, password) = Config::read(|config| {
@@ -137,10 +141,10 @@ impl Rclone {
         }
     }
 
-    async fn test(host: &str, username: &str, password: &str) -> Result<bool, TaskError> {
-        request::post(format!("{host}/core/version"))
+    async fn test(host: &str, username: &str, password: &str) -> bool {
+        let res = request::post(format!("{host}/core/version"))
             .basic_auth(username, Some(password))
-            .then(async |res| {
+            .then::<bool, CommonError, _, _>(async |res| {
                 let value: Value = res.json().await?;
                 let version = value
                     .get("version")
@@ -149,6 +153,7 @@ impl Rclone {
                 debug!("Rclone version: {}", version);
                 Ok(true)
             })
-            .await
+            .await;
+        res.is_ok()
     }
 }

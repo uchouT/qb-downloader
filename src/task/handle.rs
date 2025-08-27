@@ -161,6 +161,8 @@ async fn update_task() -> Result<(), TaskError> {
                     task_write_guard.status = Status::Error;
                     continue;
                 }
+                let mut task_write_guard = task.0.write().await;
+                task_write_guard.progress = progress;
                 continue;
             }
 

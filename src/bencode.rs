@@ -46,11 +46,10 @@ pub async fn get_value(torrent_path: &Path) -> Result<Value, BencodeError> {
 }
 
 fn get_info(value: &Value) -> Result<&BTreeMap<Vec<u8>, Value>, BencodeError> {
-    if let Value::Dictionary(dict) = value {
-        if let Some(Value::Dictionary(info)) = dict.get("info".as_bytes()) {
+    if let Value::Dictionary(dict) = value
+        && let Some(Value::Dictionary(info)) = dict.get("info".as_bytes()) {
             return Ok(info);
         }
-    }
     Err(BencodeError {
         kind: BencodeErrorKind::Decode,
     })
@@ -78,12 +77,11 @@ fn get_files(info: &BTreeMap<Vec<u8>, Value>) -> Result<&Vec<Value>, BencodeErro
 fn get_file_length_list(files: &Vec<Value>) -> Result<Vec<&i64>, BencodeError> {
     let mut lengths = Vec::new();
     for file in files {
-        if let Value::Dictionary(f) = file {
-            if let Some(Value::Integer(length)) = f.get("length".as_bytes()) {
+        if let Value::Dictionary(f) = file
+            && let Some(Value::Integer(length)) = f.get("length".as_bytes()) {
                 lengths.push(length);
                 continue;
             }
-        }
         return Err(BencodeError {
             kind: BencodeErrorKind::Decode,
         });
@@ -94,8 +92,8 @@ fn get_file_length_list(files: &Vec<Value>) -> Result<Vec<&i64>, BencodeError> {
 fn get_file_name_list(files: &Vec<Value>) -> Result<Vec<Vec<String>>, BencodeError> {
     let mut paths = Vec::new();
     for file in files {
-        if let Value::Dictionary(f) = file {
-            if let Some(Value::List(path)) = f.get("path".as_bytes()) {
+        if let Value::Dictionary(f) = file
+            && let Some(Value::List(path)) = f.get("path".as_bytes()) {
                 let mut path_vec = Vec::new();
                 for node in path {
                     if let Value::ByteString(n) = node {
@@ -110,7 +108,6 @@ fn get_file_name_list(files: &Vec<Value>) -> Result<Vec<Vec<String>>, BencodeErr
                 paths.push(path_vec);
                 continue;
             }
-        }
         return Err(BencodeError {
             kind: BencodeErrorKind::Decode,
         });
@@ -119,7 +116,7 @@ fn get_file_name_list(files: &Vec<Value>) -> Result<Vec<Vec<String>>, BencodeErr
 }
 
 pub fn parse_torrent(value: &Value) -> Result<(String, Vec<&i64>), BencodeError> {
-    let info = get_info(&value)?;
+    let info = get_info(value)?;
     let root_dir = get_root_dir(info)?;
     let files = get_files(info)?;
     let lengths = get_file_length_list(files)?;

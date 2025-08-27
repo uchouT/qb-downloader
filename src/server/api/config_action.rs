@@ -71,7 +71,7 @@ async fn update_config(config: ConfigValue, account_changed: bool) -> Result<(),
             let key = if c.multi_login { "" } else { &gen_key(32) };
             let login = Login {
                 account: &c.account,
-                key: &key,
+                key,
             };
             *TOKEN.get().unwrap().write().unwrap() =
                 encode(&serde_json::to_string(&login).unwrap_or_default());

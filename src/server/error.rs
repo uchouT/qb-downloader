@@ -14,7 +14,7 @@ pub struct ServerError {
 
 #[derive(Debug)]
 pub enum ServerErrorKind {
-    MissingParams(String),
+    MissingParams(&'static str),
     BadRequest(Option<hyper::Error>),
     Common(CommonError),
     MethodNotAllowed,

@@ -27,13 +27,11 @@ pub trait Action: Send + Sync {
     }
     /// default needs auth
     fn auth(&self, req: &Req) -> ServerResult<()> {
-        if let Some(auth_header) = req.headers().get(header::AUTHORIZATION) {
-            if !auth_header.is_empty() {
-                if auth::authorize(auth_header.to_str().unwrap_or_default()) {
+        if let Some(auth_header) = req.headers().get(header::AUTHORIZATION)
+            && !auth_header.is_empty()
+                && auth::authorize(auth_header.to_str().unwrap_or_default()) {
                     return Ok(());
                 }
-            }
-        }
         Err(ServerError {
             kind: ServerErrorKind::Unauthorized,
         })
@@ -61,10 +59,10 @@ pub fn get_param_or<T: FromStr>(params: &HashMap<String, String>, key: &str, def
 /// Returns a [MissingParams](super::error::ServerErrorKind::MissingParams) if the parameter is not found.
 pub fn get_required_param<T: FromStr>(
     params: &HashMap<String, String>,
-    key: &str,
+    key: &'static str,
 ) -> ServerResult<T> {
     get_option_param(params, key).ok_or(ServerError {
-        kind: ServerErrorKind::MissingParams(format!("missing param: {key}")),
+        kind: ServerErrorKind::MissingParams(key),
     })
 }
 
@@ -113,11 +111,10 @@ pub trait ReqExt {
 }
 impl ReqExt for Req {
     fn is_multipart(&self) -> bool {
-        if let Some(content_type) = self.headers().get(hyper::header::CONTENT_TYPE) {
-            if let Ok(content_type_str) = content_type.to_str() {
+        if let Some(content_type) = self.headers().get(hyper::header::CONTENT_TYPE)
+            && let Ok(content_type_str) = content_type.to_str() {
                 return content_type_str.starts_with("multipart/");
             }
-        }
         false
     }
     fn into_multipart<'a>(self) -> ServerResult<Multipart<'a>> {
