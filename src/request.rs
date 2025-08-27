@@ -16,7 +16,7 @@ fn get_client() -> &'static Client {
         Client::builder()
             .user_agent("qb-downloader-rust/1.0")
             .cookie_provider(jar)
-            .timeout(Duration::from_secs(30))
+            // .timeout(Duration::from_secs(30))
             .connect_timeout(Duration::from_secs(10))
             .pool_max_idle_per_host(0)
             .build()

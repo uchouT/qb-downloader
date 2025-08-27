@@ -168,7 +168,7 @@ async fn update_task() -> Result<(), TaskError> {
             }
 
             // check if seeding finished
-            if FINISHED_SEEDING.contains(&info.state.as_str()) && current_seeding {
+            if current_seeding && FINISHED_SEEDING.contains(&info.state.as_str()) {
                 let mut task_write_guard = task.0.write().await;
                 task_write_guard.is_seeding = false;
             }

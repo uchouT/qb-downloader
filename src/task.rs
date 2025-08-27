@@ -101,12 +101,16 @@ impl TaskItem {
     }
 
     /// Check if the upload is complete
-    pub async fn run_check(self: Arc<Self>) -> Result<bool, TaskError> {
+    pub async fn run_check(self: Arc<Self>) -> Result<(), TaskError> {
         let mut guard = self.0.write().await;
         let uploader = guard.uploader;
-        uploader.check(&mut guard).await.inspect_err(|e| {
+        if uploader.check(&mut guard).await.inspect_err(|e| {
             error!("Error occurred while uploading {}: {e}", &guard.name);
-        })
+        })? {
+            guard.status = Status::Finished;
+            info!("Upload completed for task: {}", &guard.name);
+        }
+        Ok(())
     }
 }
 
