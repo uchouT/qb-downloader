@@ -65,6 +65,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
 
 async fn update_config(config: ConfigValue, account_changed: bool) -> Result<(), CommonError> {
     Config::write(|c| {
+        *c = config;
         if account_changed {
             // refresh token
             let key = if c.multi_login { "" } else { &gen_key(32) };
@@ -75,7 +76,6 @@ async fn update_config(config: ConfigValue, account_changed: bool) -> Result<(),
             *TOKEN.get().unwrap().write().unwrap() =
                 encode(&serde_json::to_string(&login).unwrap_or_default());
         }
-        *c = config;
     })
     .await;
     Config::save().await
