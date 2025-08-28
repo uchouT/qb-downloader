@@ -5,9 +5,16 @@
 //! PUT: add new task
 //! DELETE: delete task
 use crate::{
-    config::{strip_slash, Config}, qb, server::{
-        api::{from_json_owned, get_param_map, get_required_param}, error::{ServerError, ServerErrorKind}, ResultResponse
-    }, task::{self, error::TaskErrorKind}, upload::Uploader, Entity
+    Entity,
+    config::{Config, strip_slash},
+    qb,
+    server::{
+        ResultResponse,
+        api::{from_json_owned, get_param_map, get_required_param},
+        error::{ServerError, ServerErrorKind},
+    },
+    task::{self, error::TaskErrorKind},
+    upload::Uploader,
 };
 use hyper::{Method, Response, StatusCode};
 use log::error;
@@ -53,6 +60,10 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     let mut task_req: TaskReq = from_json_owned(req).await?;
     if !task_req.custom_content {
         task_req.selected_file_index = None;
+    } else if let Some(ref selected_file_index) = task_req.selected_file_index
+        && selected_file_index.is_empty()
+    {
+        return Ok(ResultResponse::error_msg("Selected none content"));
     }
     Config::read(|c| {
         if task_req.upload_path.is_empty() {
@@ -91,10 +102,12 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
         task_req.seeding_time_limit.unwrap(),
     )
     .await
-    {   
+    {
         error!("{e}");
         if let TaskErrorKind::OverSize = e.kind {
-            return Ok(ResultResponse::error_msg("Selected files exceed maximum length"));
+            return Ok(ResultResponse::error_msg(
+                "Selected files exceed maximum length",
+            ));
         }
         return Ok(ResultResponse::error_msg("Failed to add task"));
     }
