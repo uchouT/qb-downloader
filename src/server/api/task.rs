@@ -5,16 +5,9 @@
 //! PUT: add new task
 //! DELETE: delete task
 use crate::{
-    Entity,
-    config::{Config, strip_slash},
-    qb,
-    server::{
-        ResultResponse,
-        api::{from_json_owned, get_param_map, get_required_param},
-        error::{ServerError, ServerErrorKind},
-    },
-    task,
-    upload::Uploader,
+    config::{strip_slash, Config}, qb, server::{
+        api::{from_json_owned, get_param_map, get_required_param}, error::{ServerError, ServerErrorKind}, ResultResponse
+    }, task::{self, error::TaskErrorKind}, upload::Uploader, Entity
 };
 use hyper::{Method, Response, StatusCode};
 use log::error;
@@ -98,8 +91,11 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
         task_req.seeding_time_limit.unwrap(),
     )
     .await
-    {
+    {   
         error!("{e}");
+        if let TaskErrorKind::OverSize = e.kind {
+            return Ok(ResultResponse::error_msg("Selected files exceed maximum length"));
+        }
         return Ok(ResultResponse::error_msg("Failed to add task"));
     }
     Ok(ResultResponse::success_msg("Task added successfully"))

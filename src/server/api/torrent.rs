@@ -120,7 +120,7 @@ async fn add_by_url(req: Req) -> ServerResult<(Option<Bytes>, String, String)> {
             torrent_req.save_path
         }
     };
-    let url = torrent_req.url;
+    let url = torrent_req.url.trim();
     Ok((None, url.to_string(), save_path))
 }
 

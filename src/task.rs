@@ -239,13 +239,19 @@ pub async fn add_torrent(
     save_path: &str,
 ) -> Result<String, TaskError> {
     let hash = {
-        let _lock = ADD_TORRENT_LOCK.lock().await;
         if let Some(file) = file {
-            qb::add_by_bytes(url, save_path, file).await?;
+            let (qb_res, bencode_res) = join(
+                qb::add_by_bytes(url, save_path, file),
+                bencode::get_hash(file),
+            )
+            .await;
+            qb_res?;
+            bencode_res?
         } else {
+            let _lock = ADD_TORRENT_LOCK.lock().await;
             qb::add_by_url(url, save_path).await?;
+            qb::parse_hash(url).await?
         }
-        qb::get_hash().await?
     };
     // NOTE: removing this line may cause unexpected bugs
     // sleep(std::time::Duration::from_millis(500)).await;

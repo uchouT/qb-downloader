@@ -130,9 +130,8 @@ pub async fn test_login(host: &str, username: &str, pass: &str) -> bool {
 /// get all torrent infos with CATEGORY
 pub async fn get_torrent_info() -> Result<Vec<TorrentInfo>, QbError> {
     let host = get_host().await?;
-    let param = HashMap::from([("category", CATEGORY)]);
     request::get(format!("{host}/api/v2/torrents/info"))
-        .form(&param)
+        .query(&[("category", CATEGORY)])
         .then(async |res| {
             let torrent_info_list: Vec<TorrentInfo> = res.json().await?;
             Ok(torrent_info_list)
@@ -143,12 +142,8 @@ pub async fn get_torrent_info() -> Result<Vec<TorrentInfo>, QbError> {
 /// get the new added torrent hash, and remove the marked tag
 pub async fn get_hash() -> Result<String, QbError> {
     let host = get_host().await?;
-    let mut param = HashMap::new();
-    param.insert("category", CATEGORY);
-    param.insert("tag", Tag::NEW.as_ref());
-
     request::get(format!("{host}/api/v2/torrents/info"))
-        .form(&param)
+        .query(&[("category", CATEGORY), ("tag", Tag::NEW.as_ref())])
         .then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
             // Always occurs when a same torrent is added
@@ -187,7 +182,7 @@ pub async fn add_tag(hash: &str, tag: Tag) -> Result<(), QbError> {
 async fn manage(hash: &str, action: &str) -> Result<(), QbError> {
     let host = get_host().await?;
     request::post(format!("{host}/api/v2/torrents/{action}"))
-        .form(&HashMap::from([("hashes", hash)]))
+        .form(&[("hashes", hash)])
         .then(async |_| Ok(()))
         .await
 }
@@ -219,9 +214,10 @@ pub async fn delete(hash: &str, delete_files: bool) -> Result<(), QbError> {
 pub async fn get_state(hash: &str) -> Result<String, QbError> {
     let host = get_host().await?;
     request::get(format!("{host}/api/v2/torrents/info"))
-        .form(&HashMap::from([("hashes", hash)]))
+        .query(&[("hashes", hash)])
         .then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
+            // FIXME: may cause panic if torrent canceled before fetching meta data
             let state = json_array[0].get("state").and_then(|v| v.as_str()).unwrap();
             Ok(state.to_string())
         })
@@ -232,7 +228,7 @@ pub async fn get_state(hash: &str) -> Result<String, QbError> {
 pub async fn get_name(hash: &str) -> Result<String, QbError> {
     let host = get_host().await?;
     request::get(format!("{host}/api/v2/torrents/info"))
-        .form(&HashMap::from([("hashes", hash)]))
+        .query(&[("hashes", hash)])
         .then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
             let name = json_array[0].get("name").and_then(|v| v.as_str()).unwrap();
@@ -302,7 +298,7 @@ pub async fn export(hash: &str, path: &str) -> Result<(), QbError> {
     }
     let host = get_host().await?;
     request::post(format!("{host}/api/v2/torrents/export"))
-        .form(&HashMap::from([("hash", hash)]))
+        .form(&[("hash", hash)])
         .then(async |res| {
             let data = res.bytes().await?;
             let mut file = File::create(path)?;
@@ -315,9 +311,8 @@ pub async fn export(hash: &str, path: &str) -> Result<(), QbError> {
 /// get the hash list of torrents with a specific tag
 pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, QbError> {
     let host = get_host().await?;
-    let param = HashMap::from([("category", CATEGORY), ("tag", tag.as_ref())]);
     request::get(format!("{host}/api/v2/torrents/info"))
-        .form(&param)
+        .query(&[("category", CATEGORY), ("tag", tag.as_ref())])
         .then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
             let hash_list = json_array
@@ -376,10 +371,24 @@ pub async fn add_by_bytes(file_name: &str, save_path: &str, data: &[u8]) -> Resu
         .part("torrents", file_part)
         .text("savepath", save_path.to_string())
         .text("category", CATEGORY)
-        .text("stopped", "true")
-        .text("tags", Tag::NEW.as_ref());
+        .text("stopped", "true");
     request::post(format!("{host}/api/v2/torrents/add"))
         .multipart(form)
         .then(async |_| Ok(()))
         .await
+}
+
+/// Try to parse the hash from a url first, usually used to parse magnet link
+/// remove the [`Tag::NEW`] after successfully parsed
+pub async fn parse_hash(url: &str) -> Result<String, QbError> {
+    if url.starts_with("magnet:?xt=urn:btih:") {
+        let mut hash = &url[20..];
+        if let Some(end) = hash.find('&') {
+            hash = &hash[..end];
+        }
+        remove_tag(hash, Tag::NEW).await?;
+        return Ok(hash.to_string());
+    } else {
+        get_hash().await
+    }
 }
