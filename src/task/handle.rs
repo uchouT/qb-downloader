@@ -207,7 +207,7 @@ async fn add_next_part(task: Arc<TaskItem>, hash: &str) -> Result<(), TaskError>
     })?;
 
     let new_part_num = current_part_num + 1;
-    launch(new_part_num, hash, &mut *task).await?;
+    launch(new_part_num, hash, &mut task).await?;
     info!("Added part {} for task: {}", new_part_num + 1, &task.name);
     Ok(())
 }

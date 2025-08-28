@@ -240,17 +240,17 @@ pub async fn add_torrent(
 ) -> Result<String, TaskError> {
     let hash = {
         if let Some(file) = file {
-            let (qb_res, bencode_res) = join(
-                qb::add_by_bytes(url, save_path, file),
-                bencode::get_hash(file),
-            )
-            .await;
-            qb_res?;
-            bencode_res?
+            qb::add_by_bytes(url, save_path, file).await?;
+            bencode::get_hash(file)?
         } else {
-            let _lock = ADD_TORRENT_LOCK.lock().await;
-            qb::add_by_url(url, save_path).await?;
-            qb::parse_hash(url).await?
+            if let Some(hash) = qb::try_parse_hash(url) {
+                qb::add_by_url(url, save_path, true).await?;
+                hash
+            } else {
+                let _lock = ADD_TORRENT_LOCK.lock().await;
+                qb::add_by_url(url, save_path, false).await?;
+                qb::get_hash().await?
+            }
         }
     };
     // NOTE: removing this line may cause unexpected bugs

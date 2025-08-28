@@ -52,3 +52,11 @@ impl From<CommonError> for BencodeError {
         }
     }
 }
+
+impl From<bendy::decoding::Error> for BencodeError {
+    fn from(_: bendy::decoding::Error) -> Self {
+        BencodeError {
+            kind: BencodeErrorKind::Decode,
+        }
+    }
+}

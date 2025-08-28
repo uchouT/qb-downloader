@@ -325,15 +325,18 @@ pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, QbError> {
 }
 
 /// add a torrent to qBittorrent by URL
-pub async fn add_by_url(url: &str, save_path: &str) -> Result<(), QbError> {
+/// if url is a magnet link, means hash is known, else add tag NEW and wait for [`get_hash`] to fetch the hash
+pub async fn add_by_url(url: &str, save_path: &str, is_magnet: bool) -> Result<(), QbError> {
     let host = get_host().await?;
-    let param = HashMap::from([
+    let mut param = HashMap::from([
         ("urls", url),
         ("savepath", save_path),
         ("category", CATEGORY),
-        ("tags", Tag::NEW.as_ref()),
         ("stopCondition", "MetadataReceived"),
     ]);
+    if !is_magnet {
+        param.insert("tags", Tag::NEW.as_ref());
+    }
     request::post(format!("{host}/api/v2/torrents/add"))
         .form(&param)
         .then(async |_| Ok(()))
@@ -379,16 +382,15 @@ pub async fn add_by_bytes(file_name: &str, save_path: &str, data: &[u8]) -> Resu
 }
 
 /// Try to parse the hash from a url first, usually used to parse magnet link
-/// remove the [`Tag::NEW`] after successfully parsed
-pub async fn parse_hash(url: &str) -> Result<String, QbError> {
+/// If failed, it means the url is probably an http link, e.g. "http://example.com/file.torrent"
+pub fn try_parse_hash(url: &str) -> Option<String> {
     if url.starts_with("magnet:?xt=urn:btih:") {
         let mut hash = &url[20..];
         if let Some(end) = hash.find('&') {
             hash = &hash[..end];
         }
-        remove_tag(hash, Tag::NEW).await?;
-        return Ok(hash.to_string());
+        Some(hash.to_string())
     } else {
-        get_hash().await
+        None
     }
 }
