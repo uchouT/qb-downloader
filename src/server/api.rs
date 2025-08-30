@@ -1,13 +1,13 @@
 //! This module provides tools when building the server API.
 //! api route defined at [`super`]
 pub mod auth;
-pub mod config;
-pub mod login;
-pub mod task;
-pub mod test;
-pub mod torrent;
-pub mod asset;
-pub mod version;
+pub mod config_api;
+pub mod login_api;
+pub mod task_api;
+pub mod test_api;
+pub mod torrent_api;
+pub mod asset_api;
+pub mod version_api;
 use super::{BoxBody, Req};
 use crate::{
     error::CommonError,

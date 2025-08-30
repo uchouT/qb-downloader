@@ -1,4 +1,3 @@
-// TODO: test qb and uploader is ok
 //! check if is authenticated
 
 use super::{Action, BoxBody, Req, ServerResult};

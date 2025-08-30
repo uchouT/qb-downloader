@@ -13,7 +13,7 @@ use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs,
-    sync::{Mutex, RwLock},
+    sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 use crate::{
@@ -152,45 +152,61 @@ impl Entity for Task {
         info!("Task list initialized.");
         Ok(())
     }
+
+    async fn get() -> RwLockReadGuard<'static, Self::LockedValue> {
+        TASK_LIST
+            .get()
+            .expect("task list not initialized")
+            .read()
+            .await
+    }
+    async fn get_mut() -> RwLockWriteGuard<'static, Self::LockedValue> {
+        TASK_LIST
+            .get()
+            .expect("task list not initialized")
+            .write()
+            .await
+    }
 }
 
 pub async fn start(hash: &str) -> Result<(), TaskError> {
     qb::start(hash).await?;
-    let task = Task::read(|task_list| {
-        if let Some(task) = task_list.get(hash) {
-            Ok(task.clone())
+    
+    {
+        let task_map = Task::get().await;
+        if let Some(task) = task_map.value.get(hash) {
+            task.0.write().await.status = Status::Downloading;
         } else {
             let msg = format!("Task not found for hash: {hash}");
             error!("{msg}");
-            Err(TaskError {
+            return Err(TaskError {
                 kind: error::TaskErrorKind::Other(msg),
-            })
+            });
         }
-    })
-    .await?;
-    task.0.write().await.status = Status::Downloading;
-    Task::save().await?;
+        Task::save_entity(&*task_map).await?;
+    }
+
     info!("Task started for hash: {hash}");
     Ok(())
 }
 
 pub async fn stop(hash: &str) -> Result<(), TaskError> {
     qb::stop(hash).await?;
-    let task = Task::read(|task_list| {
-        if let Some(task) = task_list.get(hash) {
-            Ok(task.clone())
+
+    {
+        let task_map = Task::get().await;
+        if let Some(task) = task_map.value.get(hash) {
+            task.0.write().await.status = Status::Paused;
         } else {
             let msg = format!("Task not found for hash: {hash}");
             error!("{msg}");
-            Err(TaskError {
+            return Err(TaskError {
                 kind: error::TaskErrorKind::Other(msg),
-            })
+            });
         }
-    })
-    .await?;
-    // TODO: many locks, can be optimized?
-    task.0.write().await.status = Status::Paused;
-    Task::save().await?;
+        Task::save_entity(&*task_map).await?;
+    }
+
     info!("Task stopped for hash: {hash}");
     Ok(())
 }
@@ -436,4 +452,3 @@ impl Task {
         join_all(tasks).await.into_iter().collect()
     }
 }
-// TODO: return content tree according to hash

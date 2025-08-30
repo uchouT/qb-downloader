@@ -44,7 +44,6 @@ impl Uploader {
         }
     }
 
-    // TODO: check if uploader is ready before adding a task
     // TODO: split config into separate struct
     pub async fn test(&self, config: &ConfigValue) -> bool {
         match self {

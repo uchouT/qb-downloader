@@ -8,7 +8,7 @@ use crate::{
     qb,
     server::{
         ResultResponse,
-        api::{from_json_owned, login::gen_key},
+        api::{from_json_owned, login_api::gen_key},
         error::{ServerError, ServerErrorKind},
     },
 };

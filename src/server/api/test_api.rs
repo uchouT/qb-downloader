@@ -41,7 +41,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     if valid {
         Ok(ResultResponse::success())
     } else {
-        Ok(ResultResponse::error_msg("test failed"))
+        Ok(ResultResponse::error())
     }
 }
 

@@ -8,7 +8,7 @@ use directories_next::BaseDirs;
 use log::{debug, info};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::{path::PathBuf, sync::OnceLock};
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 const CONFIG_FILE_NAME: &str = "config.toml";
 
@@ -107,6 +107,13 @@ impl Entity for Config {
             .expect("Failed to set global config");
         info!("Config loaded.");
         Ok(())
+    }
+
+    async fn get() -> RwLockReadGuard<'static, Self::LockedValue> {
+        CONFIG.get().expect("Config not initialized").read().await
+    }
+    async fn get_mut() -> RwLockWriteGuard<'static, Self::LockedValue> {
+        CONFIG.get().expect("Config not initialized").write().await
     }
 }
 

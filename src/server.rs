@@ -46,7 +46,7 @@ macro_rules! define_routes {
                         }
                     }
                 )*
-                _ => match api::asset::AssetAPI.execute(req).await {
+                _ => match api::asset_api::AssetAPI.execute(req).await {
                     Ok(res) => Ok(res),
                     Err(e) => handle(e),
                 }
@@ -56,12 +56,12 @@ macro_rules! define_routes {
 }
 
 define_routes! {
-    "/api/config" => api::config::ConfigAPI,
-    "/api/task" => api::task::TaskAPI,
-    "/api/torrent" => api::torrent::TorrentAPI,
-    "/api/login" => api::login::LoginAPI,
-    "/api/test" => api::test::TestAPI,
-    "/api/version" => api::version::VersionAPI,
+    "/api/config" => api::config_api::ConfigAPI,
+    "/api/task" => api::task_api::TaskAPI,
+    "/api/torrent" => api::torrent_api::TorrentAPI,
+    "/api/login" => api::login_api::LoginAPI,
+    "/api/test" => api::test_api::TestAPI,
+    "/api/version" => api::version_api::VersionAPI,
 }
 
 pub async fn run(
