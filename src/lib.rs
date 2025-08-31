@@ -1,8 +1,8 @@
-mod app;
+pub mod app;
 mod bencode;
 mod config;
 mod entity;
-mod error;
+pub mod error;
 mod qb;
 mod request;
 mod server;

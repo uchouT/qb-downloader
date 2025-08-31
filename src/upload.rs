@@ -2,7 +2,7 @@
 
 use crate::{
     Entity,
-    config::{Config, ConfigValue},
+    config::Config,
     error::CommonError,
     request::{self, RequestBuilderExt},
     task::{
@@ -45,18 +45,6 @@ impl Uploader {
     }
 
     // TODO: split config into separate struct
-    pub async fn test(&self, config: &ConfigValue) -> bool {
-        match self {
-            Uploader::Rclone(_) => {
-                Rclone::test(
-                    &config.rclone_host,
-                    &config.rclone_username,
-                    &config.rclone_password,
-                )
-                .await
-            }
-        }
-    }
 }
 
 pub struct Rclone;

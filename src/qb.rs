@@ -48,15 +48,6 @@ pub struct TorrentInfo {
     pub progress: f64,
 }
 
-impl TorrentInfo {
-    pub fn new(hash: String, state: String, progress: f64) -> Self {
-        TorrentInfo {
-            hash,
-            state,
-            progress,
-        }
-    }
-}
 static QB: OnceLock<RwLock<Qb>> = OnceLock::new();
 
 pub async fn init() {
@@ -224,18 +215,6 @@ pub async fn get_state(hash: &str) -> Result<String, QbError> {
         .await
 }
 
-/// get the name of a torrent by its hash
-pub async fn get_name(hash: &str) -> Result<String, QbError> {
-    let host = get_host().await?;
-    request::get(format!("{host}/api/v2/torrents/info"))
-        .query(&[("hashes", hash)])
-        .then(async |res| {
-            let json_array: Vec<Value> = res.json().await?;
-            let name = json_array[0].get("name").and_then(|v| v.as_str()).unwrap();
-            Ok(name.to_string())
-        })
-        .await
-}
 
 /// set the download priority of a torrent
 /// # Arguments
