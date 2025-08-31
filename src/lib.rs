@@ -1,18 +1,18 @@
-pub mod app;
-pub mod config;
+mod app;
+mod bencode;
+mod config;
 mod entity;
-pub mod error;
-pub mod qb;
-pub mod request;
-pub mod server;
-pub mod task;
-pub mod upload;
-pub mod bencode;
+mod error;
+mod qb;
+mod request;
+mod server;
+mod task;
+mod upload;
 
-pub use crate::server::api::auth;
-pub use crate::error::{Error, format_error_chain};
-pub use entity::Entity;
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+use crate::error::{Error, format_error_chain};
+use crate::server::api::auth;
+use entity::Entity;
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// remove the trailing slash from a path or host.
 /// # Example
@@ -23,7 +23,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// let host = "http://localhost:8080/";
 /// assert_eq!(remove_slash(host), "http://localhost:8080");
 /// ```
-pub fn remove_slash<T: AsRef<str>>(path_or_host: T) -> String {
+fn remove_slash<T: AsRef<str>>(path_or_host: T) -> String {
     let s = path_or_host.as_ref();
     s.trim().strip_suffix('/').unwrap_or(s).to_string()
 }
