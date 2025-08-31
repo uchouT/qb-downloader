@@ -2,6 +2,8 @@ name: Release & Deploy
 
 on:
   push:
+    branches:
+      -java
     tags:
       - 'v*'   # 只触发 v 开头的 tag
 
