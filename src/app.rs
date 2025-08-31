@@ -104,7 +104,7 @@ pub fn init() -> Result<u16, Error> {
         }
     }
     pretty_env_logger::init();
-    info!("qb-downloader-rust v{VERSION} starting...");
+    info!("qb-downloader v{VERSION} starting...");
     Config::init(config_path)?;
     Task::init(task_path)?;
     Ok(port)

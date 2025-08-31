@@ -1,4 +1,4 @@
-use qb_downloader_rust::{app, error::Error};
+use qb_downloader::{app, error::Error};
 
 fn main() -> Result<(), Error> {
     let port = app::init()?;

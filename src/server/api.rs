@@ -1,12 +1,12 @@
 //! This module provides tools when building the server API.
 //! api route defined at [`super`]
+pub mod asset_api;
 pub mod auth;
 pub mod config_api;
 pub mod login_api;
 pub mod task_api;
 pub mod test_api;
 pub mod torrent_api;
-pub mod asset_api;
 pub mod version_api;
 use super::{BoxBody, Req};
 use crate::{
@@ -31,9 +31,10 @@ pub trait Action: Send + Sync {
     fn auth(&self, req: &Req) -> ServerResult<()> {
         if let Some(auth_header) = req.headers().get(header::AUTHORIZATION)
             && !auth_header.is_empty()
-                && auth::authorize(auth_header.to_str().unwrap_or_default()) {
-                    return Ok(());
-                }
+            && auth::authorize(auth_header.to_str().unwrap_or_default())
+        {
+            return Ok(());
+        }
         Err(ServerError {
             kind: ServerErrorKind::Unauthorized,
         })
@@ -52,8 +53,12 @@ pub fn get_option_param<T: FromStr>(params: &HashMap<String, String>, key: &str)
 }
 
 /// Extracts a parameter from the request URL query, returning a default value if the parameter is not found.
-pub fn get_param_or<T: FromStr>(params: &HashMap<String, String>, key: &str, default: T) -> T {
-    get_option_param(params, key).unwrap_or(default)
+pub fn get_param_or_else<T: FromStr, F: FnOnce() -> T>(
+    params: &HashMap<String, String>,
+    key: &str,
+    f: F,
+) -> T {
+    get_option_param(params, key).unwrap_or_else(f)
 }
 
 /// Extracts a required parameter
@@ -114,9 +119,10 @@ pub trait ReqExt {
 impl ReqExt for Req {
     fn is_multipart(&self) -> bool {
         if let Some(content_type) = self.headers().get(hyper::header::CONTENT_TYPE)
-            && let Ok(content_type_str) = content_type.to_str() {
-                return content_type_str.starts_with("multipart/");
-            }
+            && let Ok(content_type_str) = content_type.to_str()
+        {
+            return content_type_str.starts_with("multipart/");
+        }
         false
     }
     fn into_multipart<'a>(self) -> ServerResult<Multipart<'a>> {

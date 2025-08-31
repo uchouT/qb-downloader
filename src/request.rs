@@ -14,7 +14,7 @@ fn get_client() -> &'static Client {
     HTTP_CLIENT.get_or_init(|| {
         let jar = Arc::new(Jar::default());
         Client::builder()
-            .user_agent("qb-downloader-rust/1.0")
+            .user_agent("qb-downloader/1.0")
             .cookie_provider(jar)
             .timeout(Duration::from_secs(30))
             .connect_timeout(Duration::from_secs(10))
