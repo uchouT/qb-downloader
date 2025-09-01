@@ -2,10 +2,7 @@
 
 pub mod error;
 use crate::{
-    Entity,
-    config::Config,
-    remove_slash,
-    request::{self, RequestBuilderExt},
+    config::Config, remove_slash, request::{self, RequestBuilderExt}, task, Entity
 };
 use error::{QbError, QbErrorKind};
 use log::{error, info, warn};
@@ -215,7 +212,6 @@ pub async fn get_state(hash: &str) -> Result<String, QbError> {
         .await
 }
 
-
 /// set the download priority of a torrent
 /// # Arguments
 /// * `hash` - The hash of the torrent.
@@ -265,12 +261,31 @@ pub async fn set_share_limit(
         .await
 }
 
+struct CancelGuard<'a> {
+    hash: &'a str,
+    need_cancel: bool,
+}
+impl<'a> Drop for CancelGuard<'a> {
+    fn drop(&mut self) {
+        if !self.need_cancel {
+            let hash = self.hash.to_string();
+            tokio::spawn(async move {
+                let _ = task::delete(&hash, false).await;
+            });
+        }
+    }
+}
 /// export .torrent file to a specified path
 pub async fn export(hash: &str, path: &str) -> Result<(), QbError> {
     // wait for the torrent to fetch meta data
+    let mut _guard = CancelGuard {
+        hash,
+        need_cancel: true,
+    };
     loop {
         let state = get_state(hash).await?;
         if ["stoppedUP", "pausedUP", "stoppedDL", "pausedDL"].contains(&state.as_str()) {
+            _guard.need_cancel = false;
             break;
         }
         sleep(std::time::Duration::from_secs(1)).await;

@@ -20,14 +20,15 @@ use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::from_slice;
 use std::{collections::HashMap, str::FromStr};
 
-pub type ServerResult<T> = std::result::Result<T, ServerError>;
+type ServerResult<T> = std::result::Result<T, ServerError>;
 
 pub trait Action: Send + Sync {
     fn execute(&self, req: Req) -> impl Future<Output = ServerResult<Response<BoxBody>>> + Send;
+    /// default needs auth
     fn needs_auth(&self) -> bool {
         true
     }
-    /// default needs auth
+
     fn auth(&self, req: &Req) -> ServerResult<()> {
         if let Some(auth_header) = req.headers().get(header::AUTHORIZATION)
             && !auth_header.is_empty()

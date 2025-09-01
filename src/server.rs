@@ -21,9 +21,9 @@ use std::{
 };
 use tokio::{net::TcpListener, sync::broadcast, time::sleep};
 
-pub type BoxBody = http_body_util::combinators::BoxBody<Bytes, Infallible>;
+type BoxBody = http_body_util::combinators::BoxBody<Bytes, Infallible>;
 type ServerResult<T> = std::result::Result<T, Infallible>;
-pub type Req = Request<Incoming>;
+type Req = Request<Incoming>;
 
 macro_rules! define_routes {
     ($($path: literal => $action_type: ty), * $(,)?) => {

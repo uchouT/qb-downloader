@@ -171,7 +171,7 @@ impl Entity for Task {
 
 pub async fn start(hash: &str) -> Result<(), TaskError> {
     qb::start(hash).await?;
-    
+
     {
         let task_map = Task::get().await;
         if let Some(task) = task_map.value.get(hash) {
@@ -213,7 +213,11 @@ pub async fn stop(hash: &str) -> Result<(), TaskError> {
 
 /// clean the cached torrent file according to hash
 pub async fn clean(hash: &str) -> Result<(), TaskError> {
-    fs::remove_file(get_torrent_path(hash)).await.map_err(|e| {
+    let path = get_torrent_path(hash);
+    if !path.exists() {
+        return Ok(());
+    }
+    fs::remove_file(path).await.map_err(|e| {
         error!("Failed to clean waited torrent file: {hash}");
         CommonError::from(e)
     })?;

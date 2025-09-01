@@ -140,7 +140,7 @@ async fn delete(req: Req) -> ServerResult<Response<BoxBody>> {
         })?;
         get_required_param::<String>(&params, "hash")?
     };
-    task::delete(&hash, true).await?;
+    let _ = task::delete(&hash, true).await;
     Ok(ResultResponse::success())
 }
 

@@ -143,9 +143,10 @@ async fn delete(req: Req) -> ServerResult<Response<BoxBody>> {
         kind: ServerErrorKind::MissingParams("hash"),
     })?;
     let hash: String = get_required_param(&params, "hash")?;
-    task::delete(&hash, false).await?;
+    let _ = task::delete(&hash, false).await;
     Ok(ResultResponse::success())
 }
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TorrentRes {
     pub torrent_name: String,
