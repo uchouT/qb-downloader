@@ -38,7 +38,7 @@ impl AsRef<str> for Tag {
 pub struct Qb {
     host: String,
     logined: bool,
-    // TODO: add vertion
+    version: u8,
 }
 
 #[derive(Clone, Deserialize, Debug)]
@@ -59,6 +59,7 @@ impl Qb {
         Qb {
             host: Config::read(|c| c.qb_host.clone()).await,
             logined: false,
+            version: 0,
         }
     }
 }
@@ -88,16 +89,54 @@ pub async fn login() {
     .await;
 
     let refined_host = remove_slash(host);
-    let logined = test_login(refined_host.as_str(), username.as_str(), pass.as_str()).await;
+    let logined = test_login(&refined_host, &username, &pass).await;
 
     let mut qb = QB.get().unwrap().write().await;
-    qb.host = refined_host;
-    qb.logined = logined;
+    qb.host = refined_host.clone();
     if logined {
-        info!("qBittorrent login successful");
+        match get_version(&refined_host).await {
+            Ok(v) => {
+                qb.version = v;
+                qb.logined = true;
+                info!("qBittorrent login successful");
+            }
+            Err(e) => {
+                if matches!(e.kind, QbErrorKind::UnsupportedVersion) {
+                    warn!("qBittorrent version is not supported");
+                } else {
+                    error!("Failed to get qBittorrent version: {e}");
+                }
+                qb.logined = false;
+                qb.version = 0;
+            }
+        }
     } else {
         warn!("qBittorrent login failed");
     }
+}
+
+async fn get_version(host: &str) -> Result<u8, QbError> {
+    request::get(format!("{host}/api/v2/app/version"))
+        .then(async |res| {
+            let ver = res.text().await?;
+            let c = ver
+                .strip_prefix("v")
+                .and_then(|v| Some(v.split('.').collect::<Vec<&str>>()))
+                .unwrap();
+            let first = c[0].parse::<u8>().unwrap();
+            if first == 5 {
+                return Ok(first);
+            } else if first == 4 {
+                let second = c[1].parse::<u8>().unwrap();
+                if second >= 1 {
+                    return Ok(first);
+                }
+            }
+            Err(QbError {
+                kind: QbErrorKind::UnsupportedVersion,
+            })
+        })
+        .await
 }
 
 pub async fn test_login(host: &str, username: &str, pass: &str) -> bool {
@@ -179,12 +218,20 @@ async fn manage(hash: &str, action: &str) -> Result<(), QbError> {
 
 /// start a torrent
 pub async fn start(hash: &str) -> Result<(), QbError> {
-    manage(hash, "start").await
+    if QB.get().unwrap().read().await.version < 5 {
+        manage(hash, "resume").await
+    } else {
+        manage(hash, "start").await
+    }
 }
 
 /// stop a torrent
 pub async fn stop(hash: &str) -> Result<(), QbError> {
-    manage(hash, "stop").await
+    if QB.get().unwrap().read().await.version < 5 {
+        manage(hash, "pause").await
+    } else {
+        manage(hash, "stop").await
+    }
 }
 
 /// delete a torrent

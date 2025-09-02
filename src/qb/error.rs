@@ -10,7 +10,7 @@ pub struct QbError {
 #[non_exhaustive]
 pub enum QbErrorKind {
     NotLogin,
-
+    UnsupportedVersion,
     Other(String),
     NoNewTorrents,
 
@@ -40,6 +40,7 @@ impl Display for QbErrorKind {
             Self::Other(ref msg) => f.write_str(msg),
             Self::NoNewTorrents => f.write_str("No new torrents found"),
             Self::Common(ref err) => write!(f, "{err}"),
+            Self::UnsupportedVersion => f.write_str("qBittorrent version is not supported"),
         }
     }
 }
