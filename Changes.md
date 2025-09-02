@@ -1,3 +1,2 @@
-- Rewrite with Rust
-
-Old java version is at `java` branch
+- add support for old (>= v4.1) qbittorrent version.
+- fix cleanup after torrent cancellation.
