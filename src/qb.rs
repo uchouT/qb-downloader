@@ -2,7 +2,10 @@
 
 pub mod error;
 use crate::{
-    config::Config, remove_slash, request::{self, RequestBuilderExt}, task, Entity
+    Entity,
+    config::Config,
+    remove_slash,
+    request::{self, RequestBuilderExt},
 };
 use error::{QbError, QbErrorKind};
 use log::{error, info, warn};
@@ -16,17 +19,17 @@ const CATEGORY: &str = "QBD";
 /// qBittorrent tag
 pub enum Tag {
     // new added torrent, but haven't fetched meta data yet.
-    NEW,
+    New,
 
     // new added torrent, but haven't added to task list yet.
-    WAITED,
+    Waited,
 }
 
 impl AsRef<str> for Tag {
     fn as_ref(&self) -> &str {
         match self {
-            Tag::NEW => "qbd_new",
-            Tag::WAITED => "qbd_waited",
+            Tag::New => "qbd_new",
+            Tag::Waited => "qbd_waited",
         }
     }
 }
@@ -127,11 +130,11 @@ pub async fn get_torrent_info() -> Result<Vec<TorrentInfo>, QbError> {
         .await
 }
 
-/// get the new added torrent hash, and remove the marked tag
+/// get the new added torrent hash, according to the tag [`Tag::New`]
 pub async fn get_hash() -> Result<String, QbError> {
     let host = get_host().await?;
     request::get(format!("{host}/api/v2/torrents/info"))
-        .query(&[("category", CATEGORY), ("tag", Tag::NEW.as_ref())])
+        .query(&[("category", CATEGORY), ("tag", Tag::New.as_ref())])
         .then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
             // Always occurs when a same torrent is added
@@ -141,7 +144,6 @@ pub async fn get_hash() -> Result<String, QbError> {
                 });
             }
             let hash = json_array[0].get("hash").and_then(|v| v.as_str()).unwrap();
-            remove_tag(hash, Tag::NEW).await?;
             Ok(hash.to_string())
         })
         .await
@@ -205,7 +207,11 @@ pub async fn get_state(hash: &str) -> Result<String, QbError> {
         .query(&[("hashes", hash)])
         .then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
-            // FIXME: may cause panic if torrent canceled before fetching meta data
+            if json_array.is_empty() {
+                return Err(QbError {
+                    kind: QbErrorKind::NoNewTorrents,
+                });
+            }
             let state = json_array[0].get("state").and_then(|v| v.as_str()).unwrap();
             Ok(state.to_string())
         })
@@ -261,31 +267,12 @@ pub async fn set_share_limit(
         .await
 }
 
-struct CancelGuard<'a> {
-    hash: &'a str,
-    need_cancel: bool,
-}
-impl<'a> Drop for CancelGuard<'a> {
-    fn drop(&mut self) {
-        if !self.need_cancel {
-            let hash = self.hash.to_string();
-            tokio::spawn(async move {
-                let _ = task::delete(&hash, false).await;
-            });
-        }
-    }
-}
-/// export .torrent file to a specified path
-pub async fn export(hash: &str, path: &str) -> Result<(), QbError> {
+/// export .torrent file to a specified path, and remove the [`Tag::New`]
+pub async fn export(hash: &str, path: &Path) -> Result<(), QbError> {
     // wait for the torrent to fetch meta data
-    let mut _guard = CancelGuard {
-        hash,
-        need_cancel: true,
-    };
     loop {
         let state = get_state(hash).await?;
         if ["stoppedUP", "pausedUP", "stoppedDL", "pausedDL"].contains(&state.as_str()) {
-            _guard.need_cancel = false;
             break;
         }
         sleep(std::time::Duration::from_secs(1)).await;
@@ -297,6 +284,7 @@ pub async fn export(hash: &str, path: &str) -> Result<(), QbError> {
             let data = res.bytes().await?;
             let mut file = File::create(path)?;
             file.write_all(&data)?;
+            remove_tag(hash, Tag::New).await?;
             Ok(())
         })
         .await
@@ -319,18 +307,17 @@ pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, QbError> {
 }
 
 /// add a torrent to qBittorrent by URL
-/// if url is a magnet link, means hash is known, else add tag NEW and wait for [`get_hash`] to fetch the hash
-pub async fn add_by_url(url: &str, save_path: &str, is_magnet: bool) -> Result<(), QbError> {
+/// if url is a magnet link, means hash is known, else add tag New and wait for [`get_hash`] to fetch the meta data
+pub async fn add_by_url(url: &str, save_path: &str) -> Result<(), QbError> {
     let host = get_host().await?;
-    let mut param = HashMap::from([
+    let param = HashMap::from([
         ("urls", url),
         ("savepath", save_path),
         ("category", CATEGORY),
         ("stopCondition", "MetadataReceived"),
+        ("tags", Tag::New.as_ref()),
     ]);
-    if !is_magnet {
-        param.insert("tags", Tag::NEW.as_ref());
-    }
+
     request::post(format!("{host}/api/v2/torrents/add"))
         .form(&param)
         .then(async |_| Ok(()))
@@ -378,8 +365,7 @@ pub async fn add_by_bytes(file_name: &str, save_path: &str, data: &[u8]) -> Resu
 /// Try to parse the hash from a url first, usually used to parse magnet link
 /// If failed, it means the url is probably an http link, e.g. "http://example.com/file.torrent"
 pub fn try_parse_hash(url: &str) -> Option<String> {
-    if url.starts_with("magnet:?xt=urn:btih:") {
-        let mut hash = &url[20..];
+    if let Some(mut hash) = url.strip_prefix("magnet:?xt=urn:btih:") {
         if let Some(end) = hash.find('&') {
             hash = &hash[..end];
         }

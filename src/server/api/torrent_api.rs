@@ -4,20 +4,24 @@
 //! if application/json, add by url, request body is [`TorrentReq`]
 //! GET: get torrent content tree
 //! DELETE: delete torrent. which is not added as task
+
 use crate::{
     Entity,
     bencode::{self, FileNode},
     config::{Config, strip_slash},
-    qb, remove_slash,
+    qb::{self, Tag},
+    remove_slash,
     server::{
         ResultResponse,
-        api::{ReqExt, from_json, get_json_body, get_param_map, get_required_param},
+        api::{
+            ReqExt, from_json, get_json_body, get_option_param, get_param_map, get_required_param,
+        },
         error::{ServerError, ServerErrorKind},
     },
-    task::{self, get_torrent_path},
+    task::{self, error::TaskErrorKind, get_torrent_path},
 };
+
 use hyper::{Method, Response, StatusCode, body::Bytes};
-use log::error;
 use serde::{Deserialize, Serialize};
 
 use super::{Action, BoxBody, Req, ServerResult};
@@ -47,9 +51,16 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     } else {
         add_by_url(req).await?
     };
-    let hash = task::add_torrent(file.as_deref(), &url, &save_path)
-        .await
-        .inspect_err(|_| error!("Add torrent failed"))?;
+    let hash = match task::add_torrent(file.as_deref(), &url, &save_path).await {
+        Ok(h) => h,
+        Err(e) => {
+            if let TaskErrorKind::Abort = e.kind {
+                return Ok(ResultResponse::success());
+            } else {
+                return Err(ServerError::from(e));
+            }
+        }
+    };
     let torrent_name = bencode::get_torrent_name(&hash).await.inspect_err(|_| {
         let hash = hash.clone();
         tokio::spawn(async move {
@@ -139,11 +150,20 @@ async fn get(req: Req) -> ServerResult<Response<BoxBody>> {
 
 /// delete aborted torrent (not added as task)
 async fn delete(req: Req) -> ServerResult<Response<BoxBody>> {
-    let params = get_param_map(&req).ok_or(ServerError {
-        kind: ServerErrorKind::MissingParams("hash"),
-    })?;
-    let hash: String = get_required_param(&params, "hash")?;
-    let _ = task::delete(&hash, false).await;
+    let hash = {
+        if let Some(params) = get_param_map(&req) {
+            get_option_param::<String>(&params, "hash")
+        } else {
+            None
+        }
+    };
+    if let Some(hash) = hash {
+        task::delete(&hash, false).await?;
+    } else {
+        let hash_list = qb::get_tag_torrent_list(Tag::New).await?;
+        let hash = hash_list.join("|");
+        qb::delete(hash.as_str(), true).await?;
+    }
     Ok(ResultResponse::success())
 }
 

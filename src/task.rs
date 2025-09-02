@@ -19,7 +19,8 @@ use tokio::{
 use crate::{
     Entity, bencode,
     error::{CommonError, TaskError},
-    format_error_chain, qb,
+    format_error_chain,
+    qb::{self, error::QbErrorKind},
     task::error::TaskErrorKind,
     upload::Uploader,
 };
@@ -261,34 +262,37 @@ pub async fn add_torrent(
     let hash = {
         if let Some(file) = file {
             qb::add_by_bytes(url, save_path, file).await?;
-            bencode::get_hash(file)?
+            let hash = bencode::get_hash(file)?;
+            let path = get_torrent_path(&hash);
+            fs::write(path, file).await.map_err(CommonError::from)?;
+            hash
         } else {
-            if let Some(hash) = qb::try_parse_hash(url) {
-                qb::add_by_url(url, save_path, true).await?;
-                hash
-            } else {
-                let _lock = ADD_TORRENT_LOCK.lock().await;
-                qb::add_by_url(url, save_path, false).await?;
-                qb::get_hash().await?
-            }
+            let _lock = ADD_TORRENT_LOCK.lock().await;
+            let hash = {
+                if let Some(hash) = qb::try_parse_hash(url) {
+                    qb::add_by_url(url, save_path).await?;
+                    hash
+                } else {
+                    qb::add_by_url(url, save_path).await?;
+                    qb::get_hash().await?
+                }
+            };
+            let path = get_torrent_path(&hash);
+            qb::export(&hash, &path).await.map_err(|e| {
+                if let QbErrorKind::NoNewTorrents = e.kind {
+                    TaskError {
+                        kind: TaskErrorKind::Abort,
+                    }
+                } else {
+                    TaskError::from(e)
+                }
+            })?;
+            hash
         }
     };
-    // NOTE: removing this line may cause unexpected bugs
-    // sleep(std::time::Duration::from_millis(500)).await;
-    export(hash.as_str(), file).await?;
-    qb::add_tag(hash.as_str(), qb::Tag::WAITED).await?;
-    Ok(hash)
-}
 
-/// Cache torrent file for fastly re-adding
-pub async fn export(hash: &str, file_data: Option<&[u8]>) -> Result<(), TaskError> {
-    let path = get_torrent_path(hash);
-    if let Some(data) = file_data {
-        fs::write(path, data).await.map_err(CommonError::from)?;
-    } else {
-        qb::export(hash, path.to_str().unwrap()).await?;
-    }
-    Ok(())
+    qb::add_tag(hash.as_str(), qb::Tag::Waited).await?;
+    Ok(hash)
 }
 
 pub fn get_torrent_path(hash: &str) -> PathBuf {
@@ -353,7 +357,7 @@ pub async fn launch(index: usize, hash: &str, task: &mut TaskValue) -> Result<()
     qb::set_not_download(hash, task.file_num).await?;
     qb::set_prio(hash, 1, task.task_order.get(index).unwrap()).await?;
     qb::start(hash).await?;
-    qb::remove_tag(hash, qb::Tag::WAITED).await?;
+    qb::remove_tag(hash, qb::Tag::Waited).await?;
     task.status = Status::Downloading;
     Ok(())
 }
@@ -420,7 +424,7 @@ fn get_task_order(
 
 /// clean waited torrents, always occurs when a task-adding is canceled.
 pub async fn clean_waited() -> Result<(), TaskError> {
-    let hash_list = qb::get_tag_torrent_list(qb::Tag::WAITED).await?;
+    let hash_list = qb::get_tag_torrent_list(qb::Tag::Waited).await?;
 
     if hash_list.is_empty() {
         return Ok(());

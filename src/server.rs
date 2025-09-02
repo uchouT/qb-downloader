@@ -68,7 +68,7 @@ pub async fn run(
     mut shutdown_rx: broadcast::Receiver<()>,
     port: u16,
 ) -> std::result::Result<(), Error> {
-    let addr: SocketAddr = ([127, 0, 0, 1], port).into();
+    let addr: SocketAddr = ([0, 0, 0, 0], port).into();
     let listener = TcpListener::bind(addr).await.map_err(CommonError::from)?;
     let graceful = hyper_util::server::graceful::GracefulShutdown::new();
     info!("Listening on http://{addr}");

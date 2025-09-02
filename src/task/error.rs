@@ -20,6 +20,7 @@ pub enum TaskErrorKind {
     Qb(QbError),
     Other(String),
     OverSize,
+    Abort
 }
 
 impl Display for TaskError {
@@ -44,6 +45,7 @@ impl Display for TaskErrorKind {
             Self::Other(ref msg) => f.write_str(msg),
             Self::Bencode(ref e) => write!(f, "error parse torrent: {e}"),
             Self::OverSize => f.write_str("Selected files exceed maximum length"),
+            Self::Abort => f.write_str("Task aborted"),
         }
     }
 }
