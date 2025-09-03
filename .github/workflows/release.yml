@@ -2,12 +2,8 @@ name: release
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
-env:
-  GITHUB_TOKEN: ${{ github.token }}
 jobs:
   release:
     name: Release - ${{ matrix.platform.os-name }}
