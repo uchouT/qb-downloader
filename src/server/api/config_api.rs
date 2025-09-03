@@ -12,7 +12,7 @@ use crate::{
         error::{ServerError, ServerErrorKind},
     },
 };
-use futures::future::join;
+use futures_util::future::join;
 use hyper::{Method, Response};
 use log::error;
 
@@ -53,7 +53,15 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
         config.account = account_bak;
     }
 
-    let (config_res, _) = join(update_config(config, account_changed), qb::login()).await;
+    let (_, config_res) = join(
+        qb::login_with(
+            &config.qb_host.clone(),
+            &config.qb_username.clone(),
+            &config.qb_password.clone(),
+        ),
+        update_config(config, account_changed),
+    )
+    .await;
     if let Err(e) = config_res {
         error!("error saving config: {e}");
     }
@@ -62,6 +70,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     ))
 }
 
+/// update config with config value
 async fn update_config(config: ConfigValue, account_changed: bool) -> Result<(), CommonError> {
     Config::write(|c| {
         *c = config;

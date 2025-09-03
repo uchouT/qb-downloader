@@ -1,6 +1,6 @@
 use std::{convert::Infallible, path::PathBuf};
 
-use futures::try_join;
+use futures_util::try_join;
 use log::{error, info};
 use tokio::sync::broadcast;
 
@@ -24,28 +24,29 @@ impl Application {
         Self
     }
 
-    fn create_runtime() -> tokio::runtime::Runtime {
-        tokio::runtime::Builder::new_multi_thread()
+    pub fn run(&self, port: u16) -> Result<(), Error> {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
             .build()
-            .expect("Failed to create Tokio runtime")
-    }
+            .expect("Failed to create Tokio runtime");
 
-    pub fn run(&self, port: u16) -> Result<(), Error> {
-        let runtime = Self::create_runtime();
         runtime.block_on(async move {
             let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
             tokio::spawn(Self::wait_for_signal(shutdown_tx.clone()));
-            let result = try_join!(
-                task::handle::run(shutdown_tx.subscribe()),
-                server::run(shutdown_tx.subscribe(), port)
-            );
 
-            if let Err(e) = shutdown().await {
-                error!("Error occurred while shutting down application: {e}");
-            }
+            let task_service = tokio::spawn(task::handle::run(shutdown_tx.subscribe()));
+            let server_service = tokio::spawn(server::run(shutdown_tx.subscribe(), port));
+
+            let result = match try_join!(task_service, server_service) {
+                Ok((res1, res2)) => res1.and(res2),
+                Err(e) => {
+                    error!("A service encountered an error: {e}");
+                    Ok(())
+                }
+            };
+            let _ = cleanup().await;
             result
         })?;
         Ok(())
@@ -60,7 +61,7 @@ impl Application {
 }
 
 /// Task before shutdown the application
-async fn shutdown() -> Result<(), Infallible> {
+async fn cleanup() -> Result<(), Infallible> {
     if qb::is_logined().await {
         info!("Removing waited torrents");
         let _ = task::clean_waited().await;

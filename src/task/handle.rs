@@ -4,7 +4,7 @@ use crate::{
     Entity, Error, format_error_chain, qb,
     task::{self, Status, TASK_LIST, Task, TaskItem, error::TaskError, launch},
 };
-use futures::{FutureExt, future::join_all, select};
+use futures_util::{FutureExt, future::join_all, select};
 use log::{error, info, warn};
 use std::sync::Arc;
 use tokio::{

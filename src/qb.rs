@@ -78,9 +78,10 @@ async fn get_host() -> Result<String, QbError> {
         })
     }
 }
-/// login to qBittorrent, and update the host and logined status
+
+/// try to login with qb info in config
 pub async fn login() {
-    let (host, username, pass) = Config::read(|c| {
+    let (host, username, password) = Config::read(|c| {
         (
             c.qb_host.clone(),
             c.qb_username.clone(),
@@ -89,13 +90,17 @@ pub async fn login() {
     })
     .await;
 
-    let refined_host = remove_slash(host);
-    let logined = test_login(&refined_host, &username, &pass).await;
+    login_with(&host, &username, &password).await;
+}
+
+/// login to qBittorrent, and update the host and logined status
+pub async fn login_with(host: &str, username: &str, password: &str) {
+    let logined = test_login(host, username, password).await;
 
     let mut qb = QB.get().unwrap().write().await;
-    qb.host = refined_host.clone();
+    qb.host = host.to_string();
     if logined {
-        match get_version(&refined_host).await {
+        match get_version(host).await {
             Ok(v) => {
                 qb.version = v;
                 qb.logined = true;
@@ -112,6 +117,7 @@ pub async fn login() {
             }
         }
     } else {
+        qb.logined = false;
         warn!("qBittorrent login failed");
     }
 }
@@ -140,6 +146,7 @@ async fn get_version(host: &str) -> Result<u8, QbError> {
         .await
 }
 
+/// accept any form of host, e.g. "http://example.com" or "example.com"
 pub async fn test_login(host: &str, username: &str, pass: &str) -> bool {
     let refined_host = remove_slash(host);
     let mut form = HashMap::new();

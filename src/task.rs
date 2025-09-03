@@ -8,7 +8,7 @@ use std::{
 };
 
 use directories_next::BaseDirs;
-use futures::future::{join, join_all};
+use futures_util::future::{join, join_all};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use tokio::{

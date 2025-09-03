@@ -3,7 +3,7 @@ pub mod error;
 use crate::{Entity, Error, config::Config, error::CommonError};
 use api::Action;
 use error::handle;
-use futures::{FutureExt, select};
+use futures_util::{FutureExt, select};
 use http_body_util::{BodyExt, Empty, Full};
 use hyper::{
     body::{Bytes, Incoming},
