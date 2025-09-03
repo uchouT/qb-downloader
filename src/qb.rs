@@ -7,6 +7,7 @@ use crate::{
     remove_slash,
     request::{self, RequestBuilderExt},
 };
+use base32::Alphabet;
 use error::{QbError, QbErrorKind};
 use log::{error, info, warn};
 use reqwest::multipart;
@@ -416,7 +417,20 @@ pub fn try_parse_hash(url: &str) -> Option<String> {
         if let Some(end) = hash.find('&') {
             hash = &hash[..end];
         }
-        Some(hash.to_string())
+        let mut hash = hash.to_string();
+        // Base32
+        if hash.len() == 32
+            && let Some(hash_raw) = base32::decode(Alphabet::Rfc4648 { padding: false }, &hash)
+        {
+            hash = hash_raw
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>();
+        } else {
+            // parse base32 failed
+            return None;
+        }
+        Some(hash)
     } else {
         None
     }
