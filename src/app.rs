@@ -1,8 +1,11 @@
 use std::{convert::Infallible, path::PathBuf};
 
-use futures_util::try_join;
+use futures_util::{FutureExt, select, try_join};
 use log::{error, info};
-use tokio::sync::broadcast;
+use tokio::{
+    signal::{self, unix::SignalKind},
+    sync::broadcast,
+};
 
 use crate::{
     Entity, Error, VERSION,
@@ -53,9 +56,13 @@ impl Application {
     }
 
     async fn wait_for_signal(shutdown_tx: broadcast::Sender<()>) {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("Failed to listen for shutdown signal");
+        let mut sigterm =
+            signal::unix::signal(SignalKind::terminate()).expect("Failed to set up signal handler");
+
+        select! {
+            _ = signal::ctrl_c().fuse() =>  {},
+            _ =  sigterm.recv().fuse()=> {},
+        }
         let _ = shutdown_tx.send(());
     }
 }
