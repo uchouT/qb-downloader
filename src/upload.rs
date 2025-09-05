@@ -1,8 +1,7 @@
 //! deal with upload
 
 use crate::{
-    Entity,
-    config::Config,
+    config,
     error::CommonError,
     request::{self, RequestBuilderExt},
     task::{
@@ -43,8 +42,6 @@ impl Uploader {
             Uploader::Rclone(_) => Rclone::upload(task).await,
         }
     }
-
-    // TODO: split config into separate struct
 }
 
 pub struct Rclone;
@@ -52,14 +49,10 @@ pub struct Rclone;
 impl UploaderTrait for Rclone {
     /// submit upload task to rclone, and store the job ID in the task
     async fn upload(task: &mut TaskValue) -> Result<(), TaskError> {
-        let (host, username, password) = Config::read(|config| {
-            (
-                config.rclone_host.clone(),
-                config.rclone_username.clone(),
-                config.rclone_password.clone(),
-            )
-        })
-        .await;
+        let rclone_cfg = config::value().rclone().await;
+        let host = &rclone_cfg.rclone_host;
+        let username = &rclone_cfg.rclone_username;
+        let password = &rclone_cfg.rclone_password;
         let (src, dst) = (
             format!("{}/{}", task.save_path, task.root_dir),
             format!("{}/{}", task.upload_path, task.root_dir),
@@ -90,14 +83,10 @@ impl UploaderTrait for Rclone {
     }
 
     async fn check(task: &mut TaskValue) -> Result<bool, TaskError> {
-        let (host, username, password) = Config::read(|config| {
-            (
-                config.rclone_host.clone(),
-                config.rclone_username.clone(),
-                config.rclone_password.clone(),
-            )
-        })
-        .await;
+        let rclone_cfg = config::value().rclone().await;
+        let host = &rclone_cfg.rclone_host;
+        let username = &rclone_cfg.rclone_username;
+        let password = &rclone_cfg.rclone_password;
         if let Uploader::Rclone(Some(job_id)) = task.uploader {
             request::post(format!("{host}/job/status"))
                 .basic_auth(username, Some(password))

@@ -5,8 +5,7 @@
 //! PUT: add new task
 //! DELETE: delete task
 use crate::{
-    Entity,
-    config::{Config, strip_slash},
+    config::{self, strip_slash},
     qb,
     server::{
         ResultResponse,
@@ -27,7 +26,7 @@ pub struct TaskAPI;
 
 impl Action for TaskAPI {
     async fn execute(&self, req: Req) -> ServerResult<Response<BoxBody>> {
-        if !qb::is_logined().await {
+        if !qb::is_logined() {
             return Ok(ResultResponse::success());
         }
 
@@ -65,31 +64,32 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     {
         return Ok(ResultResponse::error_msg("Selected none content"));
     }
-    Config::read(|c| {
-        if task_req.upload_path.is_empty() {
-            if c.default_upload_path.is_empty() {
-                return Err(ServerError {
-                    kind: ServerErrorKind::MissingParams("upload_path"),
-                });
-            } else {
-                task_req.upload_path = c.default_upload_path.clone();
-            }
+
+    // TODO: Code here should be refactored to avoid duplicate code in the future
+    let c = config::value();
+    if task_req.upload_path.is_empty() {
+        let general_cfg = c.general().await;
+        if general_cfg.default_upload_path.is_empty() {
+            return Err(ServerError {
+                kind: ServerErrorKind::MissingParams("upload_path"),
+            });
+        } else {
+            task_req.upload_path = general_cfg.default_upload_path.clone();
         }
-        task_req
-            .seeding_time_limit
-            .or(c.default_seeding_time_limit)
-            .ok_or(ServerError {
-                kind: ServerErrorKind::MissingParams("seeding_time_limit"),
-            })?;
-        task_req
-            .ratio_limit
-            .or(c.default_ratio_limit)
-            .ok_or(ServerError {
-                kind: ServerErrorKind::MissingParams("ratio_limit"),
-            })?;
-        Ok::<(), ServerError>(())
-    })
-    .await?;
+    }
+    task_req
+        .seeding_time_limit
+        .or(c.qb().await.default_seeding_time_limit)
+        .ok_or(ServerError {
+            kind: ServerErrorKind::MissingParams("seeding_time_limit"),
+        })?;
+    task_req
+        .ratio_limit
+        .or(c.qb().await.default_ratio_limit)
+        .ok_or(ServerError {
+            kind: ServerErrorKind::MissingParams("ratio_limit"),
+        })?;
+    
     if let Err(e) = task::add(
         task_req.torrent_res.hash,
         task_req.torrent_res.torrent_name,

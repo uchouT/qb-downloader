@@ -58,6 +58,6 @@ struct TestReq<'a> {
 }
 
 async fn get() -> ServerResult<Response<BoxBody>> {
-    let qb_ok = qb::is_logined().await;
+    let qb_ok = qb::is_logined();
     Ok(ResultResponse::success_data(qb_ok))
 }

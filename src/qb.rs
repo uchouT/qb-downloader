@@ -2,9 +2,7 @@
 
 pub mod error;
 use crate::{
-    Entity,
-    config::Config,
-    remove_slash,
+    config, remove_slash,
     request::{self, RequestBuilderExt},
 };
 use base32::Alphabet;
@@ -13,8 +11,14 @@ use log::{error, info, warn};
 use reqwest::multipart;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::HashMap, fs::File, io::Write, path::Path, sync::OnceLock};
-use tokio::{sync::RwLock, time::sleep};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::Write,
+    path::Path,
+    sync::{Arc, OnceLock, RwLock},
+};
+use tokio::time::sleep;
 const CATEGORY: &str = "QBD";
 
 /// qBittorrent tag
@@ -37,7 +41,7 @@ impl AsRef<str> for Tag {
 
 #[derive(Debug)]
 pub struct Qb {
-    host: String,
+    host: Arc<str>,
     logined: bool,
     version: u8,
 }
@@ -58,17 +62,19 @@ pub async fn init() {
 impl Qb {
     pub async fn new() -> Self {
         Qb {
-            host: Config::read(|c| c.qb_host.clone()).await,
+            host: Arc::from(config::value().qb().await.qb_host.as_str()),
             logined: false,
             version: 0,
         }
     }
 }
-pub async fn is_logined() -> bool {
-    QB.get().unwrap().read().await.logined
+pub fn is_logined() -> bool {
+    QB.get().unwrap().read().unwrap().logined
 }
-async fn get_host() -> Result<String, QbError> {
-    let qb = QB.get().unwrap().read().await;
+
+/// get the host if logged in, else return error
+fn host() -> Result<Arc<str>, QbError> {
+    let qb = QB.get().unwrap().read().unwrap();
     if qb.logined {
         Ok(qb.host.clone())
     } else {
@@ -79,29 +85,26 @@ async fn get_host() -> Result<String, QbError> {
     }
 }
 
+fn version() -> u8 {
+    QB.get().unwrap().read().unwrap().version
+}
+
 /// try to login with qb info in config
 pub async fn login() {
-    let (host, username, password) = Config::read(|c| {
-        (
-            c.qb_host.clone(),
-            c.qb_username.clone(),
-            c.qb_password.clone(),
-        )
-    })
-    .await;
-
-    login_with(&host, &username, &password).await;
+    let qb_cfg = config::value().qb().await;
+    login_with(&qb_cfg.qb_host, &qb_cfg.qb_username, &qb_cfg.qb_password).await;
 }
 
 /// login to qBittorrent, and update the host and logined status
+/// # Precondition
+/// - host has been normalized.
 pub async fn login_with(host: &str, username: &str, password: &str) {
     let logined = test_login(host, username, password).await;
-
-    let mut qb = QB.get().unwrap().write().await;
-    qb.host = host.to_string();
+    QB.get().unwrap().write().unwrap().host = Arc::from(host);
     if logined {
         match get_version(host).await {
             Ok(v) => {
+                let mut qb = QB.get().unwrap().write().unwrap();
                 qb.version = v;
                 qb.logined = true;
                 info!("qBittorrent login successful");
@@ -112,11 +115,13 @@ pub async fn login_with(host: &str, username: &str, password: &str) {
                 } else {
                     error!("Failed to get qBittorrent version: {e}");
                 }
+                let mut qb = QB.get().unwrap().write().unwrap();
                 qb.logined = false;
                 qb.version = 0;
             }
         }
     } else {
+        let mut qb = QB.get().unwrap().write().unwrap();
         qb.logined = false;
         warn!("qBittorrent login failed");
     }
@@ -167,7 +172,7 @@ pub async fn test_login(host: &str, username: &str, pass: &str) -> bool {
 
 /// get all torrent infos with CATEGORY
 pub async fn get_torrent_info() -> Result<Vec<TorrentInfo>, QbError> {
-    let host = get_host().await?;
+    let host = host()?;
     request::get(format!("{host}/api/v2/torrents/info"))
         .query(&[("category", CATEGORY)])
         .then(async |res| {
@@ -179,7 +184,7 @@ pub async fn get_torrent_info() -> Result<Vec<TorrentInfo>, QbError> {
 
 /// get the new added torrent hash, according to the tag [`Tag::New`]
 pub async fn get_hash() -> Result<String, QbError> {
-    let host = get_host().await?;
+    let host = host()?;
     request::get(format!("{host}/api/v2/torrents/info"))
         .query(&[("category", CATEGORY), ("tag", Tag::New.as_ref())])
         .then(async |res| {
@@ -197,7 +202,7 @@ pub async fn get_hash() -> Result<String, QbError> {
 }
 
 async fn manage_tag(hash: &str, tag: Tag, action: &str) -> Result<(), QbError> {
-    let host = get_host().await?;
+    let host = host()?;
     let param = HashMap::from([("hashes", hash), ("tags", tag.as_ref())]);
     request::post(format!("{host}/api/v2/torrents/{action}"))
         .form(&param)
@@ -217,7 +222,7 @@ pub async fn add_tag(hash: &str, tag: Tag) -> Result<(), QbError> {
 
 /// manage torrent task
 async fn manage(hash: &str, action: &str) -> Result<(), QbError> {
-    let host = get_host().await?;
+    let host = host()?;
     request::post(format!("{host}/api/v2/torrents/{action}"))
         .form(&[("hashes", hash)])
         .then(async |_| Ok(()))
@@ -226,7 +231,7 @@ async fn manage(hash: &str, action: &str) -> Result<(), QbError> {
 
 /// start a torrent
 pub async fn start(hash: &str) -> Result<(), QbError> {
-    if QB.get().unwrap().read().await.version < 5 {
+    if version() < 5 {
         manage(hash, "resume").await
     } else {
         manage(hash, "start").await
@@ -235,7 +240,7 @@ pub async fn start(hash: &str) -> Result<(), QbError> {
 
 /// stop a torrent
 pub async fn stop(hash: &str) -> Result<(), QbError> {
-    if QB.get().unwrap().read().await.version < 5 {
+    if version() < 5 {
         manage(hash, "pause").await
     } else {
         manage(hash, "stop").await
@@ -244,7 +249,7 @@ pub async fn stop(hash: &str) -> Result<(), QbError> {
 
 /// delete a torrent
 pub async fn delete(hash: &str, delete_files: bool) -> Result<(), QbError> {
-    let host = get_host().await?;
+    let host = host()?;
     let param = HashMap::from([
         ("hashes", hash),
         ("deleteFiles", if delete_files { "true" } else { "false" }),
@@ -257,7 +262,7 @@ pub async fn delete(hash: &str, delete_files: bool) -> Result<(), QbError> {
 
 /// get the state of a torrent
 pub async fn get_state(hash: &str) -> Result<String, QbError> {
-    let host = get_host().await?;
+    let host = host()?;
     request::get(format!("{host}/api/v2/torrents/info"))
         .query(&[("hashes", hash)])
         .then(async |res| {
@@ -279,7 +284,7 @@ pub async fn get_state(hash: &str) -> Result<String, QbError> {
 /// * `priority` - 1 for download, 0 for not download.
 /// * `index_list` - the index list of files need to set.
 pub async fn set_prio(hash: &str, priority: u8, index_list: &[usize]) -> Result<(), QbError> {
-    let host = get_host().await?;
+    let host = host()?;
     let id = index_list
         .iter()
         .map(|i| i.to_string())
@@ -309,7 +314,7 @@ pub async fn set_share_limit(
     ratio_limit: f64,
     seeding_time_limit: i32,
 ) -> Result<(), QbError> {
-    let host = get_host().await?;
+    let host = host()?;
     let param = HashMap::from([
         ("hashes", hash.to_string()),
         ("ratioLimit", ratio_limit.to_string()),
@@ -332,7 +337,7 @@ pub async fn export(hash: &str, path: &Path) -> Result<(), QbError> {
         }
         sleep(std::time::Duration::from_secs(1)).await;
     }
-    let host = get_host().await?;
+    let host = host()?;
     request::post(format!("{host}/api/v2/torrents/export"))
         .form(&[("hash", hash)])
         .then(async |res| {
@@ -347,7 +352,7 @@ pub async fn export(hash: &str, path: &Path) -> Result<(), QbError> {
 
 /// get the hash list of torrents with a specific tag
 pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, QbError> {
-    let host = get_host().await?;
+    let host = host()?;
     request::get(format!("{host}/api/v2/torrents/info"))
         .query(&[("category", CATEGORY), ("tag", tag.as_ref())])
         .then(async |res| {
@@ -364,7 +369,7 @@ pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, QbError> {
 /// add a torrent to qBittorrent by URL
 /// if url is a magnet link, means hash is known, else add tag New and wait for [`get_hash`] to fetch the meta data
 pub async fn add_by_url(url: &str, save_path: &str) -> Result<(), QbError> {
-    let host = get_host().await?;
+    let host = host()?;
     let param = HashMap::from([
         ("urls", url),
         ("savepath", save_path),
@@ -387,7 +392,7 @@ pub async fn add_by_file(
     seeding_time_limit: i32,
     ratio_limit: f64,
 ) -> Result<(), QbError> {
-    let host = get_host().await?;
+    let host = host()?;
     let file_part = multipart::Part::file(torrent_path).await?;
     let form = multipart::Form::new()
         .part("torrents", file_part)
@@ -404,7 +409,7 @@ pub async fn add_by_file(
 
 /// add a torrent to qBittorrent by bytes
 pub async fn add_by_bytes(file_name: &str, save_path: &str, data: &[u8]) -> Result<(), QbError> {
-    let host = get_host().await?;
+    let host = host()?;
     let file_part = multipart::Part::bytes(data.to_vec()).file_name(file_name.to_string());
     let form = multipart::Form::new()
         .part("torrents", file_part)

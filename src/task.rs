@@ -424,6 +424,7 @@ fn get_task_order(
 
 /// clean waited torrents, always occurs when a task-adding is canceled.
 pub async fn clean_waited() -> Result<(), TaskError> {
+    // TODO: return at once when empty
     let hash_list = qb::get_tag_torrent_list(qb::Tag::Waited).await?;
 
     if hash_list.is_empty() {

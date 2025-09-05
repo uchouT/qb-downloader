@@ -2,9 +2,8 @@
 
 use super::{Action, BoxBody, Req, ServerResult};
 use crate::{
-    Entity,
     auth::{Login, TOKEN, encode},
-    config::{Account, Config},
+    config::{self, Account},
     server::{ResultResponse, api::from_json_owned},
 };
 use hyper::Response;
@@ -18,22 +17,25 @@ impl Action for LoginAPI {
     }
     async fn execute(&self, req: Req) -> ServerResult<Response<BoxBody>> {
         let account: Account = from_json_owned(req).await?;
-        Config::read(|c| {
-            if c.account.password != encode(&account.password)
-                || c.account.username != account.username
-            {
-                return Ok(ResultResponse::error_msg("invalid username or password"));
-            }
-            let key = if c.multi_login { "" } else { &gen_key(32) };
-            let login = Login {
-                account: &c.account,
-                key,
-            };
-            let new_token = encode(&serde_json::to_string(&login).unwrap_or_default());
-            *TOKEN.get().unwrap().write().unwrap() = new_token.clone();
-            Ok(ResultResponse::success_data(new_token))
-        })
-        .await
+
+        let general_cfg = config::value().general().await;
+        if general_cfg.account.password != encode(&account.password)
+            || general_cfg.account.username != account.username
+        {
+            return Ok(ResultResponse::error_msg("invalid username or password"));
+        }
+        let key = if general_cfg.multi_login {
+            ""
+        } else {
+            &gen_key(32)
+        };
+        let login = Login {
+            account: &general_cfg.account,
+            key,
+        };
+        let new_token = encode(&serde_json::to_string(&login).unwrap_or_default());
+        *TOKEN.get().unwrap().write().unwrap() = new_token.clone();
+        Ok(ResultResponse::success_data(new_token))
     }
 }
 

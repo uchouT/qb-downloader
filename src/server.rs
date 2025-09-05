@@ -1,6 +1,6 @@
 pub mod api;
 pub mod error;
-use crate::{Entity, Error, config::Config, error::CommonError};
+use crate::{Error, config, error::CommonError};
 use api::Action;
 use error::handle;
 use futures_util::{FutureExt, select};
@@ -28,7 +28,7 @@ type Req = Request<Incoming>;
 macro_rules! define_routes {
     ($($path: literal => $action_type: ty), * $(,)?) => {
         async fn route(req: Req, socket_addr: SocketAddr) -> ServerResult<Response<BoxBody>> {
-            if Config::read(|c| c.is_only_inner_ip && !is_inner_ip(socket_addr)).await {
+            if config::value().general().await.is_only_inner_ip && !is_inner_ip(socket_addr) {
                 return Ok(ResultResponse::error_with_code(StatusCode::FORBIDDEN));
             }
             match req.uri().path() {

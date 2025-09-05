@@ -19,7 +19,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
 directories-next = "2"
-tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "net", "signal"] }
+tokio = { version = "1", features = ["time", "sync", "net", "signal"] }
 hyper = { version = "1.6", features = ["server"] }
 hyper-util = { version = "0.1", features = ["server", "server-graceful"]}
 http-body-util = "0.1"

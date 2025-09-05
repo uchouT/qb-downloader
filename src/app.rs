@@ -9,7 +9,7 @@ use tokio::{
 
 use crate::{
     Entity, Error, VERSION,
-    config::{self, Config},
+    config,
     qb, server,
     task::{self, Task},
 };
@@ -28,8 +28,7 @@ impl Application {
     }
 
     pub fn run(&self, port: u16) -> Result<(), Error> {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
+        let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("Failed to create Tokio runtime");
@@ -69,11 +68,11 @@ impl Application {
 
 /// Task before shutdown the application
 async fn cleanup() -> Result<(), Infallible> {
-    if qb::is_logined().await {
+    if qb::is_logined() {
         info!("Removing waited torrents");
         let _ = task::clean_waited().await;
     }
-    if let Err(e) = config::Config::save().await {
+    if let Err(e) = config::save().await {
         error!("Failed to save configuration: {e}");
     }
     info!("Application shutdown completed");
@@ -113,7 +112,7 @@ pub fn init() -> Result<u16, Error> {
     }
     pretty_env_logger::init();
     info!("qb-downloader v{VERSION} starting...");
-    Config::init(config_path)?;
+    config::init(config_path)?;
     Task::init(task_path)?;
     Ok(port)
 }

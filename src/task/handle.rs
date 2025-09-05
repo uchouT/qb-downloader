@@ -33,7 +33,7 @@ pub async fn run(mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), Error> 
             }
 
             _ = task_interval.tick().fuse() => {
-                if !qb::is_logined().await {
+                if !qb::is_logined() {
                     continue;
                 }
                  if let Err(e) = process_task_list().await {

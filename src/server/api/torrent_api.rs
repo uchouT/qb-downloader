@@ -6,9 +6,8 @@
 //! DELETE: delete torrent. which is not added as task
 
 use crate::{
-    Entity,
     bencode::{self, FileNode},
-    config::{Config, strip_slash},
+    config::{self, strip_slash},
     qb::{self, Tag},
     remove_slash,
     server::{
@@ -31,7 +30,7 @@ pub struct TorrentAPI;
 
 impl Action for TorrentAPI {
     async fn execute(&self, req: Req) -> ServerResult<Response<BoxBody>> {
-        if !qb::is_logined().await {
+        if !qb::is_logined() {
             return Ok(ResultResponse::error_msg("Qbittorrent is not logged in"));
         }
         match *req.method() {
@@ -102,7 +101,7 @@ async fn add_by_file(req: Req) -> ServerResult<(Option<Bytes>, String, String)> 
         });
     }
     if save_path.is_none() {
-        let default_path = Config::read(|c| c.default_save_path.clone()).await;
+        let default_path = config::value().qb().await.default_save_path.clone();
         if default_path.is_empty() {
             return Err(ServerError {
                 kind: ServerErrorKind::MissingParams("save_path"),
@@ -119,7 +118,7 @@ async fn add_by_url(req: Req) -> ServerResult<(Option<Bytes>, String, String)> {
     let torrent_req: TorrentReq = from_json(&body)?;
     let save_path = {
         if torrent_req.save_path.is_empty() {
-            let default_path = Config::read(|c| c.default_save_path.clone()).await;
+            let default_path = config::value().qb().await.default_save_path.clone();
             if default_path.is_empty() {
                 return Err(ServerError {
                     kind: ServerErrorKind::MissingParams("save_path"),

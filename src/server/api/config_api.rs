@@ -1,9 +1,8 @@
 //!  end point at "/api/config"
 use super::{Action, BoxBody, Req, ServerResult};
 use crate::{
-    Entity,
     auth::{Login, TOKEN, encode},
-    config::{Account, Config, ConfigValue},
+    config::{self, Account, ConfigValueTemplate},
     error::CommonError,
     qb,
     server::{
@@ -32,32 +31,32 @@ impl Action for ConfigAPI {
 
 /// Change config from post
 async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
-    let mut config: ConfigValue = from_json_owned(req).await?;
-    let account_bak = Config::read(|c| c.account.clone()).await;
+    let mut config: ConfigValueTemplate = from_json_owned(req).await?;
+    let account_bak = config::value().general().await.account.clone();
 
     // account info has changed
     let account_changed =
-        !config.account.username.is_empty() || !config.account.password.is_empty();
+        !config.general.account.username.is_empty() || !config.general.account.password.is_empty();
     if account_changed {
-        config.account.username = if config.account.username.is_empty() {
+        config.general.account.username = if config.general.account.username.is_empty() {
             account_bak.username
         } else {
-            config.account.username
+            config.general.account.username
         };
-        config.account.password = if config.account.password.is_empty() {
+        config.general.account.password = if config.general.account.password.is_empty() {
             account_bak.password
         } else {
-            encode(&config.account.password)
+            encode(&config.general.account.password)
         }
     } else {
-        config.account = account_bak;
+        config.general.account = account_bak;
     }
 
     let (_, config_res) = join(
         qb::login_with(
-            &config.qb_host.clone(),
-            &config.qb_username.clone(),
-            &config.qb_password.clone(),
+            &config.qb.qb_host.clone(),
+            &config.qb.qb_username.clone(),
+            &config.qb.qb_password.clone(),
         ),
         update_config(config, account_changed),
     )
@@ -71,33 +70,37 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
 }
 
 /// update config with config value
-async fn update_config(config: ConfigValue, account_changed: bool) -> Result<(), CommonError> {
-    Config::write(|c| {
-        *c = config;
-        if account_changed {
-            // refresh token
-            let key = if c.multi_login { "" } else { &gen_key(32) };
-            let login = Login {
-                account: &c.account,
-                key,
-            };
-            *TOKEN.get().unwrap().write().unwrap() =
-                encode(&serde_json::to_string(&login).unwrap_or_default());
-        }
-    })
-    .await;
-    Config::save().await
+async fn update_config(
+    config: ConfigValueTemplate,
+    account_changed: bool,
+) -> Result<(), CommonError> {
+    config::set_value(config).await;
+    let config = config::value();
+
+    // refresh token if account changed
+    if account_changed {
+        let general_cfg = config.general().await;
+        let key = if general_cfg.multi_login {
+            ""
+        } else {
+            &gen_key(32)
+        };
+        let login = Login {
+            key,
+            account: &general_cfg.account,
+        };
+        *TOKEN.get().unwrap().write().unwrap() =
+            encode(&serde_json::to_string(&login).unwrap_or_default());
+    }
+    config::save().await
 }
 
 /// Get config
 async fn get() -> ServerResult<Response<BoxBody>> {
-    let config = ConfigValue {
-        account: Account {
-            username: String::new(),
-            password: String::new(),
-        },
-        ..Config::read(|c| c.clone()).await
+    let mut config: ConfigValueTemplate = config::value().to_template().await;
+    config.general.account = Account {
+        username: String::new(),
+        password: String::new(),
     };
-
     Ok(ResultResponse::success_data(config))
 }

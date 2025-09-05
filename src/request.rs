@@ -32,13 +32,14 @@ pub fn get<T: AsRef<str>>(url: T) -> RequestBuilder {
     get_client().get(url.as_ref())
 }
 
-pub fn delete<T: AsRef<str>>(url: T) -> RequestBuilder {
-    get_client().delete(url.as_ref())
-}
+// Never used
+// pub fn delete<T: AsRef<str>>(url: T) -> RequestBuilder {
+//     get_client().delete(url.as_ref())
+// }
 
-pub fn put<T: AsRef<str>>(url: T) -> RequestBuilder {
-    get_client().put(url.as_ref())
-}
+// pub fn put<T: AsRef<str>>(url: T) -> RequestBuilder {
+//     get_client().put(url.as_ref())
+// }
 
 pub trait RequestBuilderExt {
     fn disable_cookie(self) -> RequestBuilder;

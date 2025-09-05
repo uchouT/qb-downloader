@@ -53,32 +53,6 @@ mod sealed {
             Ok(deserialized)
         }
     }
-
-    impl EntityInternal for Config {
-        type LockedValue = Config;
-        type Target = ConfigValue;
-
-        fn value(locked: &Self::LockedValue) -> &Self::Target {
-            &locked.value
-        }
-        fn mut_value(locked: &mut Self::LockedValue) -> &mut Self::Target {
-            &mut locked.value
-        }
-
-        fn filepath(locked: &Self::LockedValue) -> &PathBuf {
-            &locked.filepath
-        }
-
-        async fn serialize(entity: &Self::Target) -> Result<String, CommonError> {
-            let serialized = toml::to_string(entity)?;
-            Ok(serialized)
-        }
-
-        fn deserialize(data: &str) -> Result<Self::Target, CommonError> {
-            let deserialized: Self::Target = toml::from_str(data)?;
-            Ok(deserialized)
-        }
-    }
 }
 
 use crate::error::CommonError;
