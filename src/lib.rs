@@ -1,7 +1,6 @@
 pub mod app;
 mod bencode;
 mod config;
-mod entity;
 pub mod error;
 mod qb;
 mod request;
@@ -11,7 +10,6 @@ mod upload;
 
 use crate::error::{Error, format_error_chain};
 use crate::server::api::auth;
-use entity::Entity;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// remove the trailing slash from a path or host.

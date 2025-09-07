@@ -18,7 +18,7 @@ impl Action for LoginAPI {
     async fn execute(&self, req: Req) -> ServerResult<Response<BoxBody>> {
         let account: Account = from_json_owned(req).await?;
 
-        let general_cfg = config::value().general().await;
+        let general_cfg = &config::value().general;
         if general_cfg.account.password != encode(&account.password)
             || general_cfg.account.username != account.username
         {

@@ -1,5 +1,7 @@
 //! deal with upload
 
+use std::sync::Arc;
+
 use crate::{
     config,
     error::CommonError,
@@ -23,21 +25,21 @@ pub enum Uploader {
 }
 
 pub trait UploaderTrait {
-    fn upload(task: &mut TaskValue) -> impl Future<Output = Result<(), TaskError>>;
-    fn check(task: &mut TaskValue) -> impl Future<Output = Result<bool, TaskError>>;
+    fn upload(task: Arc<TaskValue>) -> impl Future<Output = Result<(), TaskError>>;
+    fn check(task: Arc<TaskValue>) -> impl Future<Output = Result<bool, TaskError>>;
     fn test(host: &str, username: &str, password: &str) -> impl Future<Output = bool>;
 }
 
 impl Uploader {
     /// Check if upload is completed
-    pub async fn check(&self, task: &mut TaskValue) -> Result<bool, TaskError> {
+    pub async fn check(&self, task: Arc<TaskValue>) -> Result<bool, TaskError> {
         match self {
             Uploader::Rclone(_) => Rclone::check(task).await,
         }
     }
 
     /// Submit upload task
-    pub async fn upload(&self, task: &mut TaskValue) -> Result<(), TaskError> {
+    pub async fn upload(&self, task: Arc<TaskValue>) -> Result<(), TaskError> {
         match self {
             Uploader::Rclone(_) => Rclone::upload(task).await,
         }
@@ -48,8 +50,8 @@ pub struct Rclone;
 
 impl UploaderTrait for Rclone {
     /// submit upload task to rclone, and store the job ID in the task
-    async fn upload(task: &mut TaskValue) -> Result<(), TaskError> {
-        let rclone_cfg = config::value().rclone().await;
+    async fn upload(task: Arc<TaskValue>) -> Result<(), TaskError> {
+        let rclone_cfg = &config::value().rclone;
         let host = &rclone_cfg.rclone_host;
         let username = &rclone_cfg.rclone_username;
         let password = &rclone_cfg.rclone_password;
@@ -70,10 +72,10 @@ impl UploaderTrait for Rclone {
             .then(async |res| {
                 let value: Value = res.json().await?;
                 if let Some(job_id) = value.get("jobid").and_then(|v| v.as_i64()) {
-                    task.uploader = Uploader::Rclone(Some(job_id as i32));
+                    *task.uploader_mut() = Uploader::Rclone(Some(job_id as i32));
                     Ok(())
                 } else {
-                    task.status = Status::Error;
+                    task.state_mut().status = Status::Error;
                     Err(TaskError {
                         kind: TaskErrorKind::Upload("Rclone job id not found".into()),
                     })
@@ -82,12 +84,13 @@ impl UploaderTrait for Rclone {
             .await
     }
 
-    async fn check(task: &mut TaskValue) -> Result<bool, TaskError> {
-        let rclone_cfg = config::value().rclone().await;
+    async fn check(task: Arc<TaskValue>) -> Result<bool, TaskError> {
+        let rclone_cfg = &config::value().rclone;
         let host = &rclone_cfg.rclone_host;
         let username = &rclone_cfg.rclone_username;
         let password = &rclone_cfg.rclone_password;
-        if let Uploader::Rclone(Some(job_id)) = task.uploader {
+        let uploader = *task.uploader();
+        if let Uploader::Rclone(Some(ref job_id)) = uploader {
             request::post(format!("{host}/job/status"))
                 .basic_auth(username, Some(password))
                 .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
@@ -101,7 +104,7 @@ impl UploaderTrait for Rclone {
 
                     // finished but not successful means there were errors
                     if finished && !success {
-                        task.status = Status::Error;
+                        task.state_mut().status = Status::Error;
                         return Err(TaskError {
                             kind: TaskErrorKind::Upload("Rclone job finished with errors".into()),
                         });
@@ -110,7 +113,7 @@ impl UploaderTrait for Rclone {
                 })
                 .await
         } else {
-            task.status = Status::Error;
+            task.state_mut().status = Status::Error;
             Err(TaskError {
                 kind: TaskErrorKind::Upload("No rclone job ID found".into()),
             })

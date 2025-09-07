@@ -7,12 +7,7 @@ use tokio::{
     sync::broadcast,
 };
 
-use crate::{
-    Entity, Error, VERSION,
-    config,
-    qb, server,
-    task::{self, Task},
-};
+use crate::{Error, VERSION, config, qb, server, task};
 
 pub struct Application;
 
@@ -113,6 +108,6 @@ pub fn init() -> Result<u16, Error> {
     pretty_env_logger::init();
     info!("qb-downloader v{VERSION} starting...");
     config::init(config_path)?;
-    Task::init(task_path)?;
+    task::init(task_path)?;
     Ok(port)
 }

@@ -1,2 +1,3 @@
-- add support for old (>= v4.1) qbittorrent version.
-- fix cleanup after torrent cancellation.
+- Optimize config and task structure.
+- fix magnet hash parse for base32.
+- Optimize memory usage.

@@ -5,6 +5,7 @@ use crate::{
     config, remove_slash,
     request::{self, RequestBuilderExt},
 };
+use arc_swap::ArcSwap;
 use base32::Alphabet;
 use error::{QbError, QbErrorKind};
 use log::{error, info, warn};
@@ -16,7 +17,7 @@ use std::{
     fs::File,
     io::Write,
     path::Path,
-    sync::{Arc, OnceLock, RwLock},
+    sync::{Arc, OnceLock},
 };
 use tokio::time::sleep;
 const CATEGORY: &str = "QBD";
@@ -53,28 +54,28 @@ pub struct TorrentInfo {
     pub progress: f64,
 }
 
-static QB: OnceLock<RwLock<Qb>> = OnceLock::new();
+static QB: OnceLock<ArcSwap<Qb>> = OnceLock::new();
 
-pub async fn init() {
-    QB.set(RwLock::new(Qb::new().await))
+pub fn init() {
+    QB.set(ArcSwap::from_pointee(Qb::new()))
         .expect("Failed to initialize qBittorrent client");
 }
 impl Qb {
-    pub async fn new() -> Self {
+    pub fn new() -> Self {
         Qb {
-            host: Arc::from(config::value().qb().await.qb_host.as_str()),
+            host: Arc::from(config::value().qb.qb_host.as_str()),
             logined: false,
             version: 0,
         }
     }
 }
 pub fn is_logined() -> bool {
-    QB.get().unwrap().read().unwrap().logined
+    QB.get().unwrap().load().logined
 }
 
 /// get the host if logged in, else return error
 fn host() -> Result<Arc<str>, QbError> {
-    let qb = QB.get().unwrap().read().unwrap();
+    let qb = QB.get().unwrap().load();
     if qb.logined {
         Ok(qb.host.clone())
     } else {
@@ -86,12 +87,12 @@ fn host() -> Result<Arc<str>, QbError> {
 }
 
 fn version() -> u8 {
-    QB.get().unwrap().read().unwrap().version
+    QB.get().unwrap().load().version
 }
 
 /// try to login with qb info in config
 pub async fn login() {
-    let qb_cfg = config::value().qb().await;
+    let qb_cfg = &config::value().qb;
     login_with(&qb_cfg.qb_host, &qb_cfg.qb_username, &qb_cfg.qb_password).await;
 }
 
@@ -100,13 +101,15 @@ pub async fn login() {
 /// - host has been normalized.
 pub async fn login_with(host: &str, username: &str, password: &str) {
     let logined = test_login(host, username, password).await;
-    QB.get().unwrap().write().unwrap().host = Arc::from(host);
+
     if logined {
         match get_version(host).await {
             Ok(v) => {
-                let mut qb = QB.get().unwrap().write().unwrap();
-                qb.version = v;
-                qb.logined = true;
+                QB.get().unwrap().store(Arc::new(Qb {
+                    host: Arc::from(host),
+                    logined: true,
+                    version: v,
+                }));
                 info!("qBittorrent login successful");
             }
             Err(e) => {
@@ -115,14 +118,19 @@ pub async fn login_with(host: &str, username: &str, password: &str) {
                 } else {
                     error!("Failed to get qBittorrent version: {e}");
                 }
-                let mut qb = QB.get().unwrap().write().unwrap();
-                qb.logined = false;
-                qb.version = 0;
+                QB.get().unwrap().store(Arc::new(Qb {
+                    host: Arc::from(host),
+                    logined: false,
+                    version: 0,
+                }));
             }
         }
     } else {
-        let mut qb = QB.get().unwrap().write().unwrap();
-        qb.logined = false;
+        QB.get().unwrap().store(Arc::new(Qb {
+            host: Arc::from(host),
+            logined: false,
+            version: 0,
+        }));
         warn!("qBittorrent login failed");
     }
 }
@@ -132,8 +140,7 @@ async fn get_version(host: &str) -> Result<u8, QbError> {
         .then(async |res| {
             let ver = res.text().await?;
             let c = ver
-                .strip_prefix("v")
-                .and_then(|v| Some(v.split('.').collect::<Vec<&str>>()))
+                .strip_prefix("v").map(|v| v.split('.').collect::<Vec<&str>>())
                 .unwrap();
             let first = c[0].parse::<u8>().unwrap();
             if first == 5 {

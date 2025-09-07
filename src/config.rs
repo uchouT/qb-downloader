@@ -3,30 +3,29 @@ use crate::{
     error::CommonError,
     remove_slash,
 };
+use arc_swap::{ArcSwap, Guard};
 use directories_next::BaseDirs;
-use futures_util::future::join3;
+
 use log::{debug, error, info};
 use serde::{Deserialize, Deserializer, Serialize};
-use std::{path::PathBuf, sync::OnceLock};
-use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::{
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+};
+
 const CONFIG_FILE_NAME: &str = "config.toml";
 
-static CONFIG: OnceLock<Config> = OnceLock::new();
+pub static CONFIG: OnceLock<Config> = OnceLock::new();
 
 /// get config value
-pub fn value() -> &'static ConfigValue {
-    &CONFIG.get().unwrap().value
+pub fn value() -> Guard<Arc<ConfigValue>> {
+    CONFIG.get().unwrap().value.load()
 }
 
 /// set config value, frontend send the whole config value,
 /// and set the global config value to it
-pub async fn set_value(config_value: ConfigValueTemplate) {
-    let cfg = value();
-    let (mut qb_config, mut rclone_config, mut general_config) =
-        join3(cfg.qb_mut(), cfg.rclone_mut(), cfg.general_mut()).await;
-    *qb_config = config_value.qb;
-    *rclone_config = config_value.rclone;
-    *general_config = config_value.general;
+pub fn set_value(config_value: ConfigValue) {
+    CONFIG.get().unwrap().value.store(Arc::new(config_value));
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -108,51 +107,8 @@ impl Default for Account {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct ConfigValue {
-    qb: RwLock<QbConfig>,
-    rclone: RwLock<RcloneConfig>,
-    general: RwLock<GeneralConfig>,
-}
-
-impl ConfigValue {
-    pub async fn qb(&self) -> RwLockReadGuard<'_, QbConfig> {
-        self.qb.read().await
-    }
-
-    pub async fn qb_mut(&self) -> RwLockWriteGuard<'_, QbConfig> {
-        self.qb.write().await
-    }
-
-    pub async fn rclone(&self) -> RwLockReadGuard<'_, RcloneConfig> {
-        self.rclone.read().await
-    }
-
-    pub async fn rclone_mut(&self) -> RwLockWriteGuard<'_, RcloneConfig> {
-        self.rclone.write().await
-    }
-
-    pub async fn general(&self) -> RwLockReadGuard<'_, GeneralConfig> {
-        self.general.read().await
-    }
-
-    pub async fn general_mut(&self) -> RwLockWriteGuard<'_, GeneralConfig> {
-        self.general.write().await
-    }
-
-    pub async fn to_template(&self) -> ConfigValueTemplate {
-        let (qb, rclone, general) = join3(self.qb(), self.rclone(), self.general()).await;
-        ConfigValueTemplate {
-            qb: qb.clone(),
-            rclone: rclone.clone(),
-            general: general.clone(),
-        }
-    }
-}
-
-// intermediate struct for deserializing config file
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ConfigValueTemplate {
     pub qb: QbConfig,
     pub rclone: RcloneConfig,
     pub general: GeneralConfig,
@@ -160,14 +116,14 @@ pub struct ConfigValueTemplate {
 
 #[derive(Debug)]
 pub struct Config {
-    pub value: ConfigValue,
+    pub value: ArcSwap<ConfigValue>,
     pub filepath: PathBuf,
 }
 
 impl Config {
     fn new(filepath: PathBuf) -> Self {
         Self {
-            value: ConfigValue::default(),
+            value: ArcSwap::from_pointee(ConfigValue::default()),
             filepath,
         }
     }
@@ -179,22 +135,18 @@ impl Config {
         let content = std::fs::read_to_string(&filepath).inspect_err(|_| {
             error!("Failed to read config file {}", filepath.display());
         })?;
-        let config_value: ConfigValueTemplate = toml::from_str(&content)?;
+        let config_value: ConfigValue = toml::from_str(&content)?;
         Ok(Self {
-            filepath: filepath,
-            value: ConfigValue {
-                qb: RwLock::new(config_value.qb),
-                rclone: RwLock::new(config_value.rclone),
-                general: RwLock::new(config_value.general),
-            },
+            filepath,
+            value: ArcSwap::from_pointee(config_value),
         })
     }
 }
 
 /// save the config to target file, which is stored in filepath field
 pub async fn save() -> Result<(), CommonError> {
-    let value = value().to_template().await;
-    let content = toml::to_string_pretty(&value)?;
+    let value = value();
+    let content = toml::to_string_pretty(value.as_ref())?;
     let filepath = &CONFIG.get().unwrap().filepath;
     if let Some(parent) = filepath.parent() {
         tokio::fs::create_dir_all(parent).await?;
@@ -204,7 +156,6 @@ pub async fn save() -> Result<(), CommonError> {
 }
 
 pub fn init(path: Option<PathBuf>) -> Result<(), CommonError> {
-    // 有 path 或者 为 None 时，尝试 load，否则创建默认配置
     let config = {
         let path = match path {
             Some(p) => p,

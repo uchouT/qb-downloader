@@ -2,7 +2,7 @@
 use super::{Action, BoxBody, Req, ServerResult};
 use crate::{
     auth::{Login, TOKEN, encode},
-    config::{self, Account, ConfigValueTemplate},
+    config::{self, Account, ConfigValue},
     error::CommonError,
     qb,
     server::{
@@ -31,8 +31,8 @@ impl Action for ConfigAPI {
 
 /// Change config from post
 async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
-    let mut config: ConfigValueTemplate = from_json_owned(req).await?;
-    let account_bak = config::value().general().await.account.clone();
+    let mut config: ConfigValue = from_json_owned(req).await?;
+    let account_bak = config::value().general.account.clone();
 
     // account info has changed
     let account_changed =
@@ -70,16 +70,13 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
 }
 
 /// update config with config value
-async fn update_config(
-    config: ConfigValueTemplate,
-    account_changed: bool,
-) -> Result<(), CommonError> {
-    config::set_value(config).await;
+async fn update_config(config: ConfigValue, account_changed: bool) -> Result<(), CommonError> {
+    config::set_value(config);
     let config = config::value();
 
     // refresh token if account changed
     if account_changed {
-        let general_cfg = config.general().await;
+        let general_cfg = &config.general;
         let key = if general_cfg.multi_login {
             ""
         } else {
@@ -97,10 +94,11 @@ async fn update_config(
 
 /// Get config
 async fn get() -> ServerResult<Response<BoxBody>> {
-    let mut config: ConfigValueTemplate = config::value().to_template().await;
+    let mut config = config::value().as_ref().clone();
     config.general.account = Account {
         username: String::new(),
         password: String::new(),
     };
+
     Ok(ResultResponse::success_data(config))
 }

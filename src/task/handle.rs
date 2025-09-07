@@ -1,8 +1,8 @@
 //! This module handle task process
 
 use crate::{
-    Entity, Error, format_error_chain, qb,
-    task::{self, Status, TASK_LIST, Task, TaskItem, error::TaskError, launch},
+    Error, format_error_chain, qb,
+    task::{self, Status, TaskValue, error::TaskError, launch, task_map},
 };
 use futures_util::{FutureExt, future::join_all, select};
 use log::{error, info, warn};
@@ -23,7 +23,7 @@ const FINISHED_SEEDING: [&str; 2] = ["stoppedUP", "pausedUP"];
 const ERROR: [&str; 2] = ["error", "missingFiles"];
 
 pub async fn run(mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), Error> {
-    qb::init().await;
+    qb::init();
     qb::login().await;
     let mut task_interval = interval(Duration::from_secs(5));
     loop {
@@ -63,15 +63,14 @@ async fn process_task_list() -> Result<(), TaskError> {
     })?;
 
     let mut process_task_list = Vec::new();
-    Task::read(|task_list| {
-        if task_list.is_empty() {
-            return;
+    {
+        let task_map = task_map();
+        if !task_map.is_empty() {
+            task_map.iter().for_each(|(hash, task)| {
+                process_task_list.push((hash.clone(), task.clone()));
+            });
         }
-        task_list.iter().for_each(|(hash, task)| {
-            process_task_list.push((hash.clone(), task.clone()));
-        });
-    })
-    .await;
+    }
 
     if process_task_list.is_empty() {
         return Ok(());
@@ -80,16 +79,16 @@ async fn process_task_list() -> Result<(), TaskError> {
         .into_iter()
         .map(|(hash, task)| process_task(task, hash));
     let _results = join_all(futures).await;
-    if let Err(e) = Task::save().await {
+    if let Err(e) = task::save().await {
         error!("Failed to save task list: {}", format_error_chain(&e));
     }
     Ok(())
 }
 
 /// process single task
-async fn process_task(task: Arc<TaskItem>, hash: String) -> Result<(), TaskError> {
+async fn process_task(task: Arc<TaskValue>, hash: String) -> Result<(), TaskError> {
     let (status, is_seeding) = {
-        let read_guard = task.0.read().await;
+        let read_guard = task.state();
         (read_guard.status, read_guard.is_seeding)
     };
     if status == Status::Downloading
@@ -112,11 +111,8 @@ async fn process_task(task: Arc<TaskItem>, hash: String) -> Result<(), TaskError
             return Ok(());
         }
         if add_next_part(task.clone(), &hash).await.is_err() {
-            task.0.write().await.status = Status::Error;
-            error!(
-                "Failed to add next part for task: {}",
-                task.0.read().await.name
-            )
+            task.state_mut().status = Status::Error;
+            error!("Failed to add next part for task: {}", &task.name)
         }
     }
     Ok(())
@@ -125,13 +121,13 @@ async fn process_task(task: Arc<TaskItem>, hash: String) -> Result<(), TaskError
 /// update task status
 async fn update_task() -> Result<(), TaskError> {
     let torrent_infos = qb::get_torrent_info().await?;
-    let task_list = &TASK_LIST.get().unwrap().read().await.value;
+    let task_list = task_map();
     for info in torrent_infos {
         let task = task_list.get(&info.hash).cloned();
         if let Some(task) = task {
             let (current_status, current_seeding) = {
-                let task_read = task.0.read().await;
-                (task_read.status, task_read.is_seeding)
+                let state = task.state();
+                (state.status, state.is_seeding)
             };
 
             if current_status == Status::Downloading {
@@ -140,37 +136,36 @@ async fn update_task() -> Result<(), TaskError> {
 
                 // torrent is seeding
                 if SEEDING.contains(&state.as_str()) {
-                    let mut task_write_guard = task.0.write().await;
-                    task_write_guard.progress = progress;
-                    task_write_guard.status = Status::Downloaded;
-                    task_write_guard.is_seeding = true;
+                    let mut state = task.state_mut();
+                    state.progress = progress;
+                    state.status = Status::Downloaded;
+                    state.is_seeding = true;
                     continue;
                 }
 
                 // torrent finished both downloading and seeding
                 if FINISHED_SEEDING.contains(&state.as_str()) {
-                    let mut task_write_guard = task.0.write().await;
-                    task_write_guard.progress = progress;
-                    task_write_guard.status = Status::Downloaded;
-                    task_write_guard.is_seeding = false;
+                    let mut state = task.state_mut();
+                    state.progress = progress;
+                    state.status = Status::Downloaded;
+                    state.is_seeding = false;
                     continue;
                 }
 
                 if ERROR.contains(&state.as_str()) {
-                    let mut task_write_guard = task.0.write().await;
-                    task_write_guard.progress = progress;
-                    task_write_guard.status = Status::Error;
+                    let mut state = task.state_mut();
+                    state.progress = progress;
+                    state.status = Status::Error;
                     continue;
                 }
-                let mut task_write_guard = task.0.write().await;
-                task_write_guard.progress = progress;
+                let mut state = task.state_mut();
+                state.progress = progress;
                 continue;
             }
 
             // check if seeding finished
             if current_seeding && FINISHED_SEEDING.contains(&info.state.as_str()) {
-                let mut task_write_guard = task.0.write().await;
-                task_write_guard.is_seeding = false;
+                task.state_mut().is_seeding = false;
             }
         }
     }
@@ -178,15 +173,14 @@ async fn update_task() -> Result<(), TaskError> {
 }
 
 /// Add the next part of the task
-async fn add_next_part(task: Arc<TaskItem>, hash: &str) -> Result<(), TaskError> {
-    let mut task = task.0.write().await;
-    let (current_part_num, total_parts) = { (task.current_part_num, task.total_part_num) };
+async fn add_next_part(task: Arc<TaskValue>, hash: &str) -> Result<(), TaskError> {
+    let (current_part_num, total_parts) = { (task.state().current_part_num, task.total_part_num) };
     qb::delete(hash, true).await.inspect_err(|e| {
         error!("Failed to delete {hash} \n{e}");
     })?;
 
     if current_part_num == total_parts - 1 {
-        task.status = Status::Done;
+        task.state_mut().status = Status::Done;
         info!("Task: {} completed", &task.name);
         return Ok(());
     }
@@ -207,12 +201,12 @@ async fn add_next_part(task: Arc<TaskItem>, hash: &str) -> Result<(), TaskError>
     })?;
 
     let new_part_num = current_part_num + 1;
-    launch(new_part_num, hash, &mut task).await?;
+    launch(new_part_num, hash, task.clone().as_ref()).await?;
     info!("Added part {} for task: {}", new_part_num + 1, &task.name);
     Ok(())
 }
 
 async fn shutdown() -> Result<(), crate::error::CommonError> {
-    task::Task::save().await?;
+    task::save().await?;
     Ok(())
 }

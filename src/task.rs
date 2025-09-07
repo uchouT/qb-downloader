@@ -3,21 +3,18 @@ pub mod error;
 pub mod handle;
 use std::{
     collections::BTreeMap,
-    path::PathBuf,
-    sync::{Arc, OnceLock},
+    path::{Path, PathBuf},
+    sync::{Arc, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 use directories_next::BaseDirs;
 use futures_util::future::{join, join_all};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
-use tokio::{
-    fs,
-    sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
-};
+use tokio::{fs, sync::Mutex};
 
 use crate::{
-    Entity, bencode,
+    bencode,
     error::{CommonError, TaskError},
     format_error_chain,
     qb::{self, error::QbErrorKind},
@@ -28,42 +25,43 @@ use crate::{
 const TASK_FILE_NAME: &str = "tasks.json";
 const TORRENT_DIR_NAME: &str = "torrents";
 static ADD_TORRENT_LOCK: Mutex<()> = Mutex::const_new(());
-pub static TASK_LIST: OnceLock<RwLock<Task>> = OnceLock::new();
+pub static TASK_LIST: OnceLock<Task> = OnceLock::new();
 static TORRENT_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-pub type TaskMap = BTreeMap<String, Arc<TaskItem>>;
+pub type TaskMap = BTreeMap<String, Arc<TaskValue>>;
 #[derive(Debug)]
 pub struct Task {
     pub filepath: PathBuf,
-    pub value: TaskMap,
+    pub value: RwLock<TaskMap>,
 }
 
-#[derive(Debug)]
-pub struct TaskItem(pub RwLock<TaskValue>);
 /// task value
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TaskValue {
     pub hash: String,
     pub name: String,
-
-    /// each task must contains a root dir,
-    /// single file task is not support
-    pub root_dir: String,
-    pub status: Status,
     pub save_path: String,
+    pub root_dir: String,
     pub upload_path: String,
-    pub uploader: Uploader,
     pub total_part_num: usize,
-    pub current_part_num: usize,
     pub task_order: Vec<Vec<usize>>,
 
     /// total file count, which is used to set not download.
     pub file_num: usize,
     pub torrent_path: PathBuf,
-    pub is_seeding: bool,
     pub max_size: i64,
     pub seeding_time_limit: i32,
     pub ratio_limit: f64,
+
+    pub uploader: RwLock<Uploader>,
+    pub state: RwLock<State>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct State {
+    pub current_part_num: usize,
+    pub status: Status,
+    pub is_seeding: bool,
     pub progress: f64,
 }
 
@@ -89,33 +87,54 @@ pub enum Status {
     Paused,
 }
 
-impl TaskItem {
+impl TaskValue {
+    pub fn uploader(&self) -> RwLockReadGuard<'_, Uploader> {
+        self.uploader
+            .read()
+            .expect("Failed to acquire read lock on task uploader")
+    }
+
+    pub fn uploader_mut(&self) -> RwLockWriteGuard<'_, Uploader> {
+        self.uploader
+            .write()
+            .expect("Failed to acquire write lock on task uploader")
+    }
+
+    pub fn state(&self) -> RwLockReadGuard<'_, State> {
+        self.state
+            .read()
+            .expect("Failed to acquire read lock on task status")
+    }
+
+    pub fn state_mut(&self) -> RwLockWriteGuard<'_, State> {
+        self.state
+            .write()
+            .expect("Failed to acquire write lock on task status")
+    }
+
     /// Launch the interval task
     pub async fn run_interval(self: Arc<Self>) -> Result<(), TaskError> {
-        let mut guard = self.0.write().await;
-        guard.status = Status::OnTask;
-        info!("Running interval task for: {}", &guard.name);
-        let uploader = guard.uploader;
-        uploader.upload(&mut guard).await.inspect_err(|e| {
-            error!("Failed to run interval task for {}: {e}", &guard.name);
+        self.state_mut().status = Status::OnTask;
+        info!("Running interval task for: {}", &self.name);
+        let uploader = *self.uploader();
+        uploader.upload(self.clone()).await.inspect_err(|e| {
+            error!("Failed to run interval task for {}: {e}", &self.name);
         })
     }
 
     /// Check if the upload is complete
     pub async fn run_check(self: Arc<Self>) -> Result<(), TaskError> {
-        let mut guard = self.0.write().await;
-        let uploader = guard.uploader;
-        if uploader.check(&mut guard).await.inspect_err(|e| {
-            error!("Error occurred while uploading {}: {e}", &guard.name);
+        let uploader = *self.uploader();
+        if uploader.check(self.clone()).await.inspect_err(|e| {
+            error!("Error occurred while uploading {}: {e}", &self.name);
         })? {
-            guard.status = Status::Finished;
-            info!("Upload completed for task: {}", &guard.name);
+            self.state_mut().status = Status::Finished;
+            info!("Upload completed for task: {}", &self.name);
         }
         Ok(())
     }
 }
-
-impl Entity for Task {
+impl Task {
     fn new(path: Option<PathBuf>) -> Self {
         let filepath = if let Some(filepath) = path {
             filepath
@@ -128,55 +147,87 @@ impl Entity for Task {
         };
         Task {
             filepath,
-            value: BTreeMap::new(),
+            value: RwLock::new(BTreeMap::new()),
         }
     }
 
-    fn init(path: Option<PathBuf>) -> Result<(), CommonError> {
-        let mut task_list = Self::new(path);
-        Self::load(&mut task_list)?;
-        debug!("Task list loaded from: {}", &task_list.filepath.display());
-        debug!("Task list content: {:?}", &task_list.value);
-        TASK_LIST
-            .set(RwLock::new(task_list))
-            .expect("failed to set task list");
-        TORRENT_DIR
-            .set(
-                BaseDirs::new()
-                    .expect("Failed to get data dir")
-                    .data_dir()
-                    .join("qb-downloader")
-                    .join(TORRENT_DIR_NAME),
-            )
-            .expect("Failed to set torrent directory");
-        std::fs::create_dir_all(TORRENT_DIR.get().unwrap())?;
-        info!("Task list initialized.");
+    fn load(task_list: &mut Task) -> Result<(), CommonError> {
+        let path = &task_list.filepath;
+        if !path.exists() {
+            return Ok(());
+        }
+        let task_file = std::fs::File::open(path)?;
+        let reader = std::io::BufReader::new(task_file);
+        let task_map: TaskMap = serde_json::from_reader(reader)?;
+        task_list.value = RwLock::new(task_map);
         Ok(())
     }
+}
 
-    async fn get() -> RwLockReadGuard<'static, Self::LockedValue> {
-        TASK_LIST
-            .get()
-            .expect("task list not initialized")
-            .read()
-            .await
-    }
-    async fn get_mut() -> RwLockWriteGuard<'static, Self::LockedValue> {
-        TASK_LIST
-            .get()
-            .expect("task list not initialized")
-            .write()
-            .await
-    }
+pub fn init(path: Option<PathBuf>) -> Result<(), CommonError> {
+    let mut task_list = Task::new(path);
+    Task::load(&mut task_list).inspect_err(|e| {
+        error!(
+            "Failed to load task list from file: {}",
+            format_error_chain(e)
+        );
+    })?;
+    debug!("Task list loaded from: {}", &task_list.filepath.display());
+    debug!("Task list content: {:?}", &task_list.value);
+    TASK_LIST.set(task_list).expect("failed to set task list");
+    TORRENT_DIR
+        .set(
+            BaseDirs::new()
+                .expect("Failed to get data dir")
+                .data_dir()
+                .join("qb-downloader")
+                .join(TORRENT_DIR_NAME),
+        )
+        .expect("Failed to set torrent directory");
+    std::fs::create_dir_all(TORRENT_DIR.get().unwrap())?;
+    info!("Task list initialized.");
+    Ok(())
+}
+
+pub async fn save() -> Result<(), CommonError> {
+    let path = filepath();
+
+    let contents = {
+        let task_map = task_map().clone();
+        serde_json::to_vec(&task_map)?
+    };
+    fs::write(path, contents).await?;
+    Ok(())
+}
+
+fn filepath() -> &'static Path {
+    &TASK_LIST.get().expect("task list not initialized").filepath
+}
+
+pub fn task_map() -> RwLockReadGuard<'static, TaskMap> {
+    TASK_LIST
+        .get()
+        .expect("task list not initialized")
+        .value
+        .read()
+        .expect("Failed to acquire read lock on task list")
+}
+
+pub fn task_map_mut() -> RwLockWriteGuard<'static, TaskMap> {
+    TASK_LIST
+        .get()
+        .expect("task list not initialized")
+        .value
+        .write()
+        .expect("Failed to acquire read lock on task list")
 }
 
 pub async fn start(hash: &str) -> Result<(), TaskError> {
     qb::start(hash).await?;
 
     {
-        let task_map = Task::get().await;
-        if let Some(task) = task_map.value.get(hash) {
-            task.0.write().await.status = Status::Downloading;
+        if let Some(task) = task_map().get(hash) {
+            task.state_mut().status = Status::Downloading;
         } else {
             let msg = format!("Task not found for hash: {hash}");
             error!("{msg}");
@@ -184,7 +235,7 @@ pub async fn start(hash: &str) -> Result<(), TaskError> {
                 kind: error::TaskErrorKind::Other(msg),
             });
         }
-        Task::save_entity(&*task_map).await?;
+        save().await?;
     }
 
     info!("Task started for hash: {hash}");
@@ -195,9 +246,8 @@ pub async fn stop(hash: &str) -> Result<(), TaskError> {
     qb::stop(hash).await?;
 
     {
-        let task_map = Task::get().await;
-        if let Some(task) = task_map.value.get(hash) {
-            task.0.write().await.status = Status::Paused;
+        if let Some(task) = task_map().get(hash) {
+            task.state_mut().status = Status::Paused;
         } else {
             let msg = format!("Task not found for hash: {hash}");
             error!("{msg}");
@@ -205,7 +255,7 @@ pub async fn stop(hash: &str) -> Result<(), TaskError> {
                 kind: error::TaskErrorKind::Other(msg),
             });
         }
-        Task::save_entity(&*task_map).await?;
+        save().await?;
     }
 
     info!("Task stopped for hash: {hash}");
@@ -239,8 +289,8 @@ pub async fn delete(hash: &str, added: bool) -> Result<(), TaskError> {
         error!("Failed to clean torrent file: {}", format_error_chain(e));
     }
     if added {
-        Task::write(|task_list| task_list.remove(hash)).await;
-        if let Err(e) = Task::save().await {
+        task_map_mut().remove(hash);
+        if let Err(e) = save().await {
             error!("Failed to save task list: {e}");
         }
     }
@@ -323,42 +373,43 @@ pub async fn add(
         )?;
         (root_dir, file_num, task_order)
     };
-    let mut task_value = TaskValue {
+    let task_value = TaskValue {
         hash: hash.clone(),
         name,
         root_dir,
-        status: Status::Paused,
         save_path,
         upload_path,
-        uploader,
+        uploader: RwLock::new(uploader),
         total_part_num: task_order.len(),
-        current_part_num: 0,
+        state: RwLock::new(State {
+            current_part_num: 0,
+            status: Status::Paused,
+            is_seeding: false,
+            progress: 0.0,
+        }),
         task_order,
         file_num,
         torrent_path,
-        is_seeding: false,
         max_size,
         seeding_time_limit,
         ratio_limit,
-        progress: 0.0,
     };
     qb::set_share_limit(&hash, ratio_limit, seeding_time_limit).await?;
-    launch(0, &hash, &mut task_value).await?;
+    launch(0, &hash, &task_value).await?;
     info!("Task added: {}", &hash);
-    Task::write(|task_list| task_list.insert(hash, Arc::new(TaskItem(RwLock::new(task_value)))))
-        .await;
-    Task::save().await?;
+    task_map_mut().insert(hash, Arc::new(task_value));
+    save().await?;
     Ok(())
 }
 
 /// launch a task
-pub async fn launch(index: usize, hash: &str, task: &mut TaskValue) -> Result<(), TaskError> {
-    task.current_part_num = index;
+pub async fn launch(index: usize, hash: &str, task: &TaskValue) -> Result<(), TaskError> {
+    task.state_mut().current_part_num = index;
     qb::set_not_download(hash, task.file_num).await?;
     qb::set_prio(hash, 1, task.task_order.get(index).unwrap()).await?;
     qb::start(hash).await?;
     qb::remove_tag(hash, qb::Tag::Waited).await?;
-    task.status = Status::Downloading;
+    task.state_mut().status = Status::Downloading;
     Ok(())
 }
 
@@ -448,16 +499,4 @@ pub async fn clean_waited() -> Result<(), TaskError> {
     }
 
     Ok(())
-}
-
-impl Task {
-    pub async fn get_task_map() -> BTreeMap<String, TaskValue> {
-        let task_list = TASK_LIST.get().expect("Task list get error").read().await;
-        let tasks: Vec<_> = task_list
-            .value
-            .iter()
-            .map(|(hash, value)| async { (hash.clone(), value.0.read().await.clone()) })
-            .collect();
-        join_all(tasks).await.into_iter().collect()
-    }
 }

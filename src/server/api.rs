@@ -54,13 +54,13 @@ pub fn get_option_param<T: FromStr>(params: &HashMap<String, String>, key: &str)
 }
 
 /// Extracts a parameter from the request URL query, returning a default value if the parameter is not found.
-pub fn get_param_or_else<T: FromStr, F: FnOnce() -> T>(
-    params: &HashMap<String, String>,
-    key: &str,
-    f: F,
-) -> T {
-    get_option_param(params, key).unwrap_or_else(f)
-}
+// pub fn get_param_or_else<T: FromStr, F: FnOnce() -> T>(
+//     params: &HashMap<String, String>,
+//     key: &str,
+//     f: F,
+// ) -> T {
+//     get_option_param(params, key).unwrap_or_else(f)
+// }
 
 /// Extracts a required parameter
 /// # Error

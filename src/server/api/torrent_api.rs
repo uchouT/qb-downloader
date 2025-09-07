@@ -101,7 +101,7 @@ async fn add_by_file(req: Req) -> ServerResult<(Option<Bytes>, String, String)> 
         });
     }
     if save_path.is_none() {
-        let default_path = config::value().qb().await.default_save_path.clone();
+        let default_path = config::value().qb.default_save_path.clone();
         if default_path.is_empty() {
             return Err(ServerError {
                 kind: ServerErrorKind::MissingParams("save_path"),
@@ -118,7 +118,7 @@ async fn add_by_url(req: Req) -> ServerResult<(Option<Bytes>, String, String)> {
     let torrent_req: TorrentReq = from_json(&body)?;
     let save_path = {
         if torrent_req.save_path.is_empty() {
-            let default_path = config::value().qb().await.default_save_path.clone();
+            let default_path = config::value().qb.default_save_path.clone();
             if default_path.is_empty() {
                 return Err(ServerError {
                     kind: ServerErrorKind::MissingParams("save_path"),

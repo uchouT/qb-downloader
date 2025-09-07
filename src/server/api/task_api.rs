@@ -43,11 +43,11 @@ impl Action for TaskAPI {
 }
 
 async fn get() -> ServerResult<Response<BoxBody>> {
-    let data = task::Task::get_task_map().await;
+    let data = task::task_map();
     if data.is_empty() {
         Ok(ResultResponse::success())
     } else {
-        Ok(ResultResponse::success_data(data))
+        Ok(ResultResponse::success_data(data.clone()))
     }
 }
 
@@ -68,7 +68,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     // TODO: Code here should be refactored to avoid duplicate code in the future
     let c = config::value();
     if task_req.upload_path.is_empty() {
-        let general_cfg = c.general().await;
+        let general_cfg = &c.general;
         if general_cfg.default_upload_path.is_empty() {
             return Err(ServerError {
                 kind: ServerErrorKind::MissingParams("upload_path"),
@@ -79,17 +79,17 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     }
     task_req
         .seeding_time_limit
-        .or(c.qb().await.default_seeding_time_limit)
+        .or(c.qb.default_seeding_time_limit)
         .ok_or(ServerError {
             kind: ServerErrorKind::MissingParams("seeding_time_limit"),
         })?;
     task_req
         .ratio_limit
-        .or(c.qb().await.default_ratio_limit)
+        .or(c.qb.default_ratio_limit)
         .ok_or(ServerError {
             kind: ServerErrorKind::MissingParams("ratio_limit"),
         })?;
-    
+
     if let Err(e) = task::add(
         task_req.torrent_res.hash,
         task_req.torrent_res.torrent_name,
