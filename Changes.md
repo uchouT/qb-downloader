@@ -1,3 +1,0 @@
-- Optimize config and task structure.
-- fix magnet hash parse for base32.
-- Optimize memory usage.
