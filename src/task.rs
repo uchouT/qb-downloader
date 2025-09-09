@@ -18,7 +18,7 @@ use crate::{
     error::{CommonError, TaskError},
     format_error_chain,
     qb::{self, error::QbErrorKind},
-    task::error::TaskErrorKind,
+    task::{self, error::TaskErrorKind},
     upload::Uploader,
 };
 
@@ -350,6 +350,7 @@ pub fn get_torrent_path(hash: &str) -> PathBuf {
 }
 
 /// add task from [`TaskReq`]
+#[allow(clippy::too_many_arguments)]
 pub async fn add(
     hash: String,
     name: String,
@@ -475,7 +476,10 @@ fn get_task_order(
 
 /// clean waited torrents, always occurs when a task-adding is canceled.
 pub async fn clean_waited() -> Result<(), TaskError> {
-    // TODO: return at once when empty
+    if task::task_map().is_empty() {
+        return Ok(());
+    }
+
     let hash_list = qb::get_tag_torrent_list(qb::Tag::Waited).await?;
 
     if hash_list.is_empty() {

@@ -53,7 +53,7 @@ pub fn get_option_param<T: FromStr>(params: &HashMap<String, String>, key: &str)
     value.parse::<T>().ok()
 }
 
-/// Extracts a parameter from the request URL query, returning a default value if the parameter is not found.
+// /// Extracts a parameter from the request URL query, returning a default value if the parameter is not found.
 // pub fn get_param_or_else<T: FromStr, F: FnOnce() -> T>(
 //     params: &HashMap<String, String>,
 //     key: &str,

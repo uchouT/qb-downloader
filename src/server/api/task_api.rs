@@ -65,7 +65,6 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
         return Ok(ResultResponse::error_msg("Selected none content"));
     }
 
-    // TODO: Code here should be refactored to avoid duplicate code in the future
     let c = config::value();
     if task_req.upload_path.is_empty() {
         let general_cfg = &c.general;
@@ -77,13 +76,14 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
             task_req.upload_path = general_cfg.default_upload_path.clone();
         }
     }
-    task_req
+    let seeding_time_limit = task_req
         .seeding_time_limit
         .or(c.qb.default_seeding_time_limit)
         .ok_or(ServerError {
             kind: ServerErrorKind::MissingParams("seeding_time_limit"),
         })?;
-    task_req
+
+    let ratio_limit = task_req
         .ratio_limit
         .or(c.qb.default_ratio_limit)
         .ok_or(ServerError {
@@ -98,8 +98,8 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
         task_req.upload_type,
         task_req.selected_file_index,
         task_req.max_size * 1024 * 1024 * 1024, // default in GB
-        task_req.ratio_limit.unwrap(),
-        task_req.seeding_time_limit.unwrap(),
+        ratio_limit,
+        seeding_time_limit,
     )
     .await
     {
