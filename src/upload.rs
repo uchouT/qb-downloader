@@ -1,6 +1,6 @@
 //! deal with upload
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use crate::{
     config,
@@ -17,11 +17,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 /// upload type, currently support rclone
-#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type", content = "job")]
 pub enum Uploader {
     /// the containing value is rclone job id
-    Rclone(Option<i32>),
+    Rclone(RwLock<Option<i32>>),
 }
 
 pub trait UploaderTrait {
@@ -72,9 +72,11 @@ impl UploaderTrait for Rclone {
             .then(async |res| {
                 let value: Value = res.json().await?;
                 if let Some(job_id) = value.get("jobid").and_then(|v| v.as_i64()) {
-                    *task.uploader_mut() = Uploader::Rclone(Some(job_id as i32));
+                    let Uploader::Rclone(id) = &task.uploader;
+                    *id.write().unwrap() = Some(job_id as i32);
                     Ok(())
                 } else {
+                    // TODO: more specific error
                     task.state_mut().status = Status::Error;
                     Err(TaskError {
                         kind: TaskErrorKind::Upload("Rclone job id not found".into()),
@@ -89,35 +91,41 @@ impl UploaderTrait for Rclone {
         let host = &rclone_cfg.rclone_host;
         let username = &rclone_cfg.rclone_username;
         let password = &rclone_cfg.rclone_password;
-        let uploader = *task.uploader();
-        if let Uploader::Rclone(Some(ref job_id)) = uploader {
-            request::post(format!("{host}/job/status"))
-                .basic_auth(username, Some(password))
-                .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
-                .json(&json!({
-                    "jobid": job_id
-                }))
-                .then(async |res| {
-                    let value: Value = res.json().await?;
-                    let success = value.get("success").and_then(|v| v.as_bool()).unwrap();
-                    let finished = value.get("finished").and_then(|v| v.as_bool()).unwrap();
 
-                    // finished but not successful means there were errors
-                    if finished && !success {
-                        task.state_mut().status = Status::Error;
-                        return Err(TaskError {
-                            kind: TaskErrorKind::Upload("Rclone job finished with errors".into()),
-                        });
-                    }
-                    Ok(success)
-                })
-                .await
-        } else {
-            task.state_mut().status = Status::Error;
-            Err(TaskError {
-                kind: TaskErrorKind::Upload("No rclone job ID found".into()),
+        let job_id = {
+            let Uploader::Rclone(job_id_opt) = &task.uploader;
+            if job_id_opt.read().unwrap().is_none() {
+                task.state_mut().status = Status::Error;
+                return Err(TaskError {
+                    // TODO: make it more specific
+                    kind: TaskErrorKind::Upload("No rclone job ID found".into()),
+                });
+            }
+            job_id_opt.read().unwrap().unwrap()
+        };
+
+        request::post(format!("{host}/job/status"))
+            .basic_auth(username, Some(password))
+            .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .json(&json!({
+                "jobid": job_id
+            }))
+            .then(async |res| {
+                let value: Value = res.json().await?;
+                let success = value.get("success").and_then(|v| v.as_bool()).unwrap();
+                let finished = value.get("finished").and_then(|v| v.as_bool()).unwrap();
+
+                // finished but not successful means there were errors
+                if finished && !success {
+                    task.state_mut().status = Status::Error;
+                    return Err(TaskError {
+                        // TODO: make it more specific
+                        kind: TaskErrorKind::Upload("Rclone job finished with errors".into()),
+                    });
+                }
+                Ok(success)
             })
-        }
+            .await
     }
 
     async fn test(host: &str, username: &str, password: &str) -> bool {

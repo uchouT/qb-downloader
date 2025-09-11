@@ -1,5 +1,4 @@
 use std::{convert::Infallible, path::PathBuf};
-
 use futures_util::{FutureExt, select, try_join};
 use log::{error, info};
 use tokio::{
@@ -8,21 +7,11 @@ use tokio::{
 };
 
 use crate::{Error, VERSION, config, qb, server, task};
-
+const PORT: u16 = 7845;
 pub struct Application;
 
-impl Default for Application {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Application {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn run(&self, port: u16) -> Result<(), Error> {
+    pub fn run(port: u16) -> Result<(), Error> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -37,7 +26,11 @@ impl Application {
             let server_service = tokio::spawn(server::run(shutdown_tx.subscribe(), port));
 
             let result = match try_join!(task_service, server_service) {
-                Ok((res1, res2)) => res1.and(res2),
+                Ok((res1, res2)) => {
+                    res1?;
+                    res2?;
+                    Ok::<(), Error>(())
+                }
                 Err(e) => {
                     error!("A service encountered an error: {e}");
                     Ok(())
@@ -78,7 +71,7 @@ pub fn init() -> Result<u16, Error> {
     let args: Vec<String> = std::env::args().collect();
     let mut config_path = None;
     let mut task_path = None;
-    let mut port: u16 = 7845;
+    let mut port = PORT;
     args.iter()
         .enumerate()
         .for_each(|(i, arg)| match arg.as_str() {
@@ -105,6 +98,7 @@ pub fn init() -> Result<u16, Error> {
             std::env::set_var("RUST_LOG", "info");
         }
     }
+    
     pretty_env_logger::init();
     info!("qb-downloader v{VERSION} starting...");
     config::init(config_path)?;

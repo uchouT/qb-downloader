@@ -53,7 +53,7 @@ pub struct TaskValue {
     pub seeding_time_limit: i32,
     pub ratio_limit: f64,
 
-    pub uploader: RwLock<Uploader>,
+    pub uploader: Uploader,
     pub state: RwLock<State>,
 }
 
@@ -88,18 +88,6 @@ pub enum Status {
 }
 
 impl TaskValue {
-    pub fn uploader(&self) -> RwLockReadGuard<'_, Uploader> {
-        self.uploader
-            .read()
-            .expect("Failed to acquire read lock on task uploader")
-    }
-
-    pub fn uploader_mut(&self) -> RwLockWriteGuard<'_, Uploader> {
-        self.uploader
-            .write()
-            .expect("Failed to acquire write lock on task uploader")
-    }
-
     pub fn state(&self) -> RwLockReadGuard<'_, State> {
         self.state
             .read()
@@ -116,16 +104,15 @@ impl TaskValue {
     pub async fn run_interval(self: Arc<Self>) -> Result<(), TaskError> {
         self.state_mut().status = Status::OnTask;
         info!("Running interval task for: {}", &self.name);
-        let uploader = *self.uploader();
-        uploader.upload(self.clone()).await.inspect_err(|e| {
+
+        self.uploader.upload(self.clone()).await.inspect_err(|e| {
             error!("Failed to run interval task for {}: {e}", &self.name);
         })
     }
 
     /// Check if the upload is complete
     pub async fn run_check(self: Arc<Self>) -> Result<(), TaskError> {
-        let uploader = *self.uploader();
-        if uploader.check(self.clone()).await.inspect_err(|e| {
+        if self.uploader.check(self.clone()).await.inspect_err(|e| {
             error!("Error occurred while uploading {}: {e}", &self.name);
         })? {
             self.state_mut().status = Status::Finished;
@@ -380,7 +367,7 @@ pub async fn add(
         root_dir,
         save_path,
         upload_path,
-        uploader: RwLock::new(uploader),
+        uploader,
         total_part_num: task_order.len(),
         state: RwLock::new(State {
             current_part_num: 0,
