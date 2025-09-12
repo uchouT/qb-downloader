@@ -62,8 +62,8 @@ impl From<CommonError> for QbError {
     }
 }
 
-impl From<reqwest::Error> for QbError {
-    fn from(err: reqwest::Error) -> Self {
+impl From<nyquest_preset::nyquest::Error> for QbError {
+    fn from(err: nyquest_preset::nyquest::Error) -> Self {
         QbError {
             kind: QbErrorKind::Common(CommonError::from(err)),
         }

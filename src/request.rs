@@ -2,34 +2,35 @@
 
 use crate::error::CommonError;
 
-use reqwest::{Client, RequestBuilder, Response, cookie::Jar, header};
-use std::{
-    future::Future,
-    sync::{Arc, OnceLock},
-    time::Duration,
+use base64::{Engine, engine::general_purpose};
+use nyquest_preset::nyquest::{
+    AsyncClient, Body, ClientBuilder,
+    r#async::{Request, Response},
+    header,
 };
-static HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
+use serde::Serialize;
+use std::{borrow::Cow, future::Future, sync::OnceLock, time::Duration};
+static HTTP_CLIENT: OnceLock<AsyncClient> = OnceLock::new();
 
-fn get_client() -> &'static Client {
-    HTTP_CLIENT.get_or_init(|| {
-        let jar = Arc::new(Jar::default());
-        Client::builder()
-            .user_agent("qb-downloader/1.0")
-            .cookie_provider(jar)
-            .timeout(Duration::from_secs(30))
-            .connect_timeout(Duration::from_secs(10))
-            .pool_max_idle_per_host(0)
-            .build()
-            .expect("Failed to create HTTP client")
-    })
+pub async fn init() {
+    nyquest_preset::register();
+    let client = ClientBuilder::default()
+        .user_agent("qb-downloader/1.0")
+        .request_timeout(Duration::from_secs(30))
+        .build_async()
+        .await
+        .expect("Failed to create HTTP client");
+    HTTP_CLIENT.set(client);
+}
+fn get_client() -> &'static AsyncClient {
+    HTTP_CLIENT.get().expect("HTTP client is not initialized")
 }
 
-pub fn post<T: AsRef<str>>(url: T) -> RequestBuilder {
-    get_client().post(url.as_ref())
+pub fn post(url: String) -> Request {
+    Request::post(url)
 }
-
-pub fn get<T: AsRef<str>>(url: T) -> RequestBuilder {
-    get_client().get(url.as_ref())
+pub fn get(url: String) -> Request {
+    Request::get(url)
 }
 
 // Never used
@@ -41,9 +42,20 @@ pub fn get<T: AsRef<str>>(url: T) -> RequestBuilder {
 //     get_client().put(url.as_ref())
 // }
 
-pub trait RequestBuilderExt {
-    fn disable_cookie(self) -> RequestBuilder;
-    fn then<V, E, F: FnOnce(Response) -> Fut, Fut: Future<Output = Result<V, E>>>(
+pub trait RequestExt {
+    type Res;
+    fn disable_cookie(self) -> Self;
+    fn basic_auth(self, username: &str, password: &str) -> Self;
+    fn header(
+        self,
+        name: impl Into<Cow<'static, str>>,
+        value: impl Into<Cow<'static, str>>,
+    ) -> Self;
+    fn json<T: Serialize>(self, value: &T) -> Self;
+    fn multipart(self, parts: impl IntoIterator<Item = Part<S>>) -> Self;
+    fn form(self, fields: impl IntoIterator<Item = (Cow<'static, str>, Cow<'static, str>)>)
+    -> Self;
+    fn then<V, E, F: FnOnce(Self::Res) -> Fut, Fut: Future<Output = Result<V, E>>>(
         self,
         f: F,
     ) -> impl Future<Output = Result<V, E>>
@@ -51,22 +63,54 @@ pub trait RequestBuilderExt {
         CommonError: Into<E>;
 }
 
-impl RequestBuilderExt for RequestBuilder {
-    fn disable_cookie(self) -> RequestBuilder {
-        self.header(header::COOKIE, "")
+impl RequestExt for Request {
+    type Res = Response;
+    fn disable_cookie(self) -> Self {
+        self.with_header(header::COOKIE, "")
     }
-    async fn then<V, E, F: FnOnce(Response) -> Fut, Fut: Future<Output = Result<V, E>>>(
+
+    fn basic_auth(self, username: &str, password: &str) -> Self {
+        let value = format!("{username}:{password}");
+        let value = general_purpose::STANDARD.encode(value);
+        let header_value = format!("Basic {value}");
+        self.with_header(header::AUTHORIZATION, header_value)
+    }
+
+    fn header(
+        self,
+        name: impl Into<Cow<'static, str>>,
+        value: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        self.with_header(name, value)
+    }
+
+    fn json<T: Serialize>(self, value: &T) -> Result<Self, CommonError> {
+        self.with_body(Body::json(value)?)
+    }
+
+    fn multipart(self, parts: impl IntoIterator<Item = Part<S>>) -> Self {
+        self.with_body(Body::multipart(parts))
+    }
+
+    fn form(
+        self,
+        fields: impl IntoIterator<Item = (Cow<'static, str>, Cow<'static, str>)>,
+    ) -> Self {
+        self.with_body(Body::form(fields))
+    }
+
+    async fn then<V, E, F: FnOnce(Self::Res) -> Fut, Fut: Future<Output = Result<V, E>>>(
         self,
         res: F,
     ) -> Result<V, E>
     where
         CommonError: Into<E>,
     {
-        let result = self.send().await;
+        let result = get_client().request(self).await;
         match result {
             Ok(response) => {
-                if !response.status().is_success() {
-                    return Err(CommonError::Response(response.status().as_u16()).into());
+                if !response.status().is_successful() {
+                    return Err(CommonError::Response(response.status().code()).into());
                 }
                 res(response).await
             }
