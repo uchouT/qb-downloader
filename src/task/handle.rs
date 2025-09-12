@@ -62,22 +62,18 @@ async fn process_task_list() -> Result<(), TaskError> {
         error!("Failed to update task");
     })?;
 
-    let mut process_task_list = Vec::new();
-    {
+    let futures = {
         let task_map = task_map();
-        if !task_map.is_empty() {
-            task_map.iter().for_each(|(hash, task)| {
-                process_task_list.push((hash.clone(), task.clone()));
-            });
+        if task_map.is_empty() {
+            return Ok(());
         }
-    }
 
-    if process_task_list.is_empty() {
-        return Ok(());
-    }
-    let futures = process_task_list
-        .into_iter()
-        .map(|(hash, task)| process_task(task, hash));
+        task_map
+            .iter()
+            .map(|(_, task)| process_task(task.clone()))
+            .collect::<Vec<_>>()
+    };
+
     let _results = join_all(futures).await;
     if let Err(e) = task::save().await {
         error!("Failed to save task list: {}", format_error_chain(&e));
@@ -86,7 +82,7 @@ async fn process_task_list() -> Result<(), TaskError> {
 }
 
 /// process single task
-async fn process_task(task: Arc<TaskValue>, hash: String) -> Result<(), TaskError> {
+async fn process_task(task: Arc<TaskValue>) -> Result<(), TaskError> {
     let (status, is_seeding) = {
         let read_guard = task.state();
         (read_guard.status, read_guard.is_seeding)
@@ -110,7 +106,7 @@ async fn process_task(task: Arc<TaskValue>, hash: String) -> Result<(), TaskErro
         if is_seeding {
             return Ok(());
         }
-        if add_next_part(task.clone(), &hash).await.is_err() {
+        if add_next_part(task.clone()).await.is_err() {
             task.state_mut().status = Status::Error;
             error!("Failed to add next part for task: {}", &task.name)
         }
@@ -173,7 +169,8 @@ async fn update_task() -> Result<(), TaskError> {
 }
 
 /// Add the next part of the task
-async fn add_next_part(task: Arc<TaskValue>, hash: &str) -> Result<(), TaskError> {
+async fn add_next_part(task: Arc<TaskValue>) -> Result<(), TaskError> {
+    let hash = &task.hash;
     let (current_part_num, total_parts) = { (task.state().current_part_num, task.total_part_num) };
     qb::delete(hash, true).await.inspect_err(|e| {
         error!("Failed to delete {hash} \n{e}");
