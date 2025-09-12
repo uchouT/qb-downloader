@@ -1,6 +1,6 @@
-use std::{convert::Infallible, path::PathBuf};
 use futures_util::{FutureExt, select, try_join};
 use log::{error, info};
+use std::{convert::Infallible, path::PathBuf};
 use tokio::{
     signal::{self, unix::SignalKind},
     sync::broadcast,
@@ -8,50 +8,47 @@ use tokio::{
 
 use crate::{Error, VERSION, config, qb, server, task};
 const PORT: u16 = 7845;
-pub struct Application;
 
-impl Application {
-    pub fn run(port: u16) -> Result<(), Error> {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to create Tokio runtime");
+pub fn run(port: u16) -> Result<(), Error> {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("Failed to create Tokio runtime");
 
-        runtime.block_on(async move {
-            let (shutdown_tx, _) = broadcast::channel::<()>(1);
+    runtime.block_on(async move {
+        let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-            tokio::spawn(Self::wait_for_signal(shutdown_tx.clone()));
+        tokio::spawn(wait_for_signal(shutdown_tx.clone()));
 
-            let task_service = tokio::spawn(task::handle::run(shutdown_tx.subscribe()));
-            let server_service = tokio::spawn(server::run(shutdown_tx.subscribe(), port));
+        let task_service = tokio::spawn(task::handle::run(shutdown_tx.subscribe()));
+        let server_service = tokio::spawn(server::run(shutdown_tx.subscribe(), port));
 
-            let result = match try_join!(task_service, server_service) {
-                Ok((res1, res2)) => {
-                    res1?;
-                    res2?;
-                    Ok::<(), Error>(())
-                }
-                Err(e) => {
-                    error!("A service encountered an error: {e}");
-                    Ok(())
-                }
-            };
-            let _ = cleanup().await;
-            result
-        })?;
-        Ok(())
+        let result = match try_join!(task_service, server_service) {
+            Ok((res1, res2)) => {
+                res1?;
+                res2?;
+                Ok::<(), Error>(())
+            }
+            Err(e) => {
+                error!("A service encountered an error: {e}");
+                Ok(())
+            }
+        };
+        let _ = cleanup().await;
+        result
+    })?;
+    Ok(())
+}
+
+async fn wait_for_signal(shutdown_tx: broadcast::Sender<()>) {
+    let mut sigterm =
+        signal::unix::signal(SignalKind::terminate()).expect("Failed to set up signal handler");
+
+    select! {
+        _ = signal::ctrl_c().fuse() =>  {},
+        _ =  sigterm.recv().fuse()=> {},
     }
-
-    async fn wait_for_signal(shutdown_tx: broadcast::Sender<()>) {
-        let mut sigterm =
-            signal::unix::signal(SignalKind::terminate()).expect("Failed to set up signal handler");
-
-        select! {
-            _ = signal::ctrl_c().fuse() =>  {},
-            _ =  sigterm.recv().fuse()=> {},
-        }
-        let _ = shutdown_tx.send(());
-    }
+    let _ = shutdown_tx.send(());
 }
 
 /// Task before shutdown the application
@@ -98,7 +95,7 @@ pub fn init() -> Result<u16, Error> {
             std::env::set_var("RUST_LOG", "info");
         }
     }
-    
+
     pretty_env_logger::init();
     info!("qb-downloader v{VERSION} starting...");
     config::init(config_path)?;
