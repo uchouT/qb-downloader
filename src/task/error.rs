@@ -71,8 +71,8 @@ impl From<CommonError> for TaskError {
     }
 }
 
-impl From<reqwest::Error> for TaskError {
-    fn from(value: reqwest::Error) -> Self {
+impl From<nyquest_preset::nyquest::Error> for TaskError {
+    fn from(value: nyquest_preset::nyquest::Error) -> Self {
         TaskError {
             kind: TaskErrorKind::Common(value.into()),
         }

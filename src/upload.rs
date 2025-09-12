@@ -5,14 +5,15 @@ use std::sync::{Arc, RwLock};
 use crate::{
     config,
     error::CommonError,
-    request::{self, RequestBuilderExt},
+    request::{self, RequestExt},
     task::{
         Status, TaskValue,
         error::{TaskError, TaskErrorKind},
     },
 };
 use log::debug;
-use reqwest::header::{CONTENT_TYPE, HeaderValue};
+use nyquest_preset::nyquest::header;
+
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -66,8 +67,8 @@ impl UploaderTrait for Rclone {
             "createEmptySrcDirs": true
         });
         request::post(format!("{host}/sync/copy"))
-            .basic_auth(username, Some(password))
-            .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .basic_auth(username, password)
+            .header(header::CONTENT_TYPE, "application/json")
             .json(&body)
             .then(async |res| {
                 let value: Value = res.json().await?;
@@ -105,8 +106,8 @@ impl UploaderTrait for Rclone {
         };
 
         request::post(format!("{host}/job/status"))
-            .basic_auth(username, Some(password))
-            .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .basic_auth(username, password)
+            .header(header::CONTENT_TYPE, "application/json")
             .json(&json!({
                 "jobid": job_id
             }))
@@ -130,7 +131,7 @@ impl UploaderTrait for Rclone {
 
     async fn test(host: &str, username: &str, password: &str) -> bool {
         let res = request::post(format!("{host}/core/version"))
-            .basic_auth(username, Some(password))
+            .basic_auth(username, password)
             .then::<bool, CommonError, _, _>(async |res| {
                 let value: Value = res.json().await?;
                 let version = value

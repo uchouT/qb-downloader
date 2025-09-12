@@ -3,13 +3,13 @@
 pub mod error;
 use crate::{
     config, remove_slash,
-    request::{self, RequestBuilderExt},
+    request::{self, RequestExt},
 };
 use arc_swap::ArcSwap;
 use base32::Alphabet;
 use error::{QbError, QbErrorKind};
 use log::{error, info, warn};
-use reqwest::multipart;
+use nyquest::Part;
 use serde::Deserialize;
 use serde_json::Value;
 use std::{
@@ -400,7 +400,7 @@ pub async fn add_by_file(
     ratio_limit: f64,
 ) -> Result<(), QbError> {
     let host = host()?;
-    let file_part = multipart::Part::file(torrent_path).await?;
+    let file_part = Part::file(torrent_path).await?;
     let form = multipart::Form::new()
         .part("torrents", file_part)
         .text("category", CATEGORY)

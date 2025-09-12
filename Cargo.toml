@@ -32,6 +32,9 @@ bendy = "0.3.3"
 base32 = "0.5.1"
 futures-util = "0.3"
 arc-swap = "1.7.1"
+nyquest-preset = "0.3.0"
+nyquest = { version = "0.3.0", features = ["async", "multipart", "json"] }
+base64 = "0.22.1"
 
 [target.'cfg(target_env = "musl")'.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }

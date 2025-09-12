@@ -110,7 +110,7 @@ impl From<ServerError> for Error {
 pub enum CommonError {
     Io(std::io::Error),
     /// Connect failed
-    Network(reqwest::Error),
+    Network(nyquest_preset::nyquest::Error),
     /// response is not success
     Response(u16),
 
@@ -145,8 +145,8 @@ impl StdError for CommonError {
     }
 }
 
-impl From<reqwest::Error> for CommonError {
-    fn from(err: reqwest::Error) -> Self {
+impl From<nyquest_preset::nyquest::Error> for CommonError {
+    fn from(err: nyquest_preset::nyquest::Error) -> Self {
         CommonError::Network(err)
     }
 }
