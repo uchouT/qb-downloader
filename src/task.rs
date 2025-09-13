@@ -2,16 +2,17 @@
 pub mod error;
 pub mod handle;
 use std::{
+    borrow::Cow,
     collections::BTreeMap,
     path::{Path, PathBuf},
-    sync::{Arc, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::{Arc, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard}, time::Duration,
 };
 
 use directories_next::BaseDirs;
 use futures_util::future::{join, join_all};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
-use tokio::{fs, sync::Mutex};
+use tokio::{fs, sync::Mutex, time::sleep};
 
 use crate::{
     bencode,
@@ -291,17 +292,18 @@ pub async fn delete(hash: &str, added: bool) -> Result<(), TaskError> {
 /// - `file`: The file data
 /// - `url`: The filename of the torrent when is_file, otherwise the URL of the torrent
 /// - `save_path`: The path to save the download data
-pub async fn add_torrent(
-    file: Option<&[u8]>,
+pub async fn add_torrent<B: Into<Cow<'static, [u8]>>>(
+    file: Option<B>,
     url: &str,
     save_path: &str,
 ) -> Result<String, TaskError> {
     let hash = {
         if let Some(file) = file {
-            qb::add_by_bytes(url, save_path, file).await?;
-            let hash = bencode::get_hash(file)?;
+            let file = file.into();
+            let hash = bencode::get_hash(&file)?;
             let path = get_torrent_path(&hash);
-            fs::write(path, file).await.map_err(CommonError::from)?;
+            fs::write(path, &file).await.map_err(CommonError::from)?;
+            qb::add_by_bytes(url, save_path, file).await?;
             hash
         } else {
             let _lock = ADD_TORRENT_LOCK.lock().await;
@@ -393,6 +395,8 @@ pub async fn add(
 /// launch a task
 pub async fn launch(index: usize, hash: &str, task: &TaskValue) -> Result<(), TaskError> {
     task.state_mut().current_part_num = index;
+    // qb may not respond immediately after adding a torrent
+    sleep(Duration::from_millis(500)).await;
     qb::set_not_download(hash, task.file_num).await?;
     qb::set_prio(hash, 1, task.task_order.get(index).unwrap()).await?;
     qb::start(hash).await?;

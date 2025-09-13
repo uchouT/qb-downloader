@@ -4,15 +4,13 @@ use std::sync::{Arc, RwLock};
 
 use crate::{
     config,
-    error::CommonError,
-    request::{self, RequestExt},
+    request::{self, RequestError},
     task::{
         Status, TaskValue,
         error::{TaskError, TaskErrorKind},
     },
 };
 use log::debug;
-use nyquest_preset::nyquest::header;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -68,9 +66,8 @@ impl UploaderTrait for Rclone {
         });
         request::post(format!("{host}/sync/copy"))
             .basic_auth(username, password)
-            .header(header::CONTENT_TYPE, "application/json")
-            .json(&body)
-            .then(async |res| {
+            .json(body)
+            .send_and_then(async |res| {
                 let value: Value = res.json().await?;
                 if let Some(job_id) = value.get("jobid").and_then(|v| v.as_i64()) {
                     let Uploader::Rclone(id) = &task.uploader;
@@ -107,11 +104,10 @@ impl UploaderTrait for Rclone {
 
         request::post(format!("{host}/job/status"))
             .basic_auth(username, password)
-            .header(header::CONTENT_TYPE, "application/json")
-            .json(&json!({
+            .json(json!({
                 "jobid": job_id
             }))
-            .then(async |res| {
+            .send_and_then(async |res| {
                 let value: Value = res.json().await?;
                 let success = value.get("success").and_then(|v| v.as_bool()).unwrap();
                 let finished = value.get("finished").and_then(|v| v.as_bool()).unwrap();
@@ -132,7 +128,7 @@ impl UploaderTrait for Rclone {
     async fn test(host: &str, username: &str, password: &str) -> bool {
         let res = request::post(format!("{host}/core/version"))
             .basic_auth(username, password)
-            .then::<bool, CommonError, _, _>(async |res| {
+            .send_and_then::<_, RequestError, _, _>(async |res| {
                 let value: Value = res.json().await?;
                 let version = value
                     .get("version")

@@ -1,7 +1,7 @@
 //! This module handle task process
 
 use crate::{
-    Error, format_error_chain, qb,
+    Error, format_error_chain, qb, request,
     task::{self, Status, TaskValue, error::TaskError, launch, task_map},
 };
 use futures_util::{FutureExt, future::join_all, select};
@@ -23,6 +23,7 @@ const FINISHED_SEEDING: [&str; 2] = ["stoppedUP", "pausedUP"];
 const ERROR: [&str; 2] = ["error", "missingFiles"];
 
 pub async fn run(mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), Error> {
+    request::init().await;
     qb::init();
     qb::login().await;
     let mut task_interval = interval(Duration::from_secs(5));
@@ -69,8 +70,8 @@ async fn process_task_list() -> Result<(), TaskError> {
         }
 
         task_map
-            .iter()
-            .map(|(_, task)| process_task(task.clone()))
+            .values()
+            .map(|task| process_task(task.clone()))
             .collect::<Vec<_>>()
     };
 

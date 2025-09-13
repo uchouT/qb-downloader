@@ -4,6 +4,7 @@ use std::fmt::Display;
 use crate::{
     bencode::error::BencodeError,
     error::{CommonError, QbError, format_error_cause_chain},
+    request::RequestError,
 };
 #[derive(Debug)]
 pub struct TaskError {
@@ -20,7 +21,8 @@ pub enum TaskErrorKind {
     Qb(QbError),
     Other(String),
     OverSize,
-    Abort
+    Request(RequestError),
+    Abort,
 }
 
 impl Display for TaskError {
@@ -46,6 +48,7 @@ impl Display for TaskErrorKind {
             Self::Bencode(ref e) => write!(f, "error parse torrent: {e}"),
             Self::OverSize => f.write_str("Selected files exceed maximum length"),
             Self::Abort => f.write_str("Task aborted"),
+            Self::Request(ref e) => write!(f, "Request error: {e}"),
         }
     }
 }
@@ -58,6 +61,7 @@ impl StdError for TaskErrorKind {
             Self::Common(e) => Some(e),
             Self::Qb(e) => Some(e),
             Self::Bencode(e) => Some(e),
+            Self::Request(e) => Some(e),
             _ => None,
         }
     }
@@ -83,6 +87,14 @@ impl From<QbError> for TaskError {
     fn from(value: QbError) -> Self {
         TaskError {
             kind: TaskErrorKind::Qb(value),
+        }
+    }
+}
+
+impl From<RequestError> for TaskError {
+    fn from(value: RequestError) -> Self {
+        TaskError {
+            kind: TaskErrorKind::Request(value),
         }
     }
 }

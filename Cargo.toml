@@ -5,7 +5,6 @@ edition = "2024"
 
 [profile.release]
 lto = true
-opt-level = "z"
 strip = true
 codegen-units = 1
 panic = "abort"
@@ -14,14 +13,13 @@ panic = "abort"
 pretty_env_logger = "0.5"
 log = "0.4"
 md5 = "0.7"
-reqwest = {version = "0.12", features = ["cookies", "json", "stream", "multipart"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
+serde_urlencoded = "0.7"
 toml = "0.8"
 directories-next = "2"
-tokio = { version = "1", features = ["time", "sync", "net", "signal"] }
-hyper = { version = "1.6", features = ["server"] }
-hyper-util = { version = "0.1", features = ["server", "server-graceful"]}
+tokio = { version = "1", features = ["time", "sync", "net", "fs", "signal"] }
+hyper-util = { version = "0.1", features = ["server", "server-graceful", "http1"]}
 http-body-util = "0.1"
 multer = "3.1"
 rand = "0.9.2"
@@ -32,9 +30,11 @@ bendy = "0.3.3"
 base32 = "0.5.1"
 futures-util = "0.3"
 arc-swap = "1.7.1"
-nyquest-preset = "0.3.0"
+nyquest-preset = { version = "0.3.0", features = ["async", "multipart"] }
 nyquest = { version = "0.3.0", features = ["async", "multipart", "json"] }
 base64 = "0.22.1"
+thiserror = "2.0.16"
+hyper = { version = "1.7.0", features = ["http1", "server"] }
 
 [target.'cfg(target_env = "musl")'.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }

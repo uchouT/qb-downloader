@@ -5,6 +5,8 @@
 //! GET: get torrent content tree
 //! DELETE: delete torrent. which is not added as task
 
+use std::borrow::Cow;
+
 use crate::{
     bencode::{self, FileNode},
     config::{self, strip_slash},
@@ -50,7 +52,16 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     } else {
         add_by_url(req).await?
     };
-    let hash = match task::add_torrent(file.as_deref(), &url, &save_path).await {
+    let hash = match task::add_torrent(
+        file.map(|f| {
+            let bytes: Vec<_> = f.into();
+            Cow::Owned(bytes)
+        }),
+        &url,
+        &save_path,
+    )
+    .await
+    {
         Ok(h) => h,
         Err(e) => {
             if let TaskErrorKind::Abort = e.kind {

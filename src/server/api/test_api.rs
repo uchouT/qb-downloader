@@ -34,7 +34,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     let test_req: TestReq = from_json(&data)?;
 
     let valid = match test_req.test_type {
-        "qb" => qb::test_login(test_req.host, test_req.username, test_req.password).await,
+        "qb" => qb::test_login(test_req.host, test_req.username, test_req.password, true).await,
         "Rclone" => Rclone::test(test_req.host, test_req.username, test_req.password).await,
         _ => return Ok(ResultResponse::bad_request(Some("unknown test type"))),
     };

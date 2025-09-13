@@ -1,4 +1,5 @@
 use crate::error::{CommonError, format_error_cause_chain};
+use crate::request::RequestError;
 use std::error::Error as StdError;
 use std::fmt::Display;
 #[derive(Debug)]
@@ -13,7 +14,7 @@ pub enum QbErrorKind {
     UnsupportedVersion,
     Other(String),
     NoNewTorrents,
-
+    Request(RequestError),
     Common(CommonError),
 }
 
@@ -41,6 +42,7 @@ impl Display for QbErrorKind {
             Self::NoNewTorrents => f.write_str("No new torrents found"),
             Self::Common(ref err) => write!(f, "{err}"),
             Self::UnsupportedVersion => f.write_str("qBittorrent version is not supported"),
+            Self::Request(ref err) => write!(f, "{err}"),
         }
     }
 }
@@ -49,6 +51,7 @@ impl StdError for QbErrorKind {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             Self::Common(err) => Some(err),
+            Self::Request(err) => Some(err),
             _ => None,
         }
     }
@@ -74,6 +77,14 @@ impl From<std::io::Error> for QbError {
     fn from(err: std::io::Error) -> Self {
         QbError {
             kind: QbErrorKind::Common(CommonError::from(err)),
+        }
+    }
+}
+
+impl From<RequestError> for QbError {
+    fn from(value: RequestError) -> Self {
+        QbError {
+            kind: QbErrorKind::Request(value),
         }
     }
 }

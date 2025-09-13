@@ -134,7 +134,7 @@ pub fn parse_torrent<'a>(value: &'a Value) -> Result<(String, Vec<&'a i64>), Ben
 
 pub fn get_hash(file: &[u8]) -> Result<String, BencodeError> {
     let mut decoder = Decoder::new(file);
-    let obj = decoder.next_object()?.ok_or_else(|| BencodeError {
+    let obj = decoder.next_object()?.ok_or(BencodeError {
         kind: BencodeErrorKind::Decode,
     })?;
     let mut dict = obj.try_into_dictionary()?;
