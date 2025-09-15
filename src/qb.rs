@@ -14,7 +14,6 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::{
     borrow::Cow,
-    collections::HashMap,
     fs::File,
     io::Write,
     path::Path,
@@ -32,8 +31,8 @@ pub enum Tag {
     Waited,
 }
 
-impl AsRef<str> for Tag {
-    fn as_ref(&self) -> &str {
+impl Tag {
+    pub fn as_str(&self) -> &'static str {
         match self {
             Tag::New => "qbd_new",
             Tag::Waited => "qbd_waited",
@@ -43,7 +42,7 @@ impl AsRef<str> for Tag {
 
 impl ToString for Tag {
     fn to_string(&self) -> String {
-        self.as_ref().to_string()
+        self.as_str().to_string()
     }
 }
 
@@ -169,9 +168,10 @@ async fn get_version(host: &str) -> Result<u8, QbError> {
 /// accept any form of host, e.g. "http://example.com" or "example.com"
 pub async fn test_login(host: &str, username: &str, pass: &str, disable_cookies: bool) -> bool {
     let refined_host = remove_slash(host);
-    let mut form = HashMap::new();
-    form.insert("username", username.to_string());
-    form.insert("password", pass.to_string());
+    let form = [
+        ("username", username.to_string()),
+        ("password", pass.to_string()),
+    ];
     let result = {
         let mut req = request::post(format!("{refined_host}/api/v2/auth/login")).form(form);
         if disable_cookies {
@@ -202,7 +202,7 @@ pub async fn get_torrent_info() -> Result<Vec<TorrentInfo>, QbError> {
 pub async fn get_hash() -> Result<String, QbError> {
     let host = host()?;
     request::get(format!("{host}/api/v2/torrents/info"))
-        .query([("category", CATEGORY), ("tag", Tag::New.as_ref())])
+        .query([("category", CATEGORY), ("tag", Tag::New.as_str())])
         .send_and_then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
             // Always occurs when a same torrent is added
@@ -219,7 +219,10 @@ pub async fn get_hash() -> Result<String, QbError> {
 
 async fn manage_tag(hash: &str, tag: Tag, action: &str) -> Result<(), QbError> {
     let host = host()?;
-    let param = HashMap::from([("hashes", hash.to_string()), ("tags", tag.to_string())]);
+    let param = [
+        ("hashes", Cow::from(hash.to_string())),
+        ("tags", Cow::from(tag.as_str())),
+    ];
     request::post(format!("{host}/api/v2/torrents/{action}"))
         .form(param)
         .send()
@@ -268,17 +271,13 @@ pub async fn stop(hash: &str) -> Result<(), QbError> {
 /// delete a torrent
 pub async fn delete(hash: &str, delete_files: bool) -> Result<(), QbError> {
     let host = host()?;
-    let param = HashMap::from([
-        ("hashes", hash.to_string()),
+    let param = [
+        ("hashes", Cow::from(hash.to_string())),
         (
             "deleteFiles",
-            if delete_files {
-                "true".to_string()
-            } else {
-                "false".to_string()
-            },
+            Cow::from(if delete_files { "true" } else { "false" }),
         ),
-    ]);
+    ];
     request::post(format!("{host}/api/v2/torrents/delete"))
         .form(param)
         .send()
@@ -290,7 +289,7 @@ pub async fn delete(hash: &str, delete_files: bool) -> Result<(), QbError> {
 pub async fn get_state(hash: &str) -> Result<String, QbError> {
     let host = host()?;
     request::get(format!("{host}/api/v2/torrents/info"))
-        .query([("hashes", hash.to_string())])
+        .query([("hashes", hash)])
         .send_and_then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
             if json_array.is_empty() {
@@ -318,11 +317,11 @@ pub async fn set_prio(hash: &str, priority: u8, index_list: &[usize]) -> Result<
         .join("|");
 
     let prio = priority.to_string();
-    let param = HashMap::from([
+    let param = [
         ("hash", hash.to_string()),
         ("priority", prio.to_string()),
         ("id", id.to_string()),
-    ]);
+    ];
     request::post(format!("{host}/api/v2/torrents/filePrio"))
         .form(param)
         .send()
@@ -342,12 +341,15 @@ pub async fn set_share_limit(
     seeding_time_limit: i32,
 ) -> Result<(), QbError> {
     let host = host()?;
-    let param = HashMap::from([
-        ("hashes", hash.to_string()),
-        ("ratioLimit", ratio_limit.to_string()),
-        ("seedingTimeLimit", seeding_time_limit.to_string()),
-        ("inactiveSeedingTimeLimit", "-2".to_string()),
-    ]);
+    let param = [
+        ("hashes", Cow::from(hash.to_string())),
+        ("ratioLimit", Cow::from(ratio_limit.to_string())),
+        (
+            "seedingTimeLimit",
+            Cow::from(seeding_time_limit.to_string()),
+        ),
+        ("inactiveSeedingTimeLimit", Cow::from("-2")),
+    ];
     request::post(format!("{host}/api/v2/torrents/setShareLimits"))
         .form(param)
         .send()
@@ -382,7 +384,7 @@ pub async fn export(hash: &str, path: &Path) -> Result<(), QbError> {
 pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, QbError> {
     let host = host()?;
     request::get(format!("{host}/api/v2/torrents/info"))
-        .query([("category", CATEGORY), ("tag", tag.as_ref())])
+        .query([("category", CATEGORY), ("tag", tag.as_str())])
         .send_and_then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
             let hash_list = json_array
@@ -398,13 +400,13 @@ pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, QbError> {
 /// if url is a magnet link, means hash is known, else add tag New and wait for [`get_hash`] to fetch the meta data
 pub async fn add_by_url(url: &str, save_path: &str) -> Result<(), QbError> {
     let host = host()?;
-    let param = HashMap::from([
-        ("urls", url.to_string()),
-        ("savepath", save_path.to_string()),
-        ("category", CATEGORY.to_string()),
-        ("stopCondition", "MetadataReceived".to_string()),
-        ("tags", Tag::New.to_string()),
-    ]);
+    let param = [
+        ("urls", Cow::from(url.to_string())),
+        ("savepath", Cow::from(save_path.to_string())),
+        ("category", Cow::from(CATEGORY)),
+        ("stopCondition", Cow::from("MetadataReceived")),
+        ("tags", Cow::from(Tag::New.as_str())),
+    ];
 
     request::post(format!("{host}/api/v2/torrents/add"))
         .form(param)
