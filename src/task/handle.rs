@@ -37,7 +37,7 @@ pub async fn run(mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), Error> 
                 if !qb::is_logined() {
                     continue;
                 }
-                 if let Err(e) = process_task_list().await {
+                if let Err(e) = process_task_list().await {
                 error!("Failed to process task list: {e}");
                 }
             }
@@ -59,6 +59,9 @@ pub async fn run(mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), Error> 
 
 /// process all tasks
 async fn process_task_list() -> Result<(), TaskError> {
+    if task_map().is_empty() {
+        return Ok(());
+    }
     update_task().await.inspect_err(|_| {
         error!("Failed to update task");
     })?;
@@ -115,7 +118,7 @@ async fn process_task(task: Arc<TaskValue>) -> Result<(), TaskError> {
     Ok(())
 }
 
-/// update task status
+/// update task status, task map is not empty
 async fn update_task() -> Result<(), TaskError> {
     let torrent_infos = qb::get_torrent_info().await?;
     let task_list = task_map();

@@ -1,108 +1,56 @@
-use std::error::Error as StdError;
-use std::fmt::Display;
+use thiserror::Error;
 
 use crate::{
     bencode::error::BencodeError,
-    error::{CommonError, QbError, format_error_cause_chain},
+    error::{CommonError, QbError},
     request::RequestError,
 };
-#[derive(Debug)]
-pub struct TaskError {
-    pub kind: TaskErrorKind,
-}
 
-#[derive(Debug)]
+// TODO: more specific error types
+
+#[derive(Debug, Error)]
 #[non_exhaustive]
-pub enum TaskErrorKind {
-    Upload(String),
+pub enum TaskError {
+    #[error("{0}")]
+    Upload(&'static str),
+
+    #[error("Task not found for hash: {0}")]
+    NotFound(String),
+
+    #[error("Download error")]
     Download,
-    Common(CommonError),
-    Bencode(BencodeError),
-    Qb(QbError),
-    Other(String),
+
+    #[error("{0}")]
+    Common(
+        #[from]
+        #[source]
+        CommonError,
+    ),
+
+    #[error("bencode parse error: {0}")]
+    Bencode(
+        #[from]
+        #[source]
+        BencodeError,
+    ),
+
+    #[error("Qb error\ncaused by {0}")]
+    Qb(
+        #[from]
+        #[source]
+        QbError,
+    ),
+
+    #[error("exceed")]
     OverSize,
-    Request(RequestError),
+
+    #[error("Request error: {0}")]
+    Request(
+        #[from]
+        #[source]
+        RequestError,
+    ),
+    
+    #[error("Task aborted")]
     Abort,
-}
-
-impl Display for TaskError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Task error occurred{}", format_error_cause_chain(self))
-    }
-}
-
-impl StdError for TaskError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        Some(&self.kind)
-    }
-}
-
-impl Display for TaskErrorKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            Self::Upload(ref msg) => f.write_str(msg),
-            Self::Download => f.write_str("Download error"),
-            Self::Common(ref e) => write!(f, "{e}"),
-            Self::Qb(ref e) => write!(f, "{e}"),
-            Self::Other(ref msg) => f.write_str(msg),
-            Self::Bencode(ref e) => write!(f, "error parse torrent: {e}"),
-            Self::OverSize => f.write_str("Selected files exceed maximum length"),
-            Self::Abort => f.write_str("Task aborted"),
-            Self::Request(ref e) => write!(f, "Request error: {e}"),
-        }
-    }
-}
-
-impl StdError for TaskErrorKind {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            Self::Upload(_) => None,
-            Self::Download => None,
-            Self::Common(e) => Some(e),
-            Self::Qb(e) => Some(e),
-            Self::Bencode(e) => Some(e),
-            Self::Request(e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
-impl From<CommonError> for TaskError {
-    fn from(value: CommonError) -> Self {
-        TaskError {
-            kind: TaskErrorKind::Common(value),
-        }
-    }
-}
-
-impl From<nyquest_preset::nyquest::Error> for TaskError {
-    fn from(value: nyquest_preset::nyquest::Error) -> Self {
-        TaskError {
-            kind: TaskErrorKind::Common(value.into()),
-        }
-    }
-}
-
-impl From<QbError> for TaskError {
-    fn from(value: QbError) -> Self {
-        TaskError {
-            kind: TaskErrorKind::Qb(value),
-        }
-    }
-}
-
-impl From<RequestError> for TaskError {
-    fn from(value: RequestError) -> Self {
-        TaskError {
-            kind: TaskErrorKind::Request(value),
-        }
-    }
-}
-
-impl From<BencodeError> for TaskError {
-    fn from(value: BencodeError) -> Self {
-        TaskError {
-            kind: TaskErrorKind::Bencode(value),
-        }
-    }
 }

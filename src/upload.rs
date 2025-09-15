@@ -5,10 +5,7 @@ use std::sync::{Arc, RwLock};
 use crate::{
     config,
     request::{self, RequestError},
-    task::{
-        Status, TaskValue,
-        error::{TaskError, TaskErrorKind},
-    },
+    task::{Status, TaskValue, error::TaskError},
 };
 use log::debug;
 
@@ -68,7 +65,7 @@ impl UploaderTrait for Rclone {
             .basic_auth(username, password)
             .json(body)
             .send_and_then(async |res| {
-                let value: Value = res.json().await?;
+                let value: Value = res.json().await.map_err(RequestError::from)?;
                 if let Some(job_id) = value.get("jobid").and_then(|v| v.as_i64()) {
                     let Uploader::Rclone(id) = &task.uploader;
                     *id.write().unwrap() = Some(job_id as i32);
@@ -76,9 +73,7 @@ impl UploaderTrait for Rclone {
                 } else {
                     // TODO: more specific error
                     task.state_mut().status = Status::Error;
-                    Err(TaskError {
-                        kind: TaskErrorKind::Upload("Rclone job id not found".into()),
-                    })
+                    Err(TaskError::Upload("Rclone job id not found"))
                 }
             })
             .await
@@ -94,10 +89,10 @@ impl UploaderTrait for Rclone {
             let Uploader::Rclone(job_id_opt) = &task.uploader;
             if job_id_opt.read().unwrap().is_none() {
                 task.state_mut().status = Status::Error;
-                return Err(TaskError {
+                return Err(
                     // TODO: make it more specific
-                    kind: TaskErrorKind::Upload("No rclone job ID found".into()),
-                });
+                    TaskError::Upload("No rclone job ID found"),
+                );
             }
             job_id_opt.read().unwrap().unwrap()
         };
@@ -108,17 +103,17 @@ impl UploaderTrait for Rclone {
                 "jobid": job_id
             }))
             .send_and_then(async |res| {
-                let value: Value = res.json().await?;
+                let value: Value = res.json().await.map_err(RequestError::from)?;
                 let success = value.get("success").and_then(|v| v.as_bool()).unwrap();
                 let finished = value.get("finished").and_then(|v| v.as_bool()).unwrap();
 
                 // finished but not successful means there were errors
                 if finished && !success {
                     task.state_mut().status = Status::Error;
-                    return Err(TaskError {
+                    return Err(
                         // TODO: make it more specific
-                        kind: TaskErrorKind::Upload("Rclone job finished with errors".into()),
-                    });
+                        TaskError::Upload("Rclone job finished with errors"),
+                    );
                 }
                 Ok(success)
             })

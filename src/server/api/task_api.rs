@@ -6,13 +6,14 @@
 //! DELETE: delete task
 use crate::{
     config::{self, strip_slash},
+    error::TaskError,
     qb,
     server::{
         ResultResponse,
         api::{from_json_owned, get_param_map, get_required_param},
-        error::{ServerError, ServerErrorKind},
+        error::ServerError,
     },
-    task::{self, error::TaskErrorKind},
+    task,
     upload::Uploader,
 };
 use hyper::{Method, Response, StatusCode};
@@ -69,9 +70,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     if task_req.upload_path.is_empty() {
         let general_cfg = &c.general;
         if general_cfg.default_upload_path.is_empty() {
-            return Err(ServerError {
-                kind: ServerErrorKind::MissingParams("upload_path"),
-            });
+            return Err(ServerError::MissingParams("upload_path"));
         } else {
             task_req.upload_path = general_cfg.default_upload_path.clone();
         }
@@ -79,16 +78,12 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     let seeding_time_limit = task_req
         .seeding_time_limit
         .or(c.qb.default_seeding_time_limit)
-        .ok_or(ServerError {
-            kind: ServerErrorKind::MissingParams("seeding_time_limit"),
-        })?;
+        .ok_or(ServerError::MissingParams("seeding_time_limit"))?;
 
     let ratio_limit = task_req
         .ratio_limit
         .or(c.qb.default_ratio_limit)
-        .ok_or(ServerError {
-            kind: ServerErrorKind::MissingParams("ratio_limit"),
-        })?;
+        .ok_or(ServerError::MissingParams("ratio_limit"))?;
 
     if let Err(e) = task::add(
         task_req.torrent_res.hash,
@@ -104,7 +99,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     .await
     {
         error!("{e}");
-        if let TaskErrorKind::OverSize = e.kind {
+        if let TaskError::OverSize = e {
             return Ok(ResultResponse::error_msg(
                 "Selected files exceed maximum length",
             ));
@@ -116,9 +111,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
 
 async fn put(req: Req) -> ServerResult<Response<BoxBody>> {
     let (hash, manipulate_type) = {
-        let params = get_param_map(&req).ok_or(ServerError {
-            kind: ServerErrorKind::MissingParams("hash or type"),
-        })?;
+        let params = get_param_map(&req).ok_or(ServerError::MissingParams("hash or type"))?;
         (
             get_required_param::<String>(&params, "hash")?,
             get_required_param::<String>(&params, "type")?,
@@ -135,9 +128,7 @@ async fn put(req: Req) -> ServerResult<Response<BoxBody>> {
 }
 async fn delete(req: Req) -> ServerResult<Response<BoxBody>> {
     let hash = {
-        let params = get_param_map(&req).ok_or(ServerError {
-            kind: ServerErrorKind::MissingParams("hash"),
-        })?;
+        let params = get_param_map(&req).ok_or(ServerError::MissingParams("hash"))?;
         get_required_param::<String>(&params, "hash")?
     };
     let _ = task::delete(&hash, true).await;

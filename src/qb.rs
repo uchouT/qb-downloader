@@ -2,18 +2,21 @@
 
 pub mod error;
 use crate::{
-    config, remove_slash,
+    config,
+    error::{CommonError, format_error_chain},
+    remove_slash,
     request::{self, FilePart, Multipart},
 };
 use arc_swap::ArcSwap;
 use base32::Alphabet;
-use error::{QbError, QbErrorKind};
+use error::QbError;
 use log::{error, info, warn};
 
 use serde::Deserialize;
 use serde_json::Value;
 use std::{
     borrow::Cow,
+    fmt::Display,
     fs::File,
     io::Write,
     path::Path,
@@ -40,9 +43,9 @@ impl Tag {
     }
 }
 
-impl ToString for Tag {
-    fn to_string(&self) -> String {
-        self.as_str().to_string()
+impl Display for Tag {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -85,10 +88,7 @@ fn host() -> Result<Arc<str>, QbError> {
     if qb.logined {
         Ok(qb.host.clone())
     } else {
-        error!("qBittorrent access denied");
-        Err(QbError {
-            kind: QbErrorKind::NotLogin,
-        })
+        Err(QbError::NotLogin)
     }
 }
 
@@ -119,10 +119,13 @@ pub async fn login_with(host: &str, username: &str, password: &str) {
                 info!("qBittorrent login successful");
             }
             Err(e) => {
-                if matches!(e.kind, QbErrorKind::UnsupportedVersion) {
+                if let QbError::UnsupportedVersion = e {
                     warn!("qBittorrent version is not supported");
                 } else {
-                    error!("Failed to get qBittorrent version: {e}");
+                    error!(
+                        "Failed to get qBittorrent version\n{}",
+                        format_error_chain(e)
+                    );
                 }
                 QB.get().unwrap().store(Arc::new(Qb {
                     host: Arc::from(host),
@@ -158,9 +161,7 @@ async fn get_version(host: &str) -> Result<u8, QbError> {
                     return Ok(first);
                 }
             }
-            Err(QbError {
-                kind: QbErrorKind::UnsupportedVersion,
-            })
+            Err(QbError::UnsupportedVersion)
         })
         .await
 }
@@ -207,9 +208,7 @@ pub async fn get_hash() -> Result<String, QbError> {
             let json_array: Vec<Value> = res.json().await?;
             // Always occurs when a same torrent is added
             if json_array.is_empty() {
-                return Err(QbError {
-                    kind: QbErrorKind::NoNewTorrents,
-                });
+                return Err(QbError::NoNewTorrents);
             }
             let hash = json_array[0].get("hash").and_then(|v| v.as_str()).unwrap();
             Ok(hash.to_string())
@@ -217,7 +216,7 @@ pub async fn get_hash() -> Result<String, QbError> {
         .await
 }
 
-async fn manage_tag(hash: &str, tag: Tag, action: &str) -> Result<(), QbError> {
+async fn manage_tag(hash: &str, tag: Tag, action: &'static str) -> Result<(), QbError> {
     let host = host()?;
     let param = [
         ("hashes", Cow::from(hash.to_string())),
@@ -241,7 +240,7 @@ pub async fn add_tag(hash: &str, tag: Tag) -> Result<(), QbError> {
 }
 
 /// manage torrent task
-async fn manage(hash: &str, action: &str) -> Result<(), QbError> {
+async fn manage(hash: &str, action: &'static str) -> Result<(), QbError> {
     let host = host()?;
     request::post(format!("{host}/api/v2/torrents/{action}"))
         .form([("hashes", hash.to_string())])
@@ -292,10 +291,10 @@ pub async fn get_state(hash: &str) -> Result<String, QbError> {
         .query([("hashes", hash)])
         .send_and_then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
+            // the hash should exist, if not means while fetching meta data
+            // the task is cancelled by user.
             if json_array.is_empty() {
-                return Err(QbError {
-                    kind: QbErrorKind::NoNewTorrents,
-                });
+                return Err(QbError::Cancelled);
             }
             let state = json_array[0].get("state").and_then(|v| v.as_str()).unwrap();
             Ok(state.to_string())
@@ -316,10 +315,9 @@ pub async fn set_prio(hash: &str, priority: u8, index_list: &[usize]) -> Result<
         .collect::<Vec<String>>()
         .join("|");
 
-    let prio = priority.to_string();
     let param = [
         ("hash", hash.to_string()),
-        ("priority", prio.to_string()),
+        ("priority", priority.to_string()),
         ("id", id.to_string()),
     ];
     request::post(format!("{host}/api/v2/torrents/filePrio"))
@@ -372,8 +370,8 @@ pub async fn export(hash: &str, path: &Path) -> Result<(), QbError> {
         .form([("hash", hash.to_string())])
         .send_and_then(async |res| {
             let data = res.bytes().await?;
-            let mut file = File::create(path)?;
-            file.write_all(&data)?;
+            let mut file = File::create(path).map_err(CommonError::from)?;
+            file.write_all(&data).map_err(CommonError::from)?;
             remove_tag(hash, Tag::New).await?;
             Ok(())
         })

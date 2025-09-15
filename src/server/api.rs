@@ -9,10 +9,7 @@ pub mod test_api;
 pub mod torrent_api;
 pub mod version_api;
 use super::{BoxBody, Req};
-use crate::{
-    error::CommonError,
-    server::error::{ServerError, ServerErrorKind},
-};
+use crate::{error::CommonError, server::error::ServerError};
 use http_body_util::BodyExt;
 use hyper::{Response, body::Bytes, header};
 use multer::Multipart;
@@ -36,9 +33,7 @@ pub trait Action: Send + Sync {
         {
             return Ok(());
         }
-        Err(ServerError {
-            kind: ServerErrorKind::Unauthorized,
-        })
+        Err(ServerError::Unauthorized)
     }
 }
 
@@ -64,14 +59,12 @@ pub fn get_option_param<T: FromStr>(params: &HashMap<String, String>, key: &str)
 
 /// Extracts a required parameter
 /// # Error
-/// Returns a [MissingParams](super::error::ServerErrorKind::MissingParams) if the parameter is not found.
+/// Returns a [MissingParams](super::error::ServerError::MissingParams) if the parameter is not found.
 pub fn get_required_param<T: FromStr>(
     params: &HashMap<String, String>,
     key: &'static str,
 ) -> ServerResult<T> {
-    get_option_param(params, key).ok_or(ServerError {
-        kind: ServerErrorKind::MissingParams(key),
-    })
+    get_option_param(params, key).ok_or(ServerError::MissingParams(key))
 }
 
 /// Extracts parameters from the request query string into a HashMap.
@@ -126,21 +119,16 @@ impl ReqExt for Req {
         }
         false
     }
+
     fn into_multipart<'a>(self) -> ServerResult<Multipart<'a>> {
         let content_type = self
             .headers()
             .get(hyper::header::CONTENT_TYPE)
-            .ok_or(ServerError {
-                kind: ServerErrorKind::BadRequest(None),
-            })?
+            .ok_or(ServerError::BadRequestMultipart)?
             .to_str()
-            .map_err(|_| ServerError {
-                kind: ServerErrorKind::BadRequest(None),
-            })?;
+            .map_err(|_| ServerError::BadRequestMultipart)?;
 
-        let boundary = multer::parse_boundary(content_type).map_err(|_| ServerError {
-            kind: ServerErrorKind::BadRequest(None),
-        })?;
+        let boundary = multer::parse_boundary(content_type)?;
         let stream = self.into_body().into_data_stream();
         Ok(Multipart::new(stream, boundary))
     }

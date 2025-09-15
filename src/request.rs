@@ -304,7 +304,7 @@ impl MyRequestBuilder {
 
 #[derive(Error, Debug)]
 pub enum RequestError {
-    #[error("Network error: {0}")]
+    #[error("Network error")]
     Network(
         #[from]
         #[source]
@@ -314,7 +314,7 @@ pub enum RequestError {
     #[error("HTTP error with status code {0}")]
     Response(u16),
 
-    #[error("IO error: {0}")]
+    #[error("IO error")]
     Io(
         #[from]
         #[source]

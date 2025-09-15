@@ -8,7 +8,7 @@ use crate::{
     server::{
         ResultResponse,
         api::{from_json_owned, login_api::gen_key},
-        error::{ServerError, ServerErrorKind},
+        error::ServerError,
     },
 };
 use futures_util::future::join;
@@ -22,9 +22,7 @@ impl Action for ConfigAPI {
         match *req.method() {
             Method::POST => post(req).await,
             Method::GET => get().await,
-            _ => Err(ServerError {
-                kind: ServerErrorKind::MethodNotAllowed,
-            }),
+            _ => Err(ServerError::MethodNotAllowed),
         }
     }
 }

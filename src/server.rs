@@ -224,6 +224,7 @@ impl ResultResponse<()> {
             .unwrap()
     }
 
+    /// build a bad request response, with optional message
     fn bad_request(message: Option<&'static str>) -> Response<BoxBody> {
         let result = Self {
             message,

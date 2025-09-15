@@ -17,9 +17,9 @@ use crate::{
         api::{
             ReqExt, from_json, get_json_body, get_option_param, get_param_map, get_required_param,
         },
-        error::{ServerError, ServerErrorKind},
+        error::ServerError,
     },
-    task::{self, error::TaskErrorKind, get_torrent_path},
+    task::{self, error::TaskError, get_torrent_path},
 };
 
 use hyper::{Method, Response, StatusCode, body::Bytes};
@@ -64,7 +64,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     {
         Ok(h) => h,
         Err(e) => {
-            if let TaskErrorKind::Abort = e.kind {
+            if let TaskError::Abort = e {
                 return Ok(ResultResponse::success());
             } else {
                 return Err(ServerError::from(e));
@@ -107,16 +107,12 @@ async fn add_by_file(req: Req) -> ServerResult<(Option<Bytes>, String, String)> 
     }
 
     if data.is_none() {
-        return Err(ServerError {
-            kind: ServerErrorKind::MissingParams("torrent file"),
-        });
+        return Err(ServerError::MissingParams("torrent file"));
     }
     if save_path.is_none() {
         let default_path = config::value().qb.default_save_path.clone();
         if default_path.is_empty() {
-            return Err(ServerError {
-                kind: ServerErrorKind::MissingParams("save_path"),
-            });
+            return Err(ServerError::MissingParams("save_path"));
         } else {
             save_path = Some(default_path);
         }
@@ -131,9 +127,7 @@ async fn add_by_url(req: Req) -> ServerResult<(Option<Bytes>, String, String)> {
         if torrent_req.save_path.is_empty() {
             let default_path = config::value().qb.default_save_path.clone();
             if default_path.is_empty() {
-                return Err(ServerError {
-                    kind: ServerErrorKind::MissingParams("save_path"),
-                });
+                return Err(ServerError::MissingParams("save_path"));
             } else {
                 default_path
             }
@@ -148,9 +142,7 @@ async fn add_by_url(req: Req) -> ServerResult<(Option<Bytes>, String, String)> {
 /// get torrent content tree
 async fn get(req: Req) -> ServerResult<Response<BoxBody>> {
     let hash = {
-        let params = get_param_map(&req).ok_or(ServerError {
-            kind: ServerErrorKind::MissingParams("hash"),
-        })?;
+        let params = get_param_map(&req).ok_or(ServerError::MissingParams("hash"))?;
         get_required_param::<String>(&params, "hash")?
     };
     let torrent_path = get_torrent_path(&hash);

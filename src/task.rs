@@ -5,7 +5,8 @@ use std::{
     borrow::Cow,
     collections::BTreeMap,
     path::{Path, PathBuf},
-    sync::{Arc, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard}, time::Duration,
+    sync::{Arc, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    time::Duration,
 };
 
 use directories_next::BaseDirs;
@@ -16,10 +17,8 @@ use tokio::{fs, sync::Mutex, time::sleep};
 
 use crate::{
     bencode,
-    error::{CommonError, TaskError},
-    format_error_chain,
-    qb::{self, error::QbErrorKind},
-    task::{self, error::TaskErrorKind},
+    error::{CommonError, QbError, TaskError},
+    format_error_chain, qb, task,
     upload::Uploader,
 };
 
@@ -217,11 +216,7 @@ pub async fn start(hash: &str) -> Result<(), TaskError> {
         if let Some(task) = task_map().get(hash) {
             task.state_mut().status = Status::Downloading;
         } else {
-            let msg = format!("Task not found for hash: {hash}");
-            error!("{msg}");
-            return Err(TaskError {
-                kind: error::TaskErrorKind::Other(msg),
-            });
+            return Err(TaskError::NotFound(hash.to_string()));
         }
         save().await?;
     }
@@ -237,11 +232,7 @@ pub async fn stop(hash: &str) -> Result<(), TaskError> {
         if let Some(task) = task_map().get(hash) {
             task.state_mut().status = Status::Paused;
         } else {
-            let msg = format!("Task not found for hash: {hash}");
-            error!("{msg}");
-            return Err(TaskError {
-                kind: error::TaskErrorKind::Other(msg),
-            });
+            return Err(TaskError::NotFound(hash.to_string()));
         }
         save().await?;
     }
@@ -318,10 +309,8 @@ pub async fn add_torrent<B: Into<Cow<'static, [u8]>>>(
             };
             let path = get_torrent_path(&hash);
             qb::export(&hash, &path).await.map_err(|e| {
-                if let QbErrorKind::NoNewTorrents = e.kind {
-                    TaskError {
-                        kind: TaskErrorKind::Abort,
-                    }
+                if let QbError::Cancelled = e {
+                    TaskError::Abort
                 } else {
                     TaskError::from(e)
                 }
@@ -427,9 +416,7 @@ fn get_task_order(
     selected_file_index: Option<&[usize]>,
 ) -> Result<Vec<Vec<usize>>, TaskError> {
     if !check(torrent_lengths_list, max, selected_file_index) {
-        return Err(TaskError {
-            kind: TaskErrorKind::OverSize,
-        });
+        return Err(TaskError::OverSize);
     }
 
     let mut task_order: Vec<Vec<usize>> = Vec::new();

@@ -13,11 +13,7 @@ use serde::Serialize;
 use sha1::{Digest, Sha1};
 use tokio::{fs, task::spawn_blocking};
 
-use crate::{
-    bencode::error::{BencodeError, BencodeErrorKind},
-    error::CommonError,
-    task::get_torrent_path,
-};
+use crate::{bencode::error::BencodeError, error::CommonError, task::get_torrent_path};
 pub mod error;
 
 type BytesList<'a> = Cow<'a, [u8]>;
@@ -38,15 +34,15 @@ pub async fn get_torrent_name(hash: &str) -> Result<String, BencodeError> {
 /// check if the torrent is multi-file, else return SingleFile error
 fn check(info: &BTreeMap<BytesList, Value>) -> Result<(), BencodeError> {
     if info.contains_key("length".as_bytes()) {
-        return Err(BencodeError {
-            kind: BencodeErrorKind::SingleFile,
-        });
+        return Err(BencodeError::SingleFile);
     }
     Ok(())
 }
 pub async fn get_value(torrent_path: &Path) -> Result<Value<'_>, BencodeError> {
     let file = fs::read(torrent_path).await.map_err(CommonError::from)?;
-    Ok(Value::from_bencode(&file)?.to_owned())
+    Ok(Value::from_bencode(&file)
+        .map_err(|_| BencodeError::Decode)?
+        .to_owned())
 }
 
 fn get_info<'a, 'b: 'a>(
@@ -57,9 +53,7 @@ fn get_info<'a, 'b: 'a>(
     {
         return Ok(info);
     }
-    Err(BencodeError {
-        kind: BencodeErrorKind::Decode,
-    })
+    Err(BencodeError::Decode)
 }
 
 fn get_root_dir(info: &BTreeMap<BytesList, Value>) -> Result<String, BencodeError> {
@@ -67,18 +61,14 @@ fn get_root_dir(info: &BTreeMap<BytesList, Value>) -> Result<String, BencodeErro
         let name = String::from_utf8_lossy(name).to_string();
         return Ok(name);
     }
-    Err(BencodeError {
-        kind: BencodeErrorKind::Decode,
-    })
+    Err(BencodeError::Decode)
 }
 
 fn get_files<'a>(info: &'a BTreeMap<BytesList, Value>) -> Result<&'a Vec<Value<'a>>, BencodeError> {
     if let Some(Value::List(files)) = info.get("files".as_bytes()) {
         return Ok(files);
     }
-    Err(BencodeError {
-        kind: BencodeErrorKind::SingleFile,
-    })
+    Err(BencodeError::SingleFile)
 }
 
 fn get_file_length_list<'a>(files: &'a Vec<Value>) -> Result<Vec<&'a i64>, BencodeError> {
@@ -90,9 +80,7 @@ fn get_file_length_list<'a>(files: &'a Vec<Value>) -> Result<Vec<&'a i64>, Benco
             lengths.push(length);
             continue;
         }
-        return Err(BencodeError {
-            kind: BencodeErrorKind::Decode,
-        });
+        return Err(BencodeError::Decode);
     }
     Ok(lengths)
 }
@@ -109,17 +97,13 @@ fn get_file_name_list(files: &Vec<Value>) -> Result<Vec<Vec<String>>, BencodeErr
                     let n = String::from_utf8_lossy(n).to_string();
                     path_vec.push(n);
                 } else {
-                    return Err(BencodeError {
-                        kind: BencodeErrorKind::Decode,
-                    });
+                    return Err(BencodeError::Decode);
                 }
             }
             paths.push(path_vec);
             continue;
         }
-        return Err(BencodeError {
-            kind: BencodeErrorKind::Decode,
-        });
+        return Err(BencodeError::Decode);
     }
     Ok(paths)
 }
@@ -134,9 +118,8 @@ pub fn parse_torrent<'a>(value: &'a Value) -> Result<(String, Vec<&'a i64>), Ben
 
 pub fn get_hash(file: &[u8]) -> Result<String, BencodeError> {
     let mut decoder = Decoder::new(file);
-    let obj = decoder.next_object()?.ok_or(BencodeError {
-        kind: BencodeErrorKind::Decode,
-    })?;
+    let obj = decoder.next_object()?.ok_or(BencodeError::Decode
+    )?;
     let mut dict = obj.try_into_dictionary()?;
     while let Some(pair) = dict.next_pair()? {
         if let b"info" = pair.0 {
@@ -148,9 +131,7 @@ pub fn get_hash(file: &[u8]) -> Result<String, BencodeError> {
             return Ok(hash);
         }
     }
-    Err(BencodeError {
-        kind: BencodeErrorKind::Decode,
-    })
+    Err(BencodeError::Decode)
 }
 
 #[derive(Debug, Serialize)]
@@ -230,9 +211,8 @@ impl FileNode {
             builder.into_node()
         })
         .await
-        .map_err(|_| BencodeError {
-            kind: BencodeErrorKind::Decode,
-        })?;
+        .map_err(|_| BencodeError::Decode
+        )?;
         Ok(tree)
     }
 
