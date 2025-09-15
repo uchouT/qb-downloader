@@ -5,8 +5,30 @@ on:
     tags:
       - "v*"
 jobs:
+  changelog:
+      name: Update changelog
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+          with:
+            ref: main
+            fetch-depth: 0
+          
+        - name: Setup git config
+          run: |
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        - name: Release changelog
+          run: |
+            npx changelogen-gh --release --noAuthors --push
+          env:
+            GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
   release-files:
     name: Release - ${{ matrix.platform.os-name }}
+    needs: changelog
     strategy:
       matrix:
         toolchain:
@@ -70,25 +92,3 @@ jobs:
           executable-name: qb-downloader
           target: ${{ matrix.platform.target }}
           changes-file: ""
-    
-  changelog:
-      name: Update changelog
-      runs-on: ubuntu-latest
-      needs: release-files
-      steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
-          with:
-            ref: main
-            fetch-depth: 0
-          
-        - name: Setup git config
-          run: |
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-        - name: Release changelog
-          run: |
-            npx changelogen-gh --release --noAuthors --push
-          env:
-            GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}

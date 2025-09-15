@@ -1,6 +1,25 @@
 # Changelog
 
 
+## v2.1.2
+
+[compare changes](https://github.com/uchouT/qb-downloader/compare/v2.1.1...v2.1.2)
+
+### 💅 Refactors
+
+- **request:** Wrap external request lib ([62bbf1d](https://github.com/uchouT/qb-downloader/commit/62bbf1d))
+
+### 🏡 Chore
+
+- **release:** V2.1.1 ([6692086](https://github.com/uchouT/qb-downloader/commit/6692086))
+- Reduce unnecessary String clone ([83adda9](https://github.com/uchouT/qb-downloader/commit/83adda9))
+- App structure ([2d72498](https://github.com/uchouT/qb-downloader/commit/2d72498))
+- Avoid unnecessary clone ([aa2108e](https://github.com/uchouT/qb-downloader/commit/aa2108e))
+
+### 🤖 CI
+
+- Generate changelog first ([8dbc622](https://github.com/uchouT/qb-downloader/commit/8dbc622))
+
 ## v2.1.1
 
 [compare changes](https://github.com/uchouT/qb-downloader/compare/v2.1.0...v2.1.1)
