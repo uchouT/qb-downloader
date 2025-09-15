@@ -86,6 +86,14 @@ jobs:
           args: "--locked --release"
           strip: true
 
+      - name: Compress binaries
+        uses: svenstaro/upx-action@v2
+        if: matrix.platform.runs-on == 'ubuntu-24.04'
+        with:
+          files: target/${{ matrix.platform.target }}/release/qb-downloader
+          args: --best --lzma
+          strip: false
+
       - name: Publish artifacts and release
         uses: houseabsolute/actions-rust-release@v0
         with:
