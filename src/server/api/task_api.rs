@@ -1,12 +1,12 @@
 //! end point at "/api/task"
 //!
 //! GET: get task status
-//! POST: manage tasks - pause, start/resume
-//! PUT: add new task
+//! POST: add new task
+//! PUT: manage tasks - pause, start/resume
 //! DELETE: delete task
 use crate::{
     config::{self, strip_slash},
-    error::TaskError,
+    error::{TaskError, format_error_chain},
     qb,
     server::{
         ResultResponse,
@@ -16,8 +16,9 @@ use crate::{
     task,
     upload::Uploader,
 };
+use anyhow::Context;
 use hyper::{Method, Response, StatusCode};
-use log::error;
+use log::{error, warn};
 use serde::Deserialize;
 
 use super::{Action, BoxBody, Req, ServerResult, torrent_api::TorrentRes};
@@ -32,7 +33,7 @@ impl Action for TaskAPI {
         }
 
         match *req.method() {
-            Method::GET => get().await,
+            Method::GET => get(),
             Method::POST => post(req).await,
             Method::PUT => put(req).await,
             Method::DELETE => delete(req).await,
@@ -43,7 +44,7 @@ impl Action for TaskAPI {
     }
 }
 
-async fn get() -> ServerResult<Response<BoxBody>> {
+fn get() -> ServerResult<Response<BoxBody>> {
     let data = task::task_map();
     if data.is_empty() {
         Ok(ResultResponse::success())
@@ -98,13 +99,14 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     )
     .await
     {
-        error!("{e}");
         if let TaskError::OverSize = e {
-            return Ok(ResultResponse::error_msg(
-                "Selected files exceed maximum length",
-            ));
+            let msg = "Selected files exceed maximum length";
+            warn!("{msg}");
+            return Ok(ResultResponse::error_msg(msg));
         }
-        return Ok(ResultResponse::error_msg("Failed to add task"));
+        let msg = "Failed to add a task";
+        error!("{msg}\n{}", format_error_chain(e));
+        return Ok(ResultResponse::error_msg(msg));
     }
     Ok(ResultResponse::success_msg("Task added successfully"))
 }
@@ -118,20 +120,25 @@ async fn put(req: Req) -> ServerResult<Response<BoxBody>> {
         )
     };
     match manipulate_type.as_str() {
-        "start" => task::start(&hash).await?,
-        "stop" => task::stop(&hash).await?,
+        "start" => task::start(&hash).await.context("Failed to start task")?,
+        "stop" => task::stop(&hash).await.context("Failed to stop task")?,
         _ => {
             return Ok(ResultResponse::bad_request(Some("Invalid type")));
         }
     }
     Ok(ResultResponse::success())
 }
+
 async fn delete(req: Req) -> ServerResult<Response<BoxBody>> {
     let hash = {
         let params = get_param_map(&req).ok_or(ServerError::MissingParams("hash"))?;
         get_required_param::<String>(&params, "hash")?
     };
-    let _ = task::delete(&hash, true).await;
+    if let Err(e) = task::delete(&hash, true).await {
+        let msg = "Failed to delete task";
+        error!("{msg}\n{}", format_error_chain(e));
+        return Ok(ResultResponse::error_msg(msg));
+    }
     Ok(ResultResponse::success())
 }
 

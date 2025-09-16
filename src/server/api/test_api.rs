@@ -7,13 +7,16 @@
 //! Else return success to test authentication
 use super::{Action, BoxBody, Req, ServerResult};
 use crate::{
+    error::QbError,
     qb,
     server::{
         ResultResponse,
         api::{from_json, get_json_body},
+        error::ServerError,
     },
     upload::{Rclone, UploaderTrait},
 };
+use anyhow::anyhow;
 use hyper::{Method, Response};
 use serde::Deserialize;
 
@@ -33,15 +36,30 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     let data = get_json_body(req).await?;
     let test_req: TestReq = from_json(&data)?;
 
-    let valid = match test_req.test_type {
-        "qb" => qb::test_login(test_req.host, test_req.username, test_req.password, true).await,
-        "Rclone" => Rclone::test(test_req.host, test_req.username, test_req.password).await,
+    match test_req.test_type {
+        "qb" => {
+            if !qb::test_login(test_req.host, test_req.username, test_req.password, true).await {
+                return Ok(ResultResponse::error_msg("Qbittorrent failed to login"));
+            }
+            if let Err(e) = qb::get_version(test_req.host).await {
+                if let QbError::UnsupportedVersion = e {
+                    return Ok(ResultResponse::error_msg("Unsupported qbittorrent version"));
+                } else {
+                    return Err(ServerError::Unknown(anyhow!(
+                        "Failed to get qbittorrent version"
+                    )));
+                }
+            }
+            Ok(ResultResponse::success())
+        }
+        "Rclone" => {
+            if Rclone::test(test_req.host, test_req.username, test_req.password).await {
+                Ok(ResultResponse::success())
+            } else {
+                Ok(ResultResponse::error_msg("Rclone test failed"))
+            }
+        }
         _ => return Ok(ResultResponse::bad_request(Some("unknown test type"))),
-    };
-    if valid {
-        Ok(ResultResponse::success())
-    } else {
-        Ok(ResultResponse::error())
     }
 }
 

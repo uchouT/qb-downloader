@@ -375,7 +375,7 @@ pub async fn add(
     };
     qb::set_share_limit(&hash, ratio_limit, seeding_time_limit).await?;
     launch(0, &hash, &task_value).await?;
-    info!("Task added: {}", &hash);
+    info!("Task added: {hash}");
     task_map_mut().insert(hash, Arc::new(task_value));
     save().await?;
     Ok(())

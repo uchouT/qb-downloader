@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 use crate::{
-    bencode::error::BencodeError,
+    bencode::BencodeError,
     error::{CommonError, QbError},
     request::RequestError,
 };
@@ -27,24 +27,24 @@ pub enum TaskError {
         CommonError,
     ),
 
-    #[error("bencode parse error: {0}")]
+    #[error("bencode parse error")]
     Bencode(
         #[from]
         #[source]
         BencodeError,
     ),
 
-    #[error("Qb error\ncaused by {0}")]
+    #[error("Qb error")]
     Qb(
         #[from]
         #[source]
         QbError,
     ),
 
-    #[error("exceed")]
+    #[error("File over size limit")]
     OverSize,
 
-    #[error("Request error: {0}")]
+    #[error("Request error")]
     Request(
         #[from]
         #[source]

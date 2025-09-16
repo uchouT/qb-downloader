@@ -13,8 +13,30 @@ use serde::Serialize;
 use sha1::{Digest, Sha1};
 use tokio::{fs, task::spawn_blocking};
 
-use crate::{bencode::error::BencodeError, error::CommonError, task::get_torrent_path};
-pub mod error;
+use crate::{error::CommonError, task::get_torrent_path};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum BencodeError {
+    #[error("Failed to decode .torrent file")]
+    Decode,
+
+    #[error("{0}")]
+    Common(
+        #[from]
+        #[source]
+        CommonError,
+    ),
+
+    #[error("Single file torrent is not supported")]
+    SingleFile,
+}
+
+impl From<bendy::decoding::Error> for BencodeError {
+    fn from(_: bendy::decoding::Error) -> Self {
+        BencodeError::Decode
+    }
+}
 
 type BytesList<'a> = Cow<'a, [u8]>;
 
@@ -22,7 +44,7 @@ type BytesList<'a> = Cow<'a, [u8]>;
 /// # Prerequisite
 /// the torrent file must have been exported to TORRENT_DIR
 /// # Error
-/// Returns a [SingleFile](BencodeErrorKind::SingleFile) BencodeError if the torrent is not a multi-file torrent
+/// Returns a [`BencodeError::SingleFile`] BencodeError if the torrent is not a multi-file torrent
 pub async fn get_torrent_name(hash: &str) -> Result<String, BencodeError> {
     let torrent_path = get_torrent_path(hash);
     let value = get_value(&torrent_path).await?;
@@ -31,13 +53,15 @@ pub async fn get_torrent_name(hash: &str) -> Result<String, BencodeError> {
     get_root_dir(info)
 }
 
-/// check if the torrent is multi-file, else return SingleFile error
+/// check if the torrent is multi-file, else return [`BencodeError::SingleFile`] error
 fn check(info: &BTreeMap<BytesList, Value>) -> Result<(), BencodeError> {
     if info.contains_key("length".as_bytes()) {
         return Err(BencodeError::SingleFile);
     }
     Ok(())
 }
+
+/// Read and parse the torrent file, returning the bencode Value
 pub async fn get_value(torrent_path: &Path) -> Result<Value<'_>, BencodeError> {
     let file = fs::read(torrent_path).await.map_err(CommonError::from)?;
     Ok(Value::from_bencode(&file)
@@ -108,6 +132,8 @@ fn get_file_name_list(files: &Vec<Value>) -> Result<Vec<Vec<String>>, BencodeErr
     Ok(paths)
 }
 
+/// Parse the torrent file from `value`, which can retrive by [`get_value`],
+/// returning the root directory name and a list of file lengths
 pub fn parse_torrent<'a>(value: &'a Value) -> Result<(String, Vec<&'a i64>), BencodeError> {
     let info = get_info(value)?;
     let root_dir = get_root_dir(info)?;
@@ -118,8 +144,7 @@ pub fn parse_torrent<'a>(value: &'a Value) -> Result<(String, Vec<&'a i64>), Ben
 
 pub fn get_hash(file: &[u8]) -> Result<String, BencodeError> {
     let mut decoder = Decoder::new(file);
-    let obj = decoder.next_object()?.ok_or(BencodeError::Decode
-    )?;
+    let obj = decoder.next_object()?.ok_or(BencodeError::Decode)?;
     let mut dict = obj.try_into_dictionary()?;
     while let Some(pair) = dict.next_pair()? {
         if let b"info" = pair.0 {
@@ -198,6 +223,7 @@ impl FileNodeBuilder {
 }
 
 impl FileNode {
+    /// get the file tree from the torrent file
     pub async fn get_tree(torrent_path: &Path) -> Result<Self, BencodeError> {
         let (file_name_list, root_dir) = {
             let torrent_value = get_value(torrent_path).await?;
@@ -211,8 +237,7 @@ impl FileNode {
             builder.into_node()
         })
         .await
-        .map_err(|_| BencodeError::Decode
-        )?;
+        .map_err(|_| BencodeError::Decode)?;
         Ok(tree)
     }
 

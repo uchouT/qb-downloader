@@ -1,11 +1,8 @@
 use super::{BoxBody, ResultResponse, ServerResult};
-use crate::{
-    bencode::error::BencodeError,
-    error::{CommonError, QbError, TaskError},
-};
+use crate::bencode::BencodeError;
+use anyhow::Error as AnyError;
 use hyper::{Response, StatusCode};
 use log::{error, warn};
-
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -20,29 +17,8 @@ pub enum ServerError {
         hyper::Error,
     ),
 
-    #[error("{0}")]
-    Common(
-        #[source]
-        #[from]
-        CommonError,
-    ),
-
     #[error("Method not allowed")]
     MethodNotAllowed,
-
-    #[error("Qb error")]
-    Qb(
-        #[from]
-        #[source]
-        QbError,
-    ),
-
-    #[error("Task error")]
-    Task(
-        #[from]
-        #[source]
-        TaskError,
-    ),
 
     #[error("Bencode error")]
     Bencode(
@@ -51,25 +27,30 @@ pub enum ServerError {
         BencodeError,
     ),
 
-    #[error("Multipart error")]
-    Multipart(
-        #[from]
-        #[source]
-        multer::Error,
-    ),
-
     #[error("Bad request multipart")]
     BadRequestMultipart,
 
     #[error("Unauthorized")]
     Unauthorized,
+
+    #[error("{0}")]
+    Unknown(
+        #[source]
+        #[from]
+        AnyError,
+    ),
+}
+
+impl From<multer::Error> for ServerError {
+    fn from(_: multer::Error) -> Self {
+        ServerError::BadRequestMultipart
+    }
 }
 
 pub fn handle(e: ServerError) -> ServerResult<Response<BoxBody>> {
     match e {
         ServerError::MissingParams(msg) => Ok(ResultResponse::bad_request(Some(msg))),
         ServerError::BadRequest(_) => Ok(ResultResponse::bad_request(None)),
-        ServerError::Common(_) => Ok(ResultResponse::bad_request(None)),
         ServerError::Unauthorized => Ok(ResultResponse::unauthorized()),
         ServerError::MethodNotAllowed => Ok(ResultResponse::error_with_code(
             StatusCode::METHOD_NOT_ALLOWED,
@@ -86,8 +67,8 @@ pub fn handle(e: ServerError) -> ServerResult<Response<BoxBody>> {
                 Ok(ResultResponse::error_msg("torrent parse error"))
             }
         }
-        _ => {
-            error!("{e}");
+        ServerError::Unknown(e) => {
+            error!("{e:?}");
             Ok(ResultResponse::error())
         }
     }

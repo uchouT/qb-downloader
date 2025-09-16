@@ -1,4 +1,5 @@
 pub mod api;
+pub mod auth;
 pub mod error;
 use crate::{Error, config, error::CommonError};
 use api::Action;
@@ -140,7 +141,7 @@ fn is_inner_ip(socket_addr: SocketAddr) -> bool {
 }
 /// RESTful API response data structure
 #[derive(Debug, Serialize)]
-pub struct ResultResponse<T: Serialize> {
+struct ResultResponse<T: Serialize> {
     /// Response message which will show in the frontend
     pub message: Option<&'static str>,
 
@@ -151,7 +152,7 @@ pub struct ResultResponse<T: Serialize> {
 
 impl ResultResponse<()> {
     /// Create a successful response without data
-    pub fn success() -> Response<BoxBody> {
+    fn success() -> Response<BoxBody> {
         let result = Self {
             message: Some("Success"),
             data: None,
@@ -166,7 +167,7 @@ impl ResultResponse<()> {
     }
 
     /// Create a successful response with a custom message
-    pub fn success_msg(msg: &'static str) -> Response<BoxBody> {
+    fn success_msg(msg: &'static str) -> Response<BoxBody> {
         let result = Self {
             message: Some(msg),
             data: None,
@@ -181,7 +182,7 @@ impl ResultResponse<()> {
     }
 
     /// Create a error response
-    pub fn error() -> Response<BoxBody> {
+    fn error() -> Response<BoxBody> {
         let result = Self {
             message: Some("Error"),
             data: None,
@@ -196,7 +197,7 @@ impl ResultResponse<()> {
     }
 
     /// Create a error response with message
-    pub fn error_msg(msg: &'static str) -> Response<BoxBody> {
+    fn error_msg(msg: &'static str) -> Response<BoxBody> {
         let result = Self {
             message: Some(msg),
             data: None,
@@ -239,7 +240,7 @@ impl ResultResponse<()> {
             .unwrap()
     }
 
-    pub fn error_with_code(code: StatusCode) -> Response<BoxBody> {
+    fn error_with_code(code: StatusCode) -> Response<BoxBody> {
         let mut res = Response::new(empty());
         *res.status_mut() = code;
         res
@@ -248,7 +249,7 @@ impl ResultResponse<()> {
 
 impl<T: Serialize> ResultResponse<T> {
     /// Create a successful response with data
-    pub fn success_data(data: T) -> Response<BoxBody> {
+    fn success_data(data: T) -> Response<BoxBody> {
         let result = Self {
             message: Some("Success"),
             data: Some(data),

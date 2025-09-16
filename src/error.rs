@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-pub use crate::qb::error::QbError;
+pub use crate::qb::QbError;
 use crate::server::error::ServerError;
 pub use crate::task::error::TaskError;
 use std::error::Error as StdError;

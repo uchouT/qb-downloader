@@ -1,6 +1,5 @@
 //! This module provides API to interact with qBittorrent
-
-pub mod error;
+use crate::request::RequestError;
 use crate::{
     config,
     error::{CommonError, format_error_chain},
@@ -9,9 +8,7 @@ use crate::{
 };
 use arc_swap::ArcSwap;
 use base32::Alphabet;
-use error::QbError;
 use log::{error, info, warn};
-
 use serde::Deserialize;
 use serde_json::Value;
 use std::{
@@ -22,6 +19,7 @@ use std::{
     path::Path,
     sync::{Arc, OnceLock},
 };
+use thiserror::Error;
 use tokio::time::sleep;
 const CATEGORY: &str = "QBD";
 
@@ -144,7 +142,7 @@ pub async fn login_with(host: &str, username: &str, password: &str) {
     }
 }
 
-async fn get_version(host: &str) -> Result<u8, QbError> {
+pub async fn get_version(host: &str) -> Result<u8, QbError> {
     request::get(format!("{host}/api/v2/app/version"))
         .send_and_then(async |res| {
             let ver = res.text().await?;
@@ -481,5 +479,40 @@ pub fn try_parse_hash(url: &str) -> Option<String> {
         Some(hash)
     } else {
         None
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum QbError {
+    #[error("Qb not login")]
+    NotLogin,
+
+    #[error("Unsupported Qb version")]
+    UnsupportedVersion,
+
+    #[error("torrent exists")]
+    NoNewTorrents,
+
+    #[error("torrent cancelled")]
+    Cancelled,
+
+    #[error("Request error")]
+    Request(
+        #[from]
+        #[source]
+        RequestError,
+    ),
+
+    #[error("{0}")]
+    CommonError(
+        #[from]
+        #[source]
+        CommonError,
+    ),
+}
+
+impl From<nyquest::Error> for QbError {
+    fn from(value: nyquest::Error) -> Self {
+        QbError::Request(RequestError::from(value))
     }
 }

@@ -1,15 +1,16 @@
 //! This module provides tools when building the server API.
 //! api route defined at [`super`]
-pub mod asset_api;
-pub mod auth;
-pub mod config_api;
-pub mod login_api;
-pub mod task_api;
-pub mod test_api;
-pub mod torrent_api;
-pub mod version_api;
+pub(super) mod asset_api;
+pub(super) mod config_api;
+pub(super) mod login_api;
+pub(super) mod task_api;
+pub(super) mod test_api;
+pub(super) mod torrent_api;
+pub(super) mod version_api;
 use super::{BoxBody, Req};
-use crate::{error::CommonError, server::error::ServerError};
+
+use crate::{auth, server::error::ServerError};
+use anyhow::Context;
 use http_body_util::BodyExt;
 use hyper::{Response, body::Bytes, header};
 use multer::Multipart;
@@ -97,7 +98,7 @@ pub async fn get_json_body(req: Req) -> ServerResult<Bytes> {
 }
 
 pub fn from_json<'de, T: Deserialize<'de>>(data: &'de Bytes) -> ServerResult<T> {
-    let value: T = from_slice(data).map_err(CommonError::from)?;
+    let value: T = from_slice(data).context("Failed to deserialize from json")?;
     Ok(value)
 }
 

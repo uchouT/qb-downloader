@@ -24,8 +24,8 @@ pub fn value() -> Guard<Arc<ConfigValue>> {
 
 /// set config value, frontend send the whole config value,
 /// and set the global config value to it
-pub fn set_value(config_value: ConfigValue) {
-    CONFIG.get().unwrap().value.store(Arc::new(config_value));
+pub fn set_value(config_value: Arc<ConfigValue>) {
+    CONFIG.get().unwrap().value.store(config_value);
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

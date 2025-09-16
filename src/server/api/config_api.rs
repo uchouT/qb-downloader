@@ -1,4 +1,6 @@
 //!  end point at "/api/config"
+use std::sync::Arc;
+
 use super::{Action, BoxBody, Req, ServerResult};
 use crate::{
     auth::{Login, TOKEN, encode},
@@ -11,9 +13,9 @@ use crate::{
         error::ServerError,
     },
 };
+use anyhow::Context;
 use futures_util::future::join;
 use hyper::{Method, Response};
-use log::error;
 
 #[derive(Default)]
 pub struct ConfigAPI;
@@ -50,25 +52,24 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
         config.general.account = account_bak;
     }
 
+    let config = Arc::from(config);
     let (_, config_res) = join(
         qb::login_with(
-            &config.qb.qb_host.clone(),
-            &config.qb.qb_username.clone(),
-            &config.qb.qb_password.clone(),
+            &config.qb.qb_host,
+            &config.qb.qb_username,
+            &config.qb.qb_password,
         ),
-        update_config(config, account_changed),
+        update_config(config.clone(), account_changed),
     )
     .await;
-    if let Err(e) = config_res {
-        error!("error saving config: {e}");
-    }
+    config_res.context("error updating config")?;
     Ok(ResultResponse::success_msg(
         "Configuration updated successfully",
     ))
 }
 
 /// update config with config value
-async fn update_config(config: ConfigValue, account_changed: bool) -> Result<(), CommonError> {
+async fn update_config(config: Arc<ConfigValue>, account_changed: bool) -> Result<(), CommonError> {
     config::set_value(config);
     let config = config::value();
 

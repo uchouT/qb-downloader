@@ -21,7 +21,7 @@ use crate::{
     },
     task::{self, error::TaskError, get_torrent_path},
 };
-
+use anyhow::{Context, anyhow};
 use hyper::{Method, Response, StatusCode, body::Bytes};
 use serde::{Deserialize, Serialize};
 
@@ -67,7 +67,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
             if let TaskError::Abort = e {
                 return Ok(ResultResponse::success());
             } else {
-                return Err(ServerError::from(e));
+                return Err(ServerError::Unknown(anyhow!("Failed to add torrent")));
             }
         }
     };
@@ -90,14 +90,18 @@ async fn add_by_file(req: Req) -> ServerResult<(Option<Bytes>, String, String)> 
     let mut data = None;
     let mut save_path = None;
     let mut file_name = None;
-    while let Some(field) = multipart.next_field().await? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .context("Failed to read multipart field")?
+    {
         match field.name() {
             Some("torrent") => {
                 file_name = field.file_name().map(|s| s.to_string());
-                data = Some(field.bytes().await?);
+                data = Some(field.bytes().await.context("Failed to read torrent file")?);
             }
             Some("save_path") => {
-                let path = field.text().await?;
+                let path = field.text().await.context("Failed to read save_path")?;
                 if !remove_slash(&path).is_empty() {
                     save_path = Some(path);
                 }
@@ -146,7 +150,9 @@ async fn get(req: Req) -> ServerResult<Response<BoxBody>> {
         get_required_param::<String>(&params, "hash")?
     };
     let torrent_path = get_torrent_path(&hash);
-    let file_tree = FileNode::get_tree(&torrent_path).await?;
+    let file_tree = FileNode::get_tree(&torrent_path)
+        .await
+        .context("Failed to get torrent content tree")?;
     Ok(ResultResponse::success_data(vec![file_tree]))
 }
 
@@ -160,11 +166,17 @@ async fn delete(req: Req) -> ServerResult<Response<BoxBody>> {
         }
     };
     if let Some(hash) = hash {
-        task::delete(&hash, false).await?;
+        task::delete(&hash, false)
+            .await
+            .context("Failed to delete torrent")?;
     } else {
-        let hash_list = qb::get_tag_torrent_list(Tag::New).await?;
+        let hash_list = qb::get_tag_torrent_list(Tag::New)
+            .await
+            .context("Failed to get waited torrent list")?;
         let hash = hash_list.join("|");
-        qb::delete(hash.as_str(), true).await?;
+        qb::delete(&hash, true)
+            .await
+            .context("Failed to delete waited torrents in qbitorrent")?;
     }
     Ok(ResultResponse::success())
 }
