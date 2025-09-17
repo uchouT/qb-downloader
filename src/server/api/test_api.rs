@@ -59,7 +59,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
                 Ok(ResultResponse::error_msg("Rclone test failed"))
             }
         }
-        _ => return Ok(ResultResponse::bad_request(Some("unknown test type"))),
+        _ => Ok(ResultResponse::bad_request(Some("unknown test type"))),
     }
 }
 

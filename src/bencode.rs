@@ -13,7 +13,7 @@ use serde::Serialize;
 use sha1::{Digest, Sha1};
 use tokio::{fs, task::spawn_blocking};
 
-use crate::{error::CommonError, task::get_torrent_path};
+use crate::{error::{CommonError, ResultExt}, task::get_torrent_path};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -63,7 +63,7 @@ fn check(info: &BTreeMap<BytesList, Value>) -> Result<(), BencodeError> {
 
 /// Read and parse the torrent file, returning the bencode Value
 pub async fn get_value(torrent_path: &Path) -> Result<Value<'_>, BencodeError> {
-    let file = fs::read(torrent_path).await.map_err(CommonError::from)?;
+    let file = fs::read(torrent_path).await.add_context("Failed to read torrent file")?;
     Ok(Value::from_bencode(&file)
         .map_err(|_| BencodeError::Decode)?
         .to_owned())

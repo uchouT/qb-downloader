@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 
+use anyhow::{Context, Error};
 use directories_next::BaseDirs;
 use futures_util::future::{join, join_all};
 use log::{debug, error, info};
@@ -17,8 +18,9 @@ use tokio::{fs, sync::Mutex, time::sleep};
 
 use crate::{
     bencode,
-    error::{CommonError, QbError, TaskError},
-    format_error_chain, qb, task,
+    error::{CommonError, QbError, ResultExt, TaskError},
+    format_error_chain, qb,
+    task::{self, error::RuntimeTaskError},
     upload::Uploader,
 };
 
@@ -66,7 +68,7 @@ pub struct State {
 }
 
 /// task status
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum Status {
     /// on interval task
     OnTask,
@@ -83,7 +85,8 @@ pub enum Status {
     /// the entire task finished, including all parts
     Done,
 
-    Error,
+    Error(RuntimeTaskError),
+
     Paused,
 }
 
@@ -101,20 +104,19 @@ impl TaskValue {
     }
 
     /// Launch the interval task
-    pub async fn run_interval(self: Arc<Self>) -> Result<(), TaskError> {
+    /// # Error
+    /// may return [`RuntimeTaskError::LaunchUpload`]
+    pub async fn run_interval(self: Arc<Self>) -> Result<(), RuntimeTaskError> {
         self.state_mut().status = Status::OnTask;
         info!("Running interval task for: {}", &self.name);
-
-        self.uploader.upload(self.clone()).await.inspect_err(|e| {
-            error!("Failed to run interval task for {}: {e}", &self.name);
-        })
+        self.uploader.upload(self.clone()).await
     }
 
     /// Check if the upload is complete
-    pub async fn run_check(self: Arc<Self>) -> Result<(), TaskError> {
-        if self.uploader.check(self.clone()).await.inspect_err(|e| {
-            error!("Error occurred while uploading {}: {e}", &self.name);
-        })? {
+    /// # Error
+    /// may return [`RuntimeTaskError::RuntimeUpload`]
+    pub async fn run_check(self: Arc<Self>) -> Result<(), RuntimeTaskError> {
+        if self.uploader.check(self.clone()).await? {
             self.state_mut().status = Status::Finished;
             info!("Upload completed for task: {}", &self.name);
         }
@@ -143,21 +145,23 @@ impl Task {
         if !path.exists() {
             return Ok(());
         }
-        let task_file = std::fs::File::open(path)?;
+        let task_file = std::fs::File::open(path)
+            .add_context(format!("Failed to open task file: {}", path.display()))?;
         let reader = std::io::BufReader::new(task_file);
-        let task_map: TaskMap = serde_json::from_reader(reader)?;
+        let task_map: TaskMap =
+            serde_json::from_reader(reader).add_context("Failed to parse task file")?;
         task_list.value = RwLock::new(task_map);
         Ok(())
     }
 }
 
-pub fn init(path: Option<PathBuf>) -> Result<(), CommonError> {
+pub fn init(path: Option<PathBuf>) -> Result<(), Error> {
     let mut task_list = Task::new(path);
-    Task::load(&mut task_list).inspect_err(|e| {
-        error!(
-            "Failed to load task list from file: {}",
-            format_error_chain(e)
-        );
+    Task::load(&mut task_list).with_context(|| {
+        format!(
+            "Failed to load task list from: {}",
+            task_list.filepath.display()
+        )
     })?;
     debug!("Task list loaded from: {}", &task_list.filepath.display());
     debug!("Task list content: {:?}", &task_list.value);
@@ -171,7 +175,8 @@ pub fn init(path: Option<PathBuf>) -> Result<(), CommonError> {
                 .join(TORRENT_DIR_NAME),
         )
         .expect("Failed to set torrent directory");
-    std::fs::create_dir_all(TORRENT_DIR.get().unwrap())?;
+    std::fs::create_dir_all(TORRENT_DIR.get().unwrap())
+        .context("Failed to create torrent cache directory")?;
     info!("Task list initialized.");
     Ok(())
 }
@@ -181,9 +186,11 @@ pub async fn save() -> Result<(), CommonError> {
 
     let contents = {
         let task_map = task_map().clone();
-        serde_json::to_vec(&task_map)?
+        serde_json::to_vec(&task_map).add_context("Failed to serialize task list")?
     };
-    fs::write(path, contents).await?;
+    fs::write(path, contents)
+        .await
+        .add_context("Failed to write task list to file")?;
     Ok(())
 }
 
@@ -210,14 +217,12 @@ pub fn task_map_mut() -> RwLockWriteGuard<'static, TaskMap> {
 }
 
 pub async fn start(hash: &str) -> Result<(), TaskError> {
-    qb::start(hash).await?;
+    qb::start(hash)
+        .await
+        .add_context("Failed to start torrent in qb")?;
 
     {
-        if let Some(task) = task_map().get(hash) {
-            task.state_mut().status = Status::Downloading;
-        } else {
-            return Err(TaskError::NotFound(hash.to_string()));
-        }
+        task_map().get(hash).unwrap().state_mut().status = Status::Downloading;        
         save().await?;
     }
 
@@ -226,14 +231,12 @@ pub async fn start(hash: &str) -> Result<(), TaskError> {
 }
 
 pub async fn stop(hash: &str) -> Result<(), TaskError> {
-    qb::stop(hash).await?;
+    qb::stop(hash)
+        .await
+        .add_context("Failed to stop torrent in qb")?;
 
     {
-        if let Some(task) = task_map().get(hash) {
-            task.state_mut().status = Status::Paused;
-        } else {
-            return Err(TaskError::NotFound(hash.to_string()));
-        }
+        task_map().get(hash).unwrap().state_mut().status = Status::Paused;
         save().await?;
     }
 
@@ -247,10 +250,9 @@ pub async fn clean(hash: &str) -> Result<(), TaskError> {
     if !path.exists() {
         return Ok(());
     }
-    fs::remove_file(path).await.map_err(|e| {
-        error!("Failed to clean waited torrent file: {hash}");
-        CommonError::from(e)
-    })?;
+    fs::remove_file(path)
+        .await
+        .add_context(format!("Failed to clean waited torrent file: {hash}"))?;
     Ok(())
 }
 
@@ -293,18 +295,28 @@ pub async fn add_torrent<B: Into<Cow<'static, [u8]>>>(
             let file = file.into();
             let hash = bencode::get_hash(&file)?;
             let path = get_torrent_path(&hash);
-            fs::write(path, &file).await.map_err(CommonError::from)?;
-            qb::add_by_bytes(url, save_path, file).await?;
+            fs::write(path, &file)
+                .await
+                .add_context("Failed to write torrent file")?;
+            qb::add_by_bytes(url, save_path, file)
+                .await
+                .add_context("Failed to add torrent by bytes in qb")?;
             hash
         } else {
             let _lock = ADD_TORRENT_LOCK.lock().await;
             let hash = {
                 if let Some(hash) = qb::try_parse_hash(url) {
-                    qb::add_by_url(url, save_path).await?;
+                    qb::add_by_url(url, save_path)
+                        .await
+                        .add_context("Failed to add torrent by url in qb")?;
                     hash
                 } else {
-                    qb::add_by_url(url, save_path).await?;
-                    qb::get_hash().await?
+                    qb::add_by_url(url, save_path)
+                        .await
+                        .add_context("Failed to add torrent by url in qb")?;
+                    qb::get_hash()
+                        .await
+                        .add_context("Failed to get torrent hash in qb")?
                 }
             };
             let path = get_torrent_path(&hash);
@@ -312,14 +324,19 @@ pub async fn add_torrent<B: Into<Cow<'static, [u8]>>>(
                 if let QbError::Cancelled = e {
                     TaskError::Abort
                 } else {
-                    TaskError::from(e)
+                    TaskError::Qb {
+                        msg: "Failed to export torrent file in qb".into(),
+                        source: e,
+                    }
                 }
             })?;
             hash
         }
     };
 
-    qb::add_tag(hash.as_str(), qb::Tag::Waited).await?;
+    qb::add_tag(hash.as_str(), qb::Tag::Waited)
+        .await
+        .add_context("Failed to add Waited tag in qb")?;
     Ok(hash)
 }
 
@@ -373,7 +390,9 @@ pub async fn add(
         seeding_time_limit,
         ratio_limit,
     };
-    qb::set_share_limit(&hash, ratio_limit, seeding_time_limit).await?;
+    qb::set_share_limit(&hash, ratio_limit, seeding_time_limit)
+        .await
+        .add_context("Failed to set share limit")?;
     launch(0, &hash, &task_value).await?;
     info!("Task added: {hash}");
     task_map_mut().insert(hash, Arc::new(task_value));
@@ -386,10 +405,18 @@ pub async fn launch(index: usize, hash: &str, task: &TaskValue) -> Result<(), Ta
     task.state_mut().current_part_num = index;
     // qb may not respond immediately after adding a torrent
     sleep(Duration::from_millis(500)).await;
-    qb::set_not_download(hash, task.file_num).await?;
-    qb::set_prio(hash, 1, task.task_order.get(index).unwrap()).await?;
-    qb::start(hash).await?;
-    qb::remove_tag(hash, qb::Tag::Waited).await?;
+    qb::set_not_download(hash, task.file_num)
+        .await
+        .add_context("Failed to set not download in qb")?;
+    qb::set_prio(hash, 1, task.task_order.get(index).unwrap())
+        .await
+        .add_context("Failed to select target file in qb")?;
+    qb::start(hash)
+        .await
+        .add_context("Failed to start torrent in qb")?;
+    qb::remove_tag(hash, qb::Tag::Waited)
+        .await
+        .add_context("Failed to remove Waited tag in qb")?;
     task.state_mut().status = Status::Downloading;
     Ok(())
 }
@@ -458,7 +485,9 @@ pub async fn clean_waited() -> Result<(), TaskError> {
         return Ok(());
     }
 
-    let hash_list = qb::get_tag_torrent_list(qb::Tag::Waited).await?;
+    let hash_list = qb::get_tag_torrent_list(qb::Tag::Waited)
+        .await
+        .add_context("Failed to get waited torrents in qb")?;
 
     if hash_list.is_empty() {
         return Ok(());
@@ -471,7 +500,9 @@ pub async fn clean_waited() -> Result<(), TaskError> {
 
     let clean_qb_fut = async {
         let hash = hash_list.join("|");
-        qb::delete(hash.as_str(), true).await?;
+        qb::delete(hash.as_str(), true)
+            .await
+            .add_context("Failed to delete waited torrents in qb")?;
         Ok::<(), TaskError>(())
     };
 

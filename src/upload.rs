@@ -1,11 +1,15 @@
 //! deal with upload
 
-use std::sync::{Arc, RwLock};
+use std::{
+    borrow::Cow,
+    sync::{Arc, RwLock},
+};
 
 use crate::{
     config,
+    error::{ResultExt, TaskError, format_error_chain},
     request::{self, RequestError},
-    task::{Status, TaskValue, error::TaskError},
+    task::{TaskValue, error::RuntimeTaskError},
 };
 use log::debug;
 
@@ -28,17 +32,33 @@ pub trait UploaderTrait {
 
 impl Uploader {
     /// Check if upload is completed
-    pub async fn check(&self, task: Arc<TaskValue>) -> Result<bool, TaskError> {
+    pub async fn check(&self, task: Arc<TaskValue>) -> Result<bool, RuntimeTaskError> {
         match self {
-            Uploader::Rclone(_) => Rclone::check(task).await,
+            Uploader::Rclone(_) => Rclone::check(task.clone()).await,
         }
+        .map_err(|e| {
+            log::error!(
+                "Task: {}\nFailed to check upload status: {}",
+                &task.name,
+                format_error_chain(e)
+            );
+            RuntimeTaskError::RuntimeUpload
+        })
     }
 
     /// Submit upload task
-    pub async fn upload(&self, task: Arc<TaskValue>) -> Result<(), TaskError> {
+    pub async fn upload(&self, task: Arc<TaskValue>) -> Result<(), RuntimeTaskError> {
         match self {
-            Uploader::Rclone(_) => Rclone::upload(task).await,
+            Uploader::Rclone(_) => Rclone::upload(task.clone()).await,
         }
+        .map_err(|e| {
+            log::error!(
+                "Task: {}\nFailed to launch upload task: {}",
+                &task.name,
+                format_error_chain(e)
+            );
+            RuntimeTaskError::LaunchUpload
+        })
     }
 }
 
@@ -71,14 +91,15 @@ impl UploaderTrait for Rclone {
                     *id.write().unwrap() = Some(job_id as i32);
                     Ok(())
                 } else {
-                    // TODO: more specific error
-                    task.state_mut().status = Status::Error;
-                    Err(TaskError::Upload("Rclone job id not found"))
+                    let error_msg = Self::get_error_msg(&value);
+                    Err(TaskError::Upload(error_msg))
                 }
             })
             .await
     }
 
+    /// # Precondition
+    /// - jobid has been stored, panic otherwise
     async fn check(task: Arc<TaskValue>) -> Result<bool, TaskError> {
         let rclone_cfg = &config::value().rclone;
         let host = &rclone_cfg.rclone_host;
@@ -87,13 +108,6 @@ impl UploaderTrait for Rclone {
 
         let job_id = {
             let Uploader::Rclone(job_id_opt) = &task.uploader;
-            if job_id_opt.read().unwrap().is_none() {
-                task.state_mut().status = Status::Error;
-                return Err(
-                    // TODO: make it more specific
-                    TaskError::Upload("No rclone job ID found"),
-                );
-            }
             job_id_opt.read().unwrap().unwrap()
         };
 
@@ -103,17 +117,18 @@ impl UploaderTrait for Rclone {
                 "jobid": job_id
             }))
             .send_and_then(async |res| {
-                let value: Value = res.json().await.map_err(RequestError::from)?;
+                let value: Value = res
+                    .json()
+                    .await
+                    .map_err(RequestError::from)
+                    .add_context("Failed to parse Json")?;
                 let success = value.get("success").and_then(|v| v.as_bool()).unwrap();
                 let finished = value.get("finished").and_then(|v| v.as_bool()).unwrap();
 
                 // finished but not successful means there were errors
                 if finished && !success {
-                    task.state_mut().status = Status::Error;
-                    return Err(
-                        // TODO: make it more specific
-                        TaskError::Upload("Rclone job finished with errors"),
-                    );
+                    let error_msg = Self::get_error_msg(&value);
+                    return Err(TaskError::Upload(error_msg));
                 }
                 Ok(success)
             })
@@ -123,16 +138,26 @@ impl UploaderTrait for Rclone {
     async fn test(host: &str, username: &str, password: &str) -> bool {
         let res = request::post(format!("{host}/core/version"))
             .basic_auth(username, password)
-            .send_and_then::<_, RequestError, _, _>(async |res| {
+            .send_and_then(async |res| {
                 let value: Value = res.json().await?;
+
                 let version = value
                     .get("version")
                     .and_then(|v| v.as_str())
                     .unwrap_or_default();
                 debug!("Rclone version: {}", version);
-                Ok(true)
+                Ok::<_, RequestError>(true)
             })
             .await;
         res.is_ok()
+    }
+}
+
+impl Rclone {
+    fn get_error_msg(value: &Value) -> Option<Cow<'static, str>> {
+        value
+            .get("error")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string().into())
     }
 }

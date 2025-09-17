@@ -1,9 +1,14 @@
 //! This module handle task process
 
 use crate::{
-    Error, format_error_chain, qb, request,
-    task::{self, Status, TaskValue, error::TaskError, launch, task_map},
+    error::{ResultExt, format_error_chain},
+    qb, request,
+    task::{
+        self, RuntimeTaskError, Status, TaskMap, TaskValue, error::TaskError, launch, task_map,
+        task_map_mut,
+    },
 };
+use anyhow::{Context, Error};
 use futures_util::{FutureExt, future::join_all, select};
 use log::{error, info, warn};
 use std::sync::Arc;
@@ -38,7 +43,7 @@ pub async fn run(mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), Error> 
                     continue;
                 }
                 if let Err(e) = process_task_list().await {
-                error!("Failed to process task list: {e}");
+                error!("Failed to process task list\n{e:?}");
                 }
             }
         }
@@ -58,127 +63,160 @@ pub async fn run(mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), Error> 
 }
 
 /// process all tasks
-async fn process_task_list() -> Result<(), TaskError> {
+async fn process_task_list() -> Result<(), Error> {
     if task_map().is_empty() {
         return Ok(());
     }
-    update_task().await.inspect_err(|_| {
-        error!("Failed to update task");
-    })?;
-
-    let futures = {
+    update_task().await.context("Failed to update task")?;
+    let futures: Vec<_> = {
         let task_map = task_map();
-        if task_map.is_empty() {
-            return Ok(());
-        }
-
         task_map
             .values()
-            .map(|task| process_task(task.clone()))
-            .collect::<Vec<_>>()
+            .map(|task| {
+                let task = task.clone();
+                async move {
+                    if let Err(e) = process_task(task.clone()).await {
+                        let mut state = task.state_mut();
+                        state.status = Status::Error(e);
+                    }
+                }
+            })
+            .collect()
     };
 
-    let _results = join_all(futures).await;
-    if let Err(e) = task::save().await {
-        error!("Failed to save task list: {}", format_error_chain(&e));
-    }
+    join_all(futures).await;
+    task::save().await.context("Failed to save task list")?;
     Ok(())
 }
 
 /// process single task
-async fn process_task(task: Arc<TaskValue>) -> Result<(), TaskError> {
+/// # Error
+/// - may return [`RuntimeTaskError`]
+async fn process_task(task: Arc<TaskValue>) -> Result<(), RuntimeTaskError> {
     let (status, is_seeding) = {
-        let read_guard = task.state();
-        (read_guard.status, read_guard.is_seeding)
+        let state = task.state();
+        (state.status, state.is_seeding)
     };
-    if status == Status::Downloading
-        || status == Status::Paused
-        || status == Status::Done
-        || status == Status::Error
-    {
-        return Ok(());
-    }
-    if status == Status::OnTask {
-        tokio::spawn(task.run_check());
-        return Ok(());
-    }
-    if status == Status::Downloaded {
-        tokio::spawn(task.run_interval());
-        return Ok(());
-    }
-    if status == Status::Finished {
-        if is_seeding {
-            return Ok(());
+
+    match status {
+        Status::OnTask => {
+            task.run_check().await?;
+            Ok(())
         }
-        if add_next_part(task.clone()).await.is_err() {
-            task.state_mut().status = Status::Error;
-            error!("Failed to add next part for task: {}", &task.name)
+        Status::Downloaded => {
+            task.run_interval().await?;
+            Ok(())
         }
+        Status::Finished => {
+            if is_seeding {
+                Ok(())
+            } else {
+                add_next_part(task.clone()).await.map_err(|e| {
+                    error!(
+                        "Task: {}\nFailed to add next part: {}",
+                        &task.name,
+                        format_error_chain(e)
+                    );
+                    RuntimeTaskError::AddNextPart
+                })?;
+                Ok(())
+            }
+        }
+        _ => Ok(()),
     }
-    Ok(())
+}
+
+enum TorrentState {
+    // torrent is seeding, which means torrent finished downloading
+    Seeding,
+    Error,
+    // torrent finished both downloading and seeding
+    FinishedSeeding,
+    Downloading,
+}
+
+fn classify_torrent_state(state: String) -> TorrentState {
+    use TorrentState::*;
+    if SEEDING.contains(&state.as_str()) {
+        Seeding
+    } else if ERROR.contains(&state.as_str()) {
+        Error
+    } else if FINISHED_SEEDING.contains(&state.as_str()) {
+        FinishedSeeding
+    } else {
+        Downloading
+    }
 }
 
 /// update task status, task map is not empty
+/// # Error
+/// - may return [`TaskError::Qb`] is get torrents status failed
 async fn update_task() -> Result<(), TaskError> {
-    let torrent_infos = qb::get_torrent_info().await?;
-    let task_list = task_map();
+    let torrent_infos = qb::get_torrent_info()
+        .await
+        .add_context("Failed to get torrent info from qbittorrent")?;
+
+    let mut task_map = task_map_mut();
+    let mut new_task_map = TaskMap::new();
+
     for info in torrent_infos {
-        let task = task_list.get(&info.hash).cloned();
+        let task = task_map.remove(&info.hash);
+
         if let Some(task) = task {
-            let (current_status, current_seeding) = {
-                let state = task.state();
-                (state.status, state.is_seeding)
-            };
+            let mut state = task.state_mut();
+            let current_status = state.status;
+            let current_seeding = state.is_seeding;
 
-            if current_status == Status::Downloading {
-                let progress = info.progress;
-                let state = info.state;
+            // check if downloading has completed
+            if let Status::Downloading = current_status {
+                state.progress = info.progress;
+                let torrent_staus = classify_torrent_state(info.state);
 
-                // torrent is seeding
-                if SEEDING.contains(&state.as_str()) {
-                    let mut state = task.state_mut();
-                    state.progress = progress;
-                    state.status = Status::Downloaded;
-                    state.is_seeding = true;
-                    continue;
+                use TorrentState::*;
+                match torrent_staus {
+                    Seeding => {
+                        state.status = Status::Downloaded;
+                        state.is_seeding = true;
+                    }
+                    FinishedSeeding => {
+                        state.status = Status::Downloaded;
+                        state.is_seeding = false;
+                    }
+                    Error => {
+                        state.status = Status::Error(RuntimeTaskError::Download);
+                    }
+                    Downloading => {}
                 }
-
-                // torrent finished both downloading and seeding
-                if FINISHED_SEEDING.contains(&state.as_str()) {
-                    let mut state = task.state_mut();
-                    state.progress = progress;
-                    state.status = Status::Downloaded;
-                    state.is_seeding = false;
-                    continue;
-                }
-
-                if ERROR.contains(&state.as_str()) {
-                    let mut state = task.state_mut();
-                    state.progress = progress;
-                    state.status = Status::Error;
-                    continue;
-                }
-                let mut state = task.state_mut();
-                state.progress = progress;
-                continue;
             }
-
-            // check if seeding finished
-            if current_seeding && FINISHED_SEEDING.contains(&info.state.as_str()) {
-                task.state_mut().is_seeding = false;
+            // check if seeding has finished
+            else if current_seeding && FINISHED_SEEDING.contains(&info.state.as_str()) {
+                state.is_seeding = false;
             }
+            drop(state);
+            new_task_map.insert(info.hash, task);
         }
     }
+
+    // remaining tasks in old map are probably deleted in qbittorrent
+    std::mem::take(&mut *task_map)
+        .into_iter()
+        .for_each(|(hash, task)| {
+            task.state_mut().status = Status::Error(RuntimeTaskError::TorrentNotFound);
+            new_task_map.insert(hash, task);
+        });
+    *task_map = new_task_map;
     Ok(())
 }
 
-/// Add the next part of the task
+/// Add the next part of the task, may get task state write lock
+/// # Error
+/// may return [`RuntimeTaskError::AddNextPart`]
 async fn add_next_part(task: Arc<TaskValue>) -> Result<(), TaskError> {
     let hash = &task.hash;
     let (current_part_num, total_parts) = { (task.state().current_part_num, task.total_part_num) };
-    qb::delete(hash, true).await.inspect_err(|e| {
-        error!("Failed to delete {hash} \n{e}");
-    })?;
+    qb::delete(hash, true)
+        .await
+        .add_context("Failed to delete old part")?;
 
     if current_part_num == total_parts - 1 {
         task.state_mut().status = Status::Done;
@@ -193,13 +231,7 @@ async fn add_next_part(task: Arc<TaskValue>) -> Result<(), TaskError> {
         task.ratio_limit,
     )
     .await
-    .inspect_err(|e| {
-        error!(
-            "Failed to add next part for task: {} \n {}",
-            &task.name,
-            format_error_chain(e)
-        );
-    })?;
+    .add_context("Failed to add to qbittorrent")?;
 
     let new_part_num = current_part_num + 1;
     launch(new_part_num, hash, task.clone().as_ref()).await?;

@@ -6,7 +6,8 @@ use tokio::{
     sync::broadcast,
 };
 
-use crate::{Error, VERSION, config, qb, server, task};
+use crate::{VERSION, config, qb, server, task};
+use anyhow::Error;
 const PORT: u16 = 7845;
 
 pub fn run(port: u16) -> Result<(), Error> {
