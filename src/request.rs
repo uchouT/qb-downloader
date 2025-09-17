@@ -253,11 +253,9 @@ impl MyRequestBuilder {
         self
     }
 
-    pub async fn send_and_then<V, E, Fn: FnOnce(Res) -> Fut, Fut: Future<Output = Result<V, E>>>(
-        self,
-        res: Fn,
-    ) -> Result<V, E>
+    pub async fn send_and_then<V, E, Fn: FnOnce(Res) -> Fut, Fut>(self, res: Fn) -> Result<V, E>
     where
+        Fut: Future<Output = Result<V, E>>,
         E: From<RequestError>,
     {
         let response = self.send().await?;

@@ -67,7 +67,9 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
             if let TaskError::Abort = e {
                 return Ok(ResultResponse::success());
             } else {
-                return Err(ServerError::Unknown(anyhow!("Failed to add torrent")));
+                return Err(ServerError::Unknown(
+                    anyhow::Error::from(e).context("Failed to add torrent"),
+                ));
             }
         }
     };

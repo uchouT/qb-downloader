@@ -1,8 +1,9 @@
 //! This module provides API to interact with qBittorrent
+use crate::error::{CommonErrorKind, ResultExt};
 use crate::request::RequestError;
 use crate::{
     config,
-    error::{CommonError, format_error_chain},
+    error::CommonError,
     remove_slash,
     request::{self, FilePart, Multipart},
 };
@@ -22,6 +23,46 @@ use std::{
 use thiserror::Error;
 use tokio::time::sleep;
 const CATEGORY: &str = "QBD";
+
+#[derive(Debug, Error)]
+pub enum QbError {
+    #[error("Qb not login")]
+    NotLogin,
+
+    #[error("Unsupported Qb version")]
+    UnsupportedVersion,
+
+    #[error("torrent exists")]
+    NoNewTorrents,
+
+    #[error("torrent cancelled")]
+    Cancelled,
+
+    #[error("{0}")]
+    CommonError(
+        #[from]
+        #[source]
+        CommonError,
+    ),
+}
+
+impl From<RequestError> for QbError {
+    fn from(value: RequestError) -> Self {
+        QbError::CommonError(CommonError {
+            msg: "Failed to send HTTP request to qb".into(),
+            kind: CommonErrorKind::Request(value),
+        })
+    }
+}
+
+impl From<nyquest::Error> for QbError {
+    fn from(value: nyquest::Error) -> Self {
+        QbError::CommonError(CommonError {
+            msg: "Failed to send HTTP request to qb".into(),
+            kind: CommonErrorKind::Request(RequestError::from(value)),
+        })
+    }
+}
 
 /// qBittorrent tag
 pub enum Tag {
@@ -120,10 +161,7 @@ pub async fn login_with(host: &str, username: &str, password: &str) {
                 if let QbError::UnsupportedVersion = e {
                     warn!("qBittorrent version is not supported");
                 } else {
-                    error!(
-                        "Failed to get qBittorrent version\n{}",
-                        format_error_chain(e)
-                    );
+                    error!("Failed to get qBittorrent version");
                 }
                 QB.get().unwrap().store(Arc::new(Qb {
                     host: Arc::from(host),
@@ -368,8 +406,9 @@ pub async fn export(hash: &str, path: &Path) -> Result<(), QbError> {
         .form([("hash", hash.to_string())])
         .send_and_then(async |res| {
             let data = res.bytes().await?;
-            let mut file = File::create(path).map_err(CommonError::from)?;
-            file.write_all(&data).map_err(CommonError::from)?;
+            let mut file = File::create(path).add_context("Failed to create torrent file")?;
+            file.write_all(&data)
+                .add_context("Failed to write torrent bytes")?;
             remove_tag(hash, Tag::New).await?;
             Ok(())
         })
@@ -479,40 +518,5 @@ pub fn try_parse_hash(url: &str) -> Option<String> {
         Some(hash)
     } else {
         None
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum QbError {
-    #[error("Qb not login")]
-    NotLogin,
-
-    #[error("Unsupported Qb version")]
-    UnsupportedVersion,
-
-    #[error("torrent exists")]
-    NoNewTorrents,
-
-    #[error("torrent cancelled")]
-    Cancelled,
-
-    #[error("Request error")]
-    Request(
-        #[from]
-        #[source]
-        RequestError,
-    ),
-
-    #[error("{0}")]
-    CommonError(
-        #[from]
-        #[source]
-        CommonError,
-    ),
-}
-
-impl From<nyquest::Error> for QbError {
-    fn from(value: nyquest::Error) -> Self {
-        QbError::Request(RequestError::from(value))
     }
 }

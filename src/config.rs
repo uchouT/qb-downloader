@@ -1,12 +1,12 @@
 use crate::{
     auth::{TOKEN, encode},
-    error::CommonError,
+    error::{CommonError, ResultExt},
     remove_slash,
 };
 use arc_swap::{ArcSwap, Guard};
 use directories_next::BaseDirs;
 
-use log::{debug, error, info};
+use log::{debug, info};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::{
     path::PathBuf,
@@ -132,10 +132,10 @@ impl Config {
     /// # Error
     /// If the file cannot be read or parsed, it will return a [`CommonError`].
     fn load(filepath: PathBuf) -> Result<Self, CommonError> {
-        let content = std::fs::read_to_string(&filepath).inspect_err(|_| {
-            error!("Failed to read config file {}", filepath.display());
-        })?;
-        let config_value: ConfigValue = toml::from_str(&content)?;
+        let content = std::fs::read_to_string(&filepath)
+            .add_context(format!("Failed to read config file {}", filepath.display()))?;
+        let config_value: ConfigValue =
+            toml::from_str(&content).add_context("Failed to parse config file")?;
         Ok(Self {
             filepath,
             value: ArcSwap::from_pointee(config_value),
@@ -146,12 +146,17 @@ impl Config {
 /// save the config to target file, which is stored in filepath field
 pub async fn save() -> Result<(), CommonError> {
     let value = value();
-    let content = toml::to_string_pretty(value.as_ref())?;
+    let content =
+        toml::to_string_pretty(value.as_ref()).add_context("Failed to serialize config file")?;
     let filepath = &CONFIG.get().unwrap().filepath;
     if let Some(parent) = filepath.parent() {
-        tokio::fs::create_dir_all(parent).await?;
+        tokio::fs::create_dir_all(parent)
+            .await
+            .add_context("Failed to create config directory")?;
     }
-    tokio::fs::write(filepath, content).await?;
+    tokio::fs::write(filepath, content)
+        .await
+        .add_context("Failed to write config file")?;
     Ok(())
 }
 
@@ -175,11 +180,10 @@ pub fn init(path: Option<PathBuf>) -> Result<(), CommonError> {
     TOKEN
         .set(std::sync::RwLock::new(String::new()))
         .expect("Failed to set global token");
-
-    debug!("Config loaded from: {}", &config.filepath.display());
+    
+    info!("Config loading from: {}", &config.filepath.display());
     debug!("Config content: {:?}", &config.value);
     CONFIG.set(config).expect("Failed to set global config");
-    info!("Config loaded.");
     Ok(())
 }
 

@@ -6,7 +6,8 @@ use tokio::{
     sync::broadcast,
 };
 
-use crate::{Error, VERSION, config, qb, server, task};
+use crate::{VERSION, config, qb, server, task};
+use anyhow::Error;
 const PORT: u16 = 7845;
 
 pub fn run(port: u16) -> Result<(), Error> {
@@ -69,6 +70,7 @@ pub fn init() -> Result<u16, Error> {
     let mut config_path = None;
     let mut task_path = None;
     let mut port = PORT;
+    let mut log_level = None;
     args.iter()
         .enumerate()
         .for_each(|(i, arg)| match arg.as_str() {
@@ -78,9 +80,9 @@ pub fn init() -> Result<u16, Error> {
             "--task-path" => {
                 task_path = Some(PathBuf::from(args.get(i + 1).expect("invalid arguments")));
             }
-            "--log-level" => unsafe {
-                std::env::set_var("RUST_LOG", args.get(i + 1).expect("invalid arguments"));
-            },
+            "--log-level" => {
+                log_level = args.get(i + 1);
+            }
             "--port" | "-p" => {
                 port = args
                     .get(i + 1)
@@ -90,13 +92,17 @@ pub fn init() -> Result<u16, Error> {
             }
             _ => {}
         });
-    if std::env::var("RUST_LOG").is_err() {
-        unsafe {
-            std::env::set_var("RUST_LOG", "info");
-        }
-    }
 
-    pretty_env_logger::init();
+    let mut log_builder = pretty_env_logger::formatted_timed_builder();
+    if let Some(level) = log_level {
+        log_builder.filter_level(level.parse().expect("invalid log level"));
+    } else {
+        log_builder
+            .filter_level(log::LevelFilter::Info)
+            .parse_default_env();
+    }
+    log_builder.init();
+
     info!("qb-downloader v{VERSION} starting...");
     config::init(config_path)?;
     task::init(task_path)?;

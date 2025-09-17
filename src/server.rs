@@ -1,7 +1,11 @@
 pub mod api;
 pub mod auth;
 pub mod error;
-use crate::{Error, config, error::CommonError};
+use crate::{
+    config,
+    error::{ResultExt, format_error_chain},
+};
+use anyhow::Error;
 use api::Action;
 use error::handle;
 use futures_util::{FutureExt, select};
@@ -21,7 +25,6 @@ use std::{
     time::Duration,
 };
 use tokio::{net::TcpListener, sync::broadcast, time::sleep};
-
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, Infallible>;
 type ServerResult<T> = std::result::Result<T, Infallible>;
 type Req = Request<Incoming>;
@@ -70,7 +73,9 @@ pub async fn run(
     port: u16,
 ) -> std::result::Result<(), Error> {
     let addr: SocketAddr = ([0, 0, 0, 0], port).into();
-    let listener = TcpListener::bind(addr).await.map_err(CommonError::from)?;
+    let listener = TcpListener::bind(addr)
+        .await
+        .add_context("Failed to bind to address")?;
     let graceful = hyper_util::server::graceful::GracefulShutdown::new();
     info!("Listening on http://{addr}");
 
@@ -88,7 +93,7 @@ pub async fn run(
                         let fut = graceful.watch(conn);
                         tokio::spawn(async move {
                             if let Err(e) = fut.await {
-                                error!("Error serving connection: {e}");
+                                error!("Error serving connection {socket_addr}: {}", format_error_chain(e));
                             } else {
                                 debug!("Connection from {socket_addr} closed");
                             }
@@ -96,7 +101,7 @@ pub async fn run(
                     }
 
                     Err(e) => {
-                        error!("Failed to accept connection: {e:?}");
+                        error!("Failed to accept connection: {}", format_error_chain(e));
                         continue;
                     }
                 }

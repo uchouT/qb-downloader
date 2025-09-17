@@ -16,7 +16,6 @@ use crate::{
     },
     upload::{Rclone, UploaderTrait},
 };
-use anyhow::anyhow;
 use hyper::{Method, Response};
 use serde::Deserialize;
 
@@ -45,9 +44,9 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
                 if let QbError::UnsupportedVersion = e {
                     return Ok(ResultResponse::error_msg("Unsupported qbittorrent version"));
                 } else {
-                    return Err(ServerError::Unknown(anyhow!(
-                        "Failed to get qbittorrent version"
-                    )));
+                    return Err(ServerError::Unknown(
+                        anyhow::Error::from(e).context("Failed to get qbittorrent version"),
+                    ));
                 }
             }
             Ok(ResultResponse::success())
@@ -59,7 +58,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
                 Ok(ResultResponse::error_msg("Rclone test failed"))
             }
         }
-        _ => return Ok(ResultResponse::bad_request(Some("unknown test type"))),
+        _ => Ok(ResultResponse::bad_request(Some("unknown test type"))),
     }
 }
 
