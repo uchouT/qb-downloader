@@ -4,8 +4,9 @@ use crate::{
     error::{ResultExt, format_error_chain},
     qb, request,
     task::{
-        self, RuntimeTaskError, Status, TaskMap, TaskValue, error::TaskError, launch, task_map,
-        task_map_mut,
+        self, RuntimeTaskError, Status, TaskMap, TaskValue,
+        error::{RuntimeTaskErrorKind, TaskError},
+        launch, task_map, task_map_mut,
     },
 };
 use anyhow::{Context, Error};
@@ -76,8 +77,7 @@ async fn process_task_list() -> Result<(), Error> {
                 let task = task.clone();
                 async move {
                     if let Err(e) = process_task(task.clone()).await {
-                        let mut state = task.state_mut();
-                        state.status = Status::Error(e);
+                        handle_task_error(task, e);
                     }
                 }
             })
@@ -89,9 +89,21 @@ async fn process_task_list() -> Result<(), Error> {
     Ok(())
 }
 
+/// Called when a task encounters a runtime error
+fn handle_task_error(task: Arc<TaskValue>, e: RuntimeTaskError) {
+    log::error!(
+        "Task: {} encountered an error\n{}",
+        &task.name,
+        format_error_chain(&e)
+    );
+    let mut state = task.state_mut();
+    state.status = Status::Error;
+    task.set_error_info(e);
+}
+
 /// process single task
 /// # Error
-/// - may return [`RuntimeTaskError`]
+/// - may return [`RuntimeTaskErrorKind`]
 async fn process_task(task: Arc<TaskValue>) -> Result<(), RuntimeTaskError> {
     let (status, is_seeding) = {
         let state = task.state();
@@ -112,12 +124,7 @@ async fn process_task(task: Arc<TaskValue>) -> Result<(), RuntimeTaskError> {
                 Ok(())
             } else {
                 add_next_part(task.clone()).await.map_err(|e| {
-                    error!(
-                        "Task: {}\nFailed to add next part: {}",
-                        &task.name,
-                        format_error_chain(e)
-                    );
-                    RuntimeTaskError::AddNextPart
+                    RuntimeTaskError::from_kind(RuntimeTaskErrorKind::AddNextPart, Some(e))
                 })?;
                 Ok(())
             }
@@ -152,9 +159,23 @@ fn classify_torrent_state(state: String) -> TorrentState {
 /// # Error
 /// - may return [`TaskError::Qb`] is get torrents status failed
 async fn update_task() -> Result<(), TaskError> {
-    let torrent_infos = qb::get_torrent_info()
-        .await
-        .add_context("Failed to get torrent info from qbittorrent")?;
+    let torrent_infos = {
+        let result = qb::get_torrent_info().await;
+        match result {
+            Ok(infos) => infos,
+            Err(e) => {
+                if let qb::QbError::NotLogin = e {
+                    // maybe session expired, try to re-login again
+                    qb::login().await;
+                    qb::get_torrent_info()
+                        .await
+                        .add_context("Failed to get torrent infos")?
+                } else {
+                    Err(e).add_context("Failed to get torrent infos")?
+                }
+            }
+        }
+    };
 
     let mut task_map = task_map_mut();
     let mut new_task_map = TaskMap::new();
@@ -183,7 +204,11 @@ async fn update_task() -> Result<(), TaskError> {
                         state.is_seeding = false;
                     }
                     Error => {
-                        state.status = Status::Error(RuntimeTaskError::Download);
+                        state.status = Status::Error;
+                        task.set_error_info(RuntimeTaskError::from_kind(
+                            RuntimeTaskErrorKind::Download,
+                            None,
+                        ));
                     }
                     Downloading => {}
                 }
@@ -201,7 +226,11 @@ async fn update_task() -> Result<(), TaskError> {
     std::mem::take(&mut *task_map)
         .into_iter()
         .for_each(|(hash, task)| {
-            task.state_mut().status = Status::Error(RuntimeTaskError::TorrentNotFound);
+            task.state_mut().status = Status::Error;
+            task.set_error_info(RuntimeTaskError::from_kind(
+                RuntimeTaskErrorKind::TorrentNotFound,
+                None,
+            ));
             new_task_map.insert(hash, task);
         });
     *task_map = new_task_map;

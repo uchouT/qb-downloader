@@ -9,7 +9,6 @@ use crate::{
     request::RequestError,
 };
 
-// TODO: more specific error types
 /// General task error enum
 #[derive(Debug, Error)]
 #[non_exhaustive]
@@ -31,18 +30,14 @@ pub enum TaskError {
     #[error("{}", .0.as_deref().unwrap_or("Unknown upload error".into()))]
     Upload(Option<Cow<'static, str>>),
 
-    #[error("job_id:{0} missing, upload may finished")]
-    RcloneJobIdMissing(i32),
-    
+    // #[error("job_id:{0} missing, upload may finished")]
+    // RcloneJobIdMissing(i32),
     #[error("{msg}")]
     Qb {
         msg: Cow<'static, str>,
         #[source]
         source: QbError,
     },
-
-    #[error("Runtime error")]
-    Runtime(#[from] #[source] RuntimeTaskError),
 
     #[error("File over size limit")]
     OverSize,
@@ -69,9 +64,30 @@ impl<V> ResultExt<V> for Result<V, QbError> {
 }
 
 /// Error that may occur when a task is added, which is always bind to one single task
-// TODO: should be more specific
-#[derive(Debug, Error, Serialize, Deserialize, Clone, Copy)]
-pub enum RuntimeTaskError {
+/// Record anything that can help user to handle the error (mostly happened because of external reasons)
+#[derive(Debug, Serialize, Deserialize, Error)]
+#[error("{}\n{}", self.timestamp, self.kind)]
+pub struct RuntimeTaskError {
+    pub timestamp: String,
+    pub kind: RuntimeTaskErrorKind,
+    #[source]
+    #[serde(skip)]
+    source: Option<TaskError>,
+}
+
+impl RuntimeTaskError {
+    pub fn from_kind(kind: RuntimeTaskErrorKind, source: Option<TaskError>) -> Self {
+        let now = humantime::format_rfc3339(std::time::SystemTime::now()).to_string();
+        Self {
+            timestamp: now,
+            kind,
+            source,
+        }
+    }
+}
+
+#[derive(Debug, Error, Serialize, Deserialize)]
+pub enum RuntimeTaskErrorKind {
     #[error("Error during upload task")]
     RuntimeUpload,
 
@@ -86,4 +102,15 @@ pub enum RuntimeTaskError {
 
     #[error("Failed to add next part")]
     AddNextPart,
+}
+
+impl RuntimeTaskErrorKind {
+    /// whether this error is skipable, if true, the task can be forced to continue
+    pub fn skipable(&self) -> bool {
+        use RuntimeTaskErrorKind::*;
+        match self {
+            RuntimeUpload | TorrentNotFound => true,
+            _ => false,
+        }
+    }
 }

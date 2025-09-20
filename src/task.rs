@@ -10,6 +10,7 @@ use std::{
 };
 
 use anyhow::{Context, Error};
+use arc_swap::ArcSwap;
 use directories_next::BaseDirs;
 use futures_util::future::{join, join_all};
 use log::{debug, error, info};
@@ -47,15 +48,15 @@ pub struct TaskValue {
     pub upload_path: String,
     pub total_part_num: usize,
     pub task_order: Vec<Vec<usize>>,
-
     /// total file count, which is used to set not download.
     pub file_num: usize,
     pub torrent_path: PathBuf,
     pub max_size: i64,
     pub seeding_time_limit: i32,
     pub ratio_limit: f64,
-
+    pub error_info: ArcSwap<Option<RuntimeTaskError>>,
     pub uploader: Uploader,
+    /// current task part state
     pub state: RwLock<State>,
 }
 
@@ -85,7 +86,8 @@ pub enum Status {
     /// the entire task finished, including all parts
     Done,
 
-    Error(RuntimeTaskError),
+    /// More details in [`ErrorInfo`]
+    Error,
 
     Paused,
 }
@@ -101,6 +103,14 @@ impl TaskValue {
         self.state
             .write()
             .expect("Failed to acquire write lock on task status")
+    }
+
+    pub fn error_info(&self) -> Arc<Option<RuntimeTaskError>> {
+        self.error_info.load().clone()
+    }
+
+    pub fn set_error_info(&self, error: RuntimeTaskError) {
+        self.error_info.store(Arc::from(Some(error)));
     }
 
     /// Launch the interval task
@@ -222,7 +232,7 @@ pub async fn start(hash: &str) -> Result<(), TaskError> {
         .add_context("Failed to start torrent in qb")?;
 
     {
-        task_map().get(hash).unwrap().state_mut().status = Status::Downloading;        
+        task_map().get(hash).unwrap().state_mut().status = Status::Downloading;
         save().await?;
     }
 
@@ -389,6 +399,7 @@ pub async fn add(
         max_size,
         seeding_time_limit,
         ratio_limit,
+        error_info: ArcSwap::from_pointee(None),
     };
     qb::set_share_limit(&hash, ratio_limit, seeding_time_limit)
         .await

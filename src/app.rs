@@ -93,7 +93,7 @@ pub fn init() -> Result<u16, Error> {
             _ => {}
         });
 
-    let mut log_builder = pretty_env_logger::formatted_timed_builder();
+    let mut log_builder = pretty_env_logger::formatted_builder();
     if let Some(level) = log_level {
         log_builder.filter_level(level.parse().expect("invalid log level"));
     } else {

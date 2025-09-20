@@ -41,13 +41,8 @@ pub enum CommonErrorKind {
         IoError,
     ),
 
-    // TODO: reduce the error size
     #[error("Toml der error")]
-    Deserialize(
-        #[source]
-        #[from]
-        DeError,
-    ),
+    Deserialize,
 
     #[error("Toml ser error")]
     Serialize(
@@ -69,6 +64,12 @@ pub enum CommonErrorKind {
         #[source]
         request::RequestError,
     )
+}
+
+impl From<DeError> for CommonErrorKind {
+    fn from(_: DeError) -> Self {
+        CommonErrorKind::Deserialize
+    }
 }
 
 pub trait ResultExt<V> {

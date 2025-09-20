@@ -30,13 +30,14 @@ sha1 = "0.10"
 bendy = "0.3.3"
 base32 = "0.5.1"
 futures-util = "0.3"
-arc-swap = "1.7.1"
+arc-swap = { version = "1.7.1", features = ["serde"] }
 nyquest-preset = { version = "0.3.0", features = ["async", "multipart"] }
 nyquest = { version = "0.3.0", features = ["async", "multipart", "json"] }
 base64 = "0.22.1"
 thiserror = "2.0.16"
 hyper = { version = "1.7.0", features = ["http1", "server"] }
 anyhow = "1.0.99"
+humantime = "2.3.0"
 
 [target.'cfg(target_env = "musl")'.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }

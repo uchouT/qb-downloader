@@ -7,9 +7,12 @@ use std::{
 
 use crate::{
     config,
-    error::{ResultExt, TaskError, format_error_chain},
+    error::{ResultExt, TaskError},
     request::{self, RequestError},
-    task::{TaskValue, error::RuntimeTaskError},
+    task::{
+        TaskValue,
+        error::{RuntimeTaskError, RuntimeTaskErrorKind},
+    },
 };
 use log::debug;
 
@@ -36,14 +39,7 @@ impl Uploader {
         match self {
             Uploader::Rclone(_) => Rclone::check(task.clone()).await,
         }
-        .map_err(|e| {
-            log::error!(
-                "Task: {}\nFailed to check upload status: {}",
-                &task.name,
-                format_error_chain(e)
-            );
-            RuntimeTaskError::RuntimeUpload
-        })
+        .map_err(|e| RuntimeTaskError::from_kind(RuntimeTaskErrorKind::RuntimeUpload, Some(e)))
     }
 
     /// Submit upload task
@@ -51,14 +47,7 @@ impl Uploader {
         match self {
             Uploader::Rclone(_) => Rclone::upload(task.clone()).await,
         }
-        .map_err(|e| {
-            log::error!(
-                "Task: {}\nFailed to launch upload task: {}",
-                &task.name,
-                format_error_chain(e)
-            );
-            RuntimeTaskError::LaunchUpload
-        })
+        .map_err(|e| RuntimeTaskError::from_kind(RuntimeTaskErrorKind::LaunchUpload, Some(e)))
     }
 }
 

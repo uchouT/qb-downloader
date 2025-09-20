@@ -21,7 +21,7 @@ use crate::{
     },
     task::{self, error::TaskError, get_torrent_path},
 };
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 use hyper::{Method, Response, StatusCode, body::Bytes};
 use serde::{Deserialize, Serialize};
 
