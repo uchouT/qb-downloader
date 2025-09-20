@@ -180,11 +180,10 @@ pub fn init(path: Option<PathBuf>) -> Result<(), CommonError> {
     TOKEN
         .set(std::sync::RwLock::new(String::new()))
         .expect("Failed to set global token");
-
-    debug!("Config loaded from: {}", &config.filepath.display());
+    
+    info!("Config loading from: {}", &config.filepath.display());
     debug!("Config content: {:?}", &config.value);
     CONFIG.set(config).expect("Failed to set global config");
-    info!("Config loaded.");
     Ok(())
 }
 
