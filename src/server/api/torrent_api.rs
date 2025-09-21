@@ -8,7 +8,7 @@
 use std::borrow::Cow;
 
 use crate::{
-    bencode::{self, FileNode},
+    bencode::{self, BencodeError, FileNode},
     config::{self, strip_slash},
     qb::{self, Tag},
     remove_slash,
@@ -21,7 +21,7 @@ use crate::{
     },
     task::{self, error::TaskError, get_torrent_path},
 };
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use hyper::{Method, Response, StatusCode, body::Bytes};
 use serde::{Deserialize, Serialize};
 
@@ -67,17 +67,22 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
             if let TaskError::Abort = e {
                 return Ok(ResultResponse::success());
             } else {
-                return Err(ServerError::Unknown(
-                    anyhow::Error::from(e).context("Failed to add torrent"),
-                ));
+                Err(e).context("Failed to add torrent")?
             }
         }
     };
-    let torrent_name = bencode::get_torrent_name(&hash).await.inspect_err(|_| {
+    let torrent_name = bencode::get_torrent_name(&hash).await.map_err(|e| {
+        // clean added torrent
         let hash = hash.clone();
         tokio::spawn(async move {
             let _ = task::delete(&hash, false).await;
         });
+
+        if let BencodeError::SingleFile = e {
+            anyhow!("Not a multi-file torrent")
+        } else {
+            anyhow::Error::from(e).context("Failed to parse torrent")
+        }
     })?;
     let res = TorrentRes {
         torrent_name,

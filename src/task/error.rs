@@ -86,7 +86,7 @@ impl RuntimeTaskError {
     }
 }
 
-#[derive(Debug, Error, Serialize, Deserialize)]
+#[derive(Debug, Error, Serialize, Deserialize, Clone, Copy)]
 pub enum RuntimeTaskErrorKind {
     #[error("Error during upload task")]
     RuntimeUpload,

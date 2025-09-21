@@ -20,9 +20,7 @@ use hyper_util::rt::TokioIo;
 use log::{debug, error, info, warn};
 use serde::Serialize;
 use std::{
-    convert::Infallible,
-    net::{IpAddr, SocketAddr},
-    time::Duration,
+    borrow::Cow, convert::Infallible, net::{IpAddr, SocketAddr}, time::Duration
 };
 use tokio::{net::TcpListener, sync::broadcast, time::sleep};
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, Infallible>;
@@ -148,7 +146,7 @@ fn is_inner_ip(socket_addr: SocketAddr) -> bool {
 #[derive(Debug, Serialize)]
 struct ResultResponse<T: Serialize> {
     /// Response message which will show in the frontend
-    pub message: Option<&'static str>,
+    pub message: Option<Cow<'static, str>>,
 
     pub code: u16,
     /// Contain the actual response data
@@ -159,7 +157,7 @@ impl ResultResponse<()> {
     /// Create a successful response without data
     fn success() -> Response<BoxBody> {
         let result = Self {
-            message: Some("Success"),
+            message: Some("Success".into()),
             data: None,
             code: StatusCode::OK.as_u16(),
         };
@@ -172,9 +170,9 @@ impl ResultResponse<()> {
     }
 
     /// Create a successful response with a custom message
-    fn success_msg(msg: &'static str) -> Response<BoxBody> {
+    fn success_msg(msg: impl Into<Cow<'static, str>>) -> Response<BoxBody> {
         let result = Self {
-            message: Some(msg),
+            message: Some(msg.into()),
             data: None,
             code: StatusCode::OK.as_u16(),
         };
@@ -189,7 +187,7 @@ impl ResultResponse<()> {
     /// Create a error response
     fn error() -> Response<BoxBody> {
         let result = Self {
-            message: Some("Error"),
+            message: Some("Error".into()),
             data: None,
             code: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
         };
@@ -202,9 +200,9 @@ impl ResultResponse<()> {
     }
 
     /// Create a error response with message
-    fn error_msg(msg: &'static str) -> Response<BoxBody> {
+    fn error_msg(msg: impl Into<Cow<'static, str>>) -> Response<BoxBody> {
         let result = Self {
-            message: Some(msg),
+            message: Some(msg.into()),
             data: None,
             code: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
         };
@@ -218,7 +216,7 @@ impl ResultResponse<()> {
 
     fn unauthorized() -> Response<BoxBody> {
         let result = Self {
-            message: Some("unauthorized"),
+            message: Some("unauthorized".into()),
             data: None,
             code: StatusCode::FORBIDDEN.as_u16(),
         };
@@ -231,7 +229,7 @@ impl ResultResponse<()> {
     }
 
     /// build a bad request response, with optional message
-    fn bad_request(message: Option<&'static str>) -> Response<BoxBody> {
+    fn bad_request(message: Option<Cow<'static, str>>) -> Response<BoxBody> {
         let result = Self {
             message,
             data: None,
@@ -256,7 +254,7 @@ impl<T: Serialize> ResultResponse<T> {
     /// Create a successful response with data
     fn success_data(data: T) -> Response<BoxBody> {
         let result = Self {
-            message: Some("Success"),
+            message: Some("Success".into()),
             data: Some(data),
             code: StatusCode::OK.as_u16(),
         };

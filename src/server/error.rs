@@ -1,8 +1,7 @@
 use super::{BoxBody, ResultResponse, ServerResult};
-use crate::bencode::BencodeError;
 use anyhow::Error as AnyError;
 use hyper::{Response, StatusCode};
-use log::{error, warn};
+use log::error;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -20,13 +19,6 @@ pub enum ServerError {
     #[error("Method not allowed")]
     MethodNotAllowed,
 
-    #[error("Bencode error")]
-    Bencode(
-        #[from]
-        #[source]
-        BencodeError,
-    ),
-
     #[error("Bad request multipart")]
     BadRequestMultipart,
 
@@ -34,7 +26,7 @@ pub enum ServerError {
     Unauthorized,
 
     #[error("{0}")]
-    Unknown(
+    Any(
         #[source]
         #[from]
         AnyError,
@@ -49,27 +41,18 @@ impl From<multer::Error> for ServerError {
 
 pub fn handle(e: ServerError) -> ServerResult<Response<BoxBody>> {
     match e {
-        ServerError::MissingParams(msg) => Ok(ResultResponse::bad_request(Some(msg))),
+        ServerError::MissingParams(msg) => Ok(ResultResponse::bad_request(Some(msg.into()))),
         ServerError::BadRequest(_) => Ok(ResultResponse::bad_request(None)),
         ServerError::Unauthorized => Ok(ResultResponse::unauthorized()),
         ServerError::MethodNotAllowed => Ok(ResultResponse::error_with_code(
             StatusCode::METHOD_NOT_ALLOWED,
         )),
         ServerError::BadRequestMultipart => Ok(ResultResponse::bad_request(Some(
-            "failed to parse multipart",
+            "failed to parse multipart".into(),
         ))),
-        ServerError::Bencode(e) => {
-            if let BencodeError::SingleFile = e {
-                warn!("Cannot add single-file torrent");
-                Ok(ResultResponse::error_msg("Not a multi-file torrent"))
-            } else {
-                error!("{e}");
-                Ok(ResultResponse::error_msg("torrent parse error"))
-            }
-        }
-        ServerError::Unknown(e) => {
-            error!("{e:?}");
-            Ok(ResultResponse::error())
+        ServerError::Any(e) => {
+            error!("{:?}", &e);
+            Ok(ResultResponse::error_msg(e.to_string()))
         }
     }
 }

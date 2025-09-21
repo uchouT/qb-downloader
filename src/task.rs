@@ -21,7 +21,10 @@ use crate::{
     bencode,
     error::{CommonError, QbError, ResultExt, TaskError},
     format_error_chain, qb,
-    task::{self, error::RuntimeTaskError},
+    task::{
+        self,
+        error::{RuntimeTaskError, RuntimeTaskErrorKind},
+    },
     upload::Uploader,
 };
 
@@ -226,18 +229,26 @@ pub fn task_map_mut() -> RwLockWriteGuard<'static, TaskMap> {
         .expect("Failed to acquire read lock on task list")
 }
 
-pub async fn start(hash: &str) -> Result<(), TaskError> {
-    qb::start(hash)
+/// Start a task from paused state
+pub async fn start(task: Arc<TaskValue>) -> Result<(), TaskError> {
+    qb::start(&task.clone().hash)
         .await
         .add_context("Failed to start torrent in qb")?;
 
-    {
-        task_map().get(hash).unwrap().state_mut().status = Status::Downloading;
-        save().await?;
-    }
+    task.state_mut().status = Status::Downloading;
+    save().await?;
 
-    info!("Task started for hash: {hash}");
+    info!("Task started for hash: {}", task.hash);
     Ok(())
+}
+
+/// Resume a task from Error state
+pub async fn resume(
+    task: Arc<TaskValue>,
+    kind: RuntimeTaskErrorKind,
+    forced: bool,
+) -> Result<(), TaskError> {
+    unimplemented!()
 }
 
 pub async fn stop(hash: &str) -> Result<(), TaskError> {
