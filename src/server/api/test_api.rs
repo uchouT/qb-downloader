@@ -36,19 +36,19 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     let test_req: TestReq = from_json(&data)?;
 
     match test_req.test_type {
-        "qb" => {
-            if !qb::test_login(test_req.host, test_req.username, test_req.password, true).await {
-                return Ok(ResultResponse::error_msg("Qbittorrent failed to login"));
-            }
-            if let Err(e) = qb::get_version(test_req.host).await {
-                if let QbError::UnsupportedVersion = e {
-                    return Ok(ResultResponse::error_msg("Unsupported qbittorrent version"));
-                } else {
-                    Err(e).context("Failed to get qbittorrent version")?
+        "qb" => match qb::test_login(test_req.host, test_req.username, test_req.password).await {
+            Some(cookie) => {
+                if let Err(e) = qb::get_version(test_req.host, cookie).await {
+                    if let QbError::UnsupportedVersion = e {
+                        return Ok(ResultResponse::error_msg("Unsupported qbittorrent version"));
+                    } else {
+                        Err(e).context("Failed to get qbittorrent version")?
+                    }
                 }
+                Ok(ResultResponse::success())
             }
-            Ok(ResultResponse::success())
-        }
+            None => Ok(ResultResponse::error_msg("Qbittorrent failed to login")),
+        },
         "Rclone" => {
             if Rclone::test(test_req.host, test_req.username, test_req.password).await {
                 Ok(ResultResponse::success())

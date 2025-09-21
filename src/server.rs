@@ -184,20 +184,20 @@ impl ResultResponse<()> {
             .unwrap()
     }
 
-    /// Create a error response
-    fn error() -> Response<BoxBody> {
-        let result = Self {
-            message: Some("Error".into()),
-            data: None,
-            code: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
-        };
-        let json = serde_json::to_string(&result).unwrap();
-        Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(full(json))
-            .unwrap()
-    }
+    // /// Create a error response
+    // fn error() -> Response<BoxBody> {
+    //     let result = Self {
+    //         message: Some("Error".into()),
+    //         data: None,
+    //         code: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+    //     };
+    //     let json = serde_json::to_string(&result).unwrap();
+    //     Response::builder()
+    //         .status(StatusCode::INTERNAL_SERVER_ERROR)
+    //         .header(header::CONTENT_TYPE, "application/json")
+    //         .body(full(json))
+    //         .unwrap()
+    // }
 
     /// Create a error response with message
     fn error_msg(msg: impl Into<Cow<'static, str>>) -> Response<BoxBody> {

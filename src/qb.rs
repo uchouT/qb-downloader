@@ -1,11 +1,16 @@
 //! This module provides API to interact with qBittorrent
+mod qb_request;
 use crate::error::{CommonErrorKind, ResultExt};
-use crate::request::RequestError;
+use crate::qb::qb_request::QbRequest;
+use crate::request::{MyRequest, MyRequestBuilder, RequestError};
 use crate::{
     config,
     error::CommonError,
     remove_slash,
-    request::{self, FilePart, Multipart},
+    request::{
+        self,
+        multipart::{FilePart, Multipart},
+    },
 };
 use arc_swap::ArcSwap;
 use base32::Alphabet;
@@ -93,6 +98,7 @@ pub struct Qb {
     host: Arc<str>,
     logined: bool,
     version: u8,
+    cookie: Option<String>,
 }
 
 #[derive(Clone, Deserialize, Debug)]
@@ -114,6 +120,7 @@ impl Qb {
             host: Arc::from(config::value().qb.qb_host.as_str()),
             logined: false,
             version: 0,
+            cookie: None,
         }
     }
 }
@@ -145,15 +152,23 @@ pub async fn login() {
 /// # Precondition
 /// - host has been normalized.
 pub async fn login_with(host: &str, username: &str, password: &str) {
-    let logined = test_login(host, username, password, false).await;
-
-    if logined {
-        match get_version(host).await {
+    match test_login(host, username, password).await {
+        None => {
+            QB.get().unwrap().store(Arc::new(Qb {
+                host: Arc::from(host),
+                logined: false,
+                version: 0,
+                cookie: None,
+            }));
+            warn!("qBittorrent login failed");
+        }
+        Some(cookie) => match get_version(host, cookie.clone()).await {
             Ok(v) => {
                 QB.get().unwrap().store(Arc::new(Qb {
                     host: Arc::from(host),
                     logined: true,
                     version: v,
+                    cookie: Some(cookie),
                 }));
                 info!("qBittorrent login successful");
             }
@@ -167,21 +182,17 @@ pub async fn login_with(host: &str, username: &str, password: &str) {
                     host: Arc::from(host),
                     logined: false,
                     version: 0,
+                    cookie: None,
                 }));
             }
-        }
-    } else {
-        QB.get().unwrap().store(Arc::new(Qb {
-            host: Arc::from(host),
-            logined: false,
-            version: 0,
-        }));
-        warn!("qBittorrent login failed");
+        },
     }
 }
 
-pub async fn get_version(host: &str) -> Result<u8, QbError> {
+/// get qbitrorrent version, require cookie explicitly
+pub async fn get_version(host: &str, cookie: String) -> Result<u8, QbError> {
     request::get(format!("{host}/api/v2/app/version"))
+        .header(nyquest::header::COOKIE, cookie)
         .send_and_then(async |res| {
             let ver = res.text().await?;
             let c = ver
@@ -202,31 +213,36 @@ pub async fn get_version(host: &str) -> Result<u8, QbError> {
         .await
 }
 
+/// return cookie if login successfully
 /// accept any form of host, e.g. "http://example.com" or "example.com"
-pub async fn test_login(host: &str, username: &str, pass: &str, disable_cookies: bool) -> bool {
+pub async fn test_login(host: &str, username: &str, pass: &str) -> Option<String> {
     let refined_host = remove_slash(host);
     let form = [
         ("username", username.to_string()),
         ("password", pass.to_string()),
     ];
-    let result = {
-        let mut req = request::post(format!("{refined_host}/api/v2/auth/login")).form(form);
-        if disable_cookies {
-            req = req.disable_cookie();
-        }
-        req.send().await
-    };
-    if let Ok(res) = result {
-        res.text().await.unwrap_or_default() == "Ok."
-    } else {
-        false
-    }
+
+    let res = request::post(format!("{refined_host}/api/v2/auth/login"))
+        .form(form)
+        .send()
+        .await
+        .ok()?;
+
+    res.get_header(nyquest::header::SET_COOKIE)
+        .ok()
+        .and_then(|mut res| {
+            if res.is_empty() {
+                None
+            } else {
+                Some(res.swap_remove(0))
+            }
+        })
 }
 
 /// get all torrent infos with CATEGORY
 pub async fn get_torrent_info() -> Result<Vec<TorrentInfo>, QbError> {
     let host = host()?;
-    request::get(format!("{host}/api/v2/torrents/info"))
+    QbRequest::get(format!("{host}/api/v2/torrents/info"))
         .query([("category", CATEGORY)])
         .send_and_then(async |res| {
             let torrent_info_list: Vec<TorrentInfo> = res.json().await?;
@@ -238,7 +254,7 @@ pub async fn get_torrent_info() -> Result<Vec<TorrentInfo>, QbError> {
 /// get the new added torrent hash, according to the tag [`Tag::New`]
 pub async fn get_hash() -> Result<String, QbError> {
     let host = host()?;
-    request::get(format!("{host}/api/v2/torrents/info"))
+    QbRequest::get(format!("{host}/api/v2/torrents/info"))
         .query([("category", CATEGORY), ("tag", Tag::New.as_str())])
         .send_and_then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
@@ -258,7 +274,7 @@ async fn manage_tag(hash: &str, tag: Tag, action: &'static str) -> Result<(), Qb
         ("hashes", Cow::from(hash.to_string())),
         ("tags", Cow::from(tag.as_str())),
     ];
-    request::post(format!("{host}/api/v2/torrents/{action}"))
+    QbRequest::post(format!("{host}/api/v2/torrents/{action}"))
         .form(param)
         .send()
         .await?;
@@ -278,7 +294,7 @@ pub async fn add_tag(hash: &str, tag: Tag) -> Result<(), QbError> {
 /// manage torrent task
 async fn manage(hash: &str, action: &'static str) -> Result<(), QbError> {
     let host = host()?;
-    request::post(format!("{host}/api/v2/torrents/{action}"))
+    QbRequest::post(format!("{host}/api/v2/torrents/{action}"))
         .form([("hashes", hash.to_string())])
         .send()
         .await?;
@@ -313,7 +329,7 @@ pub async fn delete(hash: &str, delete_files: bool) -> Result<(), QbError> {
             Cow::from(if delete_files { "true" } else { "false" }),
         ),
     ];
-    request::post(format!("{host}/api/v2/torrents/delete"))
+    QbRequest::post(format!("{host}/api/v2/torrents/delete"))
         .form(param)
         .send()
         .await?;
@@ -323,7 +339,7 @@ pub async fn delete(hash: &str, delete_files: bool) -> Result<(), QbError> {
 /// get the state of a torrent
 pub async fn get_state(hash: &str) -> Result<String, QbError> {
     let host = host()?;
-    request::get(format!("{host}/api/v2/torrents/info"))
+    QbRequest::get(format!("{host}/api/v2/torrents/info"))
         .query([("hashes", hash)])
         .send_and_then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
@@ -356,7 +372,7 @@ pub async fn set_prio(hash: &str, priority: u8, index_list: &[usize]) -> Result<
         ("priority", priority.to_string()),
         ("id", id.to_string()),
     ];
-    request::post(format!("{host}/api/v2/torrents/filePrio"))
+    QbRequest::post(format!("{host}/api/v2/torrents/filePrio"))
         .form(param)
         .send()
         .await?;
@@ -384,7 +400,7 @@ pub async fn set_share_limit(
         ),
         ("inactiveSeedingTimeLimit", Cow::from("-2")),
     ];
-    request::post(format!("{host}/api/v2/torrents/setShareLimits"))
+    QbRequest::post(format!("{host}/api/v2/torrents/setShareLimits"))
         .form(param)
         .send()
         .await?;
@@ -402,7 +418,7 @@ pub async fn export(hash: &str, path: &Path) -> Result<(), QbError> {
         sleep(std::time::Duration::from_secs(1)).await;
     }
     let host = host()?;
-    request::post(format!("{host}/api/v2/torrents/export"))
+    QbRequest::post(format!("{host}/api/v2/torrents/export"))
         .form([("hash", hash.to_string())])
         .send_and_then(async |res| {
             let data = res.bytes().await?;
@@ -418,7 +434,7 @@ pub async fn export(hash: &str, path: &Path) -> Result<(), QbError> {
 /// get the hash list of torrents with a specific tag
 pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, QbError> {
     let host = host()?;
-    request::get(format!("{host}/api/v2/torrents/info"))
+    QbRequest::get(format!("{host}/api/v2/torrents/info"))
         .query([("category", CATEGORY), ("tag", tag.as_str())])
         .send_and_then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
@@ -443,7 +459,7 @@ pub async fn add_by_url(url: &str, save_path: &str) -> Result<(), QbError> {
         ("tags", Cow::from(Tag::New.as_str())),
     ];
 
-    request::post(format!("{host}/api/v2/torrents/add"))
+    QbRequest::post(format!("{host}/api/v2/torrents/add"))
         .form(param)
         .send()
         .await?;
@@ -468,7 +484,7 @@ pub async fn add_by_file(
         .text("ratioLimit", ratio_limit.to_string())
         .text("stopped", "true");
 
-    request::post(format!("{host}/api/v2/torrents/add"))
+    QbRequest::post(format!("{host}/api/v2/torrents/add"))
         .multipart(multipart)
         .send()
         .await?;
@@ -488,7 +504,7 @@ pub async fn add_by_bytes(
         .text("savepath", save_path.to_string())
         .text("category", CATEGORY)
         .text("stopped", "true");
-    request::post(format!("{host}/api/v2/torrents/add"))
+    QbRequest::post(format!("{host}/api/v2/torrents/add"))
         .multipart(form)
         .send()
         .await?;

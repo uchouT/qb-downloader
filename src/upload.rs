@@ -8,7 +8,7 @@ use std::{
 use crate::{
     config,
     error::{ResultExt, TaskError},
-    request::{self, RequestError},
+    request::{self, MyRequestBuilder, RequestError},
     task::{
         TaskValue,
         error::{RuntimeTaskError, RuntimeTaskErrorKind},
