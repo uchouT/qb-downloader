@@ -1,12 +1,78 @@
 use std::{borrow::Cow, path::Path};
-
-use futures_util::future::try_join_all;
 use mime_guess::Mime;
 use nyquest::{PartBody, r#async::Part};
 
 use crate::request::RequestError;
 
-pub struct Multipart {
+/// A multipart builder, which contains infomation to build a multipart
+#[derive(Clone)]
+pub struct MultipartBuilder {
+    inner: Vec<PartSpec>,
+}
+
+impl MultipartBuilder {
+    pub fn new() -> Self {
+        MultipartBuilder { inner: vec![] }
+    }
+
+    /// Add text part
+    pub fn text(
+        mut self,
+        name: impl Into<Cow<'static, str>>,
+        value: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        self.inner.push(PartSpec {
+            name: name.into(),
+            kind: PartKind::Text(value.into()),
+        });
+        self
+    }
+
+    /// Add file part by bytes
+    pub fn bytes(
+        mut self,
+        name: impl Into<Cow<'static, str>>,
+        bytes: impl Into<Cow<'static, [u8]>>,
+        filename: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        self.inner.push(PartSpec {
+            name: name.into(),
+            kind: PartKind::Bytes {
+                value: bytes.into(),
+                filename: filename.into(),
+            },
+        });
+        self
+    }
+
+    /// Add file part by path
+    pub fn path(
+        mut self,
+        name: impl Into<Cow<'static, str>>,
+        path: impl Into<Cow<'static, Path>>,
+    ) -> Self {
+        self.inner.push(PartSpec {
+            name: name.into(),
+            kind: PartKind::Path(path.into()),
+        });
+        self
+    }
+
+    pub(super) async fn into_multipart(self) -> Result<Multipart, RequestError> {
+        let mut parts = Vec::with_capacity(self.inner.len());
+        for part in self.inner.into_iter() {
+            if let PartKind::Path(_) = part.kind {
+                parts.push(part.into_part_async().await?);
+            } else {
+                parts.push(part.into_part());
+            }
+        }
+
+        Ok(Multipart { parts })
+    }
+}
+
+pub(super) struct Multipart {
     parts: Vec<Part>,
 }
 
@@ -20,7 +86,7 @@ impl IntoIterator for Multipart {
 }
 
 /// A file part for multipart/form-data, which is used to build [`Part`]
-pub struct FilePart {
+struct FilePart {
     bytes: Cow<'static, [u8]>,
     mime: Mime,
     filename: Cow<'static, str>,
@@ -28,10 +94,7 @@ pub struct FilePart {
 
 impl FilePart {
     /// Create a file part from bytes and filename, the mime type is guessed from the filename
-    pub fn bytes(
-        bytes: impl Into<Cow<'static, [u8]>>,
-        filename: impl Into<Cow<'static, str>>,
-    ) -> Self {
+    fn bytes(bytes: impl Into<Cow<'static, [u8]>>, filename: impl Into<Cow<'static, str>>) -> Self {
         let filename = filename.into();
         let mime = mime_guess::from_path(Path::new(filename.as_ref())).first_or_octet_stream();
         Self {
@@ -42,7 +105,7 @@ impl FilePart {
     }
 
     /// Create a file part from a file path, the mime type is guessed from the file extension
-    pub async fn path(path: &Path) -> Result<Self, RequestError> {
+    async fn path(path: &Path) -> Result<Self, RequestError> {
         let bytes = tokio::fs::read(path).await?;
         let filename = path
             .file_name()
@@ -55,27 +118,28 @@ impl FilePart {
             filename: filename.into(),
         })
     }
+
+    /// turn into [`Part`]
+    fn into_part(self, name: impl Into<Cow<'static, str>>) -> Part {
+        Part::new_with_content_type(
+            name.into(),
+            self.mime.to_string(),
+            PartBody::bytes(self.bytes),
+        )
+        .with_filename(self.filename)
+    }
 }
 
+/// Contains infomation to build a [`Part`]
 #[derive(Clone)]
-pub struct MultipartBuilder {
-    inner: Vec<PartBuilder>,
-}
-
-#[derive(Clone)]
-pub struct PartBuilder {
+struct PartSpec {
     name: Cow<'static, str>,
     kind: PartKind,
 }
 
 #[derive(Clone)]
-pub enum PartKind {
+enum PartKind {
     Text(Cow<'static, str>),
-    File(FilePartKind),
-}
-
-#[derive(Clone)]
-pub enum FilePartKind {
     Bytes {
         value: Cow<'static, [u8]>,
         filename: Cow<'static, str>,
@@ -83,85 +147,27 @@ pub enum FilePartKind {
     Path(Cow<'static, Path>),
 }
 
-impl FilePartKind {
-    async fn into_part(self, name: impl Into<Cow<'static, str>>) -> Result<Part, RequestError> {
-        let part = match self {
-            Self::Bytes { value, filename } => FilePart::bytes(value, filename),
-            Self::Path(path) => FilePart::path(&path).await?,
-        };
-        let file_part = Part::new_with_content_type(
-            name.into(),
-            part.mime.to_string(),
-            PartBody::bytes(part.bytes),
-        )
-        .with_filename(part.filename);
-        Ok(file_part)
-    }
-}
-
-impl PartBuilder {
-    pub async fn into_part(self) -> Result<Part, RequestError> {
-        let part = match self.kind {
+impl PartSpec {
+    /// Turn into [`Part`]
+    /// # Precondition
+    /// `self.kind` is not [`PartKind::Path`]
+    fn into_part(self) -> Part {
+        match self.kind {
             PartKind::Text(value) => {
                 Part::new_with_content_type(self.name, "text/plain", PartBody::text(value))
             }
-            PartKind::File(file_part) => file_part.into_part(self.name).await?,
+            PartKind::Bytes { value, filename } => {
+                FilePart::bytes(value, filename).into_part(self.name)
+            }
+            _ => panic!("Path should be handled in into_part_async"),
+        }
+    }
+
+    async fn into_part_async(self) -> Result<Part, RequestError> {
+        let part = match self.kind {
+            PartKind::Path(path) => FilePart::path(&path).await?.into_part(self.name),
+            _ => self.into_part(),
         };
         Ok(part)
-    }
-}
-
-impl MultipartBuilder {
-    pub fn new() -> Self {
-        MultipartBuilder { inner: vec![] }
-    }
-
-    pub fn text(
-        mut self,
-        name: impl Into<Cow<'static, str>>,
-        value: impl Into<Cow<'static, str>>,
-    ) -> Self {
-        self.inner.push(PartBuilder {
-            name: name.into(),
-            kind: PartKind::Text(value.into()),
-        });
-        self
-    }
-
-    pub fn bytes(
-        mut self,
-        name: impl Into<Cow<'static, str>>,
-        bytes: impl Into<Cow<'static, [u8]>>,
-        filename: impl Into<Cow<'static, str>>,
-    ) -> Self {
-        self.inner.push(PartBuilder {
-            name: name.into(),
-            kind: PartKind::File(FilePartKind::Bytes {
-                value: bytes.into(),
-                filename: filename.into(),
-            }),
-        });
-        self
-    }
-
-    pub fn path(
-        mut self,
-        name: impl Into<Cow<'static, str>>,
-        path: impl Into<Cow<'static, Path>>,
-    ) -> Self {
-        self.inner.push(PartBuilder {
-            name: name.into(),
-            kind: PartKind::File(FilePartKind::Path(path.into())),
-        });
-        self
-    }
-
-    pub async fn into_multipart(self) -> Result<Multipart, RequestError> {
-        let s = self
-            .inner
-            .into_iter()
-            .map(|part_builder| part_builder.into_part());
-        let parts = try_join_all(s).await?;
-        Ok(Multipart { parts })
     }
 }
