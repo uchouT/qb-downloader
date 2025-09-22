@@ -30,7 +30,7 @@
 //! ```
 pub mod multipart;
 
-use self::multipart::Multipart;
+use crate::request::multipart::MultipartBuilder;
 
 use base64::{Engine, engine::general_purpose};
 use nyquest_preset::nyquest::{
@@ -108,6 +108,7 @@ pub fn get(url: impl Into<Cow<'static, str>>) -> MyRequestBuilderImpl {
     MyRequestImpl::get(url)
 }
 
+#[derive(Clone)]
 /// Default implementation of MyRequestBuilder
 pub struct MyRequestBuilderImpl {
     url: Cow<'static, str>,
@@ -116,96 +117,99 @@ pub struct MyRequestBuilderImpl {
     body: Option<MyBody>,
 }
 
-pub trait MyRequestBuilderAccessor {
-    /// Get the URL of the request
-    fn url_mut(&mut self) -> Cow<'static, str>;
-
-    fn method(&self) -> Method;
-
-    fn headers_mut(&mut self) -> &mut HashMap<Cow<'static, str>, Cow<'static, str>>;
-
-    fn take_body(&mut self) -> Option<MyBody>;
-
-    fn body_mut(&mut self) -> &mut Option<MyBody>;
-}
-
-impl MyRequestBuilderAccessor for MyRequestBuilderImpl {
-    /// Get the URL of the request
-    fn url_mut(&mut self) -> Cow<'static, str> {
-        std::mem::take(&mut self.url)
-    }
-
-    fn method(&self) -> Method {
-        self.method
-    }
-
-    fn headers_mut(&mut self) -> &mut HashMap<Cow<'static, str>, Cow<'static, str>> {
-        &mut self.header
-    }
-
-    fn take_body(&mut self) -> Option<MyBody> {
-        self.body.take()
-    }
-
-    fn body_mut(&mut self) -> &mut Option<MyBody> {
-        &mut self.body
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub enum Method {
     Get,
     Post,
 }
 
+#[derive(Clone)]
 pub enum MyBody {
     Json(serde_json::Value),
     Form(Vec<(Cow<'static, str>, Cow<'static, str>)>),
-    Multipart(Multipart),
+    Multipart(MultipartBuilder),
 }
 
-pub trait MyRequestBuilder: MyRequestBuilderAccessor {
+pub trait MyRequestBuilder {
     type Err: From<RequestError>;
     /// Set the basic authentication credentials
-    fn basic_auth(&mut self, username: &str, password: &str) -> &mut Self {
+    fn basic_auth(self, username: &str, password: &str) -> Self;
+
+    fn query<T: Serialize>(self, input: T) -> Self;
+
+    fn header(
+        self,
+        name: impl Into<Cow<'static, str>>,
+        value: impl Into<Cow<'static, str>>,
+    ) -> Self;
+
+    /// set the request body as JSON, will overwrite any existing body,
+    /// same as [`MyRequestBuilder::multipart`] and [`MyRequestBuilder::form`]
+    fn json<T: Serialize>(self, value: T) -> Self;
+
+    fn multipart(self, parts: MultipartBuilder) -> Self;
+
+    /// set the request body as url-encoded from
+    fn form<F, K, V>(self, fields: F) -> Self
+    where
+        F: IntoIterator<Item = (K, V)>,
+        K: Into<Cow<'static, str>>,
+        V: Into<Cow<'static, str>>;
+
+    async fn send_and_then<V, E, Fn: FnOnce(Res) -> Fut, Fut>(self, res: Fn) -> Result<V, E>
+    where
+        E: From<Self::Err>,
+        Fut: Future<Output = Result<V, E>>,
+        Self: Sized,
+    {
+        let response = self.send().await.map_err(E::from)?;
+        res(response).await
+    }
+
+    async fn send(self) -> Result<Res, Self::Err>;
+}
+
+impl MyRequestBuilder for MyRequestBuilderImpl {
+    type Err = RequestError;
+
+    fn basic_auth(mut self, username: &str, password: &str) -> Self {
         let value = format!("{username}:{password}");
         let encoded = general_purpose::STANDARD.encode(value);
         let header_value = format!("Basic {encoded}");
-        self.headers_mut()
-            .insert(header::AUTHORIZATION.into(), header_value.into());
+        self = self.header(header::AUTHORIZATION, header_value);
         self
     }
 
-    fn query<T: Serialize>(&mut self, input: T) -> &mut Self {
+    fn query<T: Serialize>(mut self, input: T) -> Self {
         let value = serde_urlencoded::to_string(input).expect("Error query");
-        self.url_mut().to_mut().push_str(&format!("?{value}"));
+        self.url.to_mut().push_str(&format!("?{value}"));
         self
     }
 
     fn header(
-        &mut self,
+        mut self,
         name: impl Into<Cow<'static, str>>,
         value: impl Into<Cow<'static, str>>,
-    ) -> &mut Self {
-        self.headers_mut().insert(name.into(), value.into());
+    ) -> Self {
+        self.header.insert(name.into(), value.into());
         self
     }
 
     /// set the request body as JSON, will overwrite any existing body,
     /// same as [`MyRequestBuilder::multipart`] and [`MyRequestBuilder::form`]
-    fn json<T: Serialize>(&mut self, value: T) -> &mut Self {
+    fn json<T: Serialize>(mut self, value: T) -> Self {
         let json_value = serde_json::to_value(value).expect("Failed to serialize to JSON");
-        *self.body_mut() = Some(MyBody::Json(json_value));
+        self.body = Some(MyBody::Json(json_value));
         self
     }
 
-    fn multipart(&mut self, parts: Multipart) -> &mut Self {
-        *self.body_mut() = Some(MyBody::Multipart(parts));
+    fn multipart(mut self, parts: MultipartBuilder) -> Self {
+        self.body = Some(MyBody::Multipart(parts));
         self
     }
 
     /// set the request body as url-encoded from
-    fn form<F, K, V>(&mut self, fields: F) -> &mut Self
+    fn form<F, K, V>(mut self, fields: F) -> Self
     where
         F: IntoIterator<Item = (K, V)>,
         K: Into<Cow<'static, str>>,
@@ -215,30 +219,21 @@ pub trait MyRequestBuilder: MyRequestBuilderAccessor {
             .into_iter()
             .map(|(k, v)| (k.into(), v.into()))
             .collect();
-        *self.body_mut() = Some(MyBody::Form(form_data));
+        self.body = Some(MyBody::Form(form_data));
         self
     }
 
-    async fn send_and_then<V, E, Fn: FnOnce(Res) -> Fut, Fut>(&mut self, res: Fn) -> Result<V, E>
-    where
-        E: From<Self::Err>,
-        Fut: Future<Output = Result<V, E>>,
-    {
-        let response = self.send().await.map_err(E::from)?;
-        res(response).await
-    }
-
-    async fn send(&mut self) -> Result<Res, Self::Err> {
-        let mut req = match self.method() {
-            Method::Get => Request::get(self.url_mut()),
-            Method::Post => Request::post(self.url_mut()),
+    async fn send(self) -> Result<Res, Self::Err> {
+        let url = self.url;
+        let mut req = match self.method {
+            Method::Get => Request::get(url),
+            Method::Post => Request::post(url),
         };
-
-        for (name, value) in self.headers_mut().drain() {
+        for (name, value) in self.header {
             req = req.with_header(name, value);
         }
 
-        match self.take_body() {
+        match self.body {
             None => {}
             Some(mybody) => match mybody {
                 MyBody::Json(value) => {
@@ -247,8 +242,9 @@ pub trait MyRequestBuilder: MyRequestBuilderAccessor {
                 MyBody::Form(form) => {
                     req = req.with_body(Body::form(form));
                 }
-                MyBody::Multipart(multi) => {
-                    req = req.with_body(Body::multipart(multi));
+                MyBody::Multipart(multipart_builder) => {
+                    let multipart = multipart_builder.into_multipart().await?;
+                    req = req.with_body(Body::multipart(multipart));
                 }
             },
         }
@@ -260,10 +256,6 @@ pub trait MyRequestBuilder: MyRequestBuilderAccessor {
             Err(RequestError::Response(res.status().code())).map_err(Self::Err::from)
         }
     }
-}
-
-impl MyRequestBuilder for MyRequestBuilderImpl {
-    type Err = RequestError;
 }
 
 #[derive(Error, Debug)]

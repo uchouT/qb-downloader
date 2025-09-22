@@ -1,9 +1,11 @@
 use std::{borrow::Cow, path::Path};
 
+use futures_util::future::try_join_all;
 use mime_guess::Mime;
 use nyquest::{PartBody, r#async::Part};
 
 use crate::request::RequestError;
+
 pub struct Multipart {
     parts: Vec<Part>,
 }
@@ -17,34 +19,7 @@ impl IntoIterator for Multipart {
     }
 }
 
-impl Multipart {
-    /// create a new empty multipart
-    pub fn new() -> Self {
-        Self { parts: vec![] }
-    }
-
-    /// add a text part
-    pub fn text(
-        mut self,
-        name: impl Into<Cow<'static, str>>,
-        value: impl Into<Cow<'static, str>>,
-    ) -> Self {
-        let part = Part::new_with_content_type(name, "text/plain", PartBody::text(value));
-        self.parts.push(part);
-        self
-    }
-
-    /// add a file part
-    pub fn file(mut self, name: impl Into<Cow<'static, str>>, file: FilePart) -> Self {
-        let content_type = file.mime.to_string();
-        let part = Part::new_with_content_type(name, content_type, PartBody::bytes(file.bytes))
-            .with_filename(file.filename);
-        self.parts.push(part);
-        self
-    }
-}
-
-/// A file part for multipart/form-data
+/// A file part for multipart/form-data, which is used to build [`Part`]
 pub struct FilePart {
     bytes: Cow<'static, [u8]>,
     mime: Mime,
@@ -79,5 +54,114 @@ impl FilePart {
             mime,
             filename: filename.into(),
         })
+    }
+}
+
+#[derive(Clone)]
+pub struct MultipartBuilder {
+    inner: Vec<PartBuilder>,
+}
+
+#[derive(Clone)]
+pub struct PartBuilder {
+    name: Cow<'static, str>,
+    kind: PartKind,
+}
+
+#[derive(Clone)]
+pub enum PartKind {
+    Text(Cow<'static, str>),
+    File(FilePartKind),
+}
+
+#[derive(Clone)]
+pub enum FilePartKind {
+    Bytes {
+        value: Cow<'static, [u8]>,
+        filename: Cow<'static, str>,
+    },
+    Path(Cow<'static, Path>),
+}
+
+impl FilePartKind {
+    async fn into_part(self, name: impl Into<Cow<'static, str>>) -> Result<Part, RequestError> {
+        let part = match self {
+            Self::Bytes { value, filename } => FilePart::bytes(value, filename),
+            Self::Path(path) => FilePart::path(&path).await?,
+        };
+        let file_part = Part::new_with_content_type(
+            name.into(),
+            part.mime.to_string(),
+            PartBody::bytes(part.bytes),
+        )
+        .with_filename(part.filename);
+        Ok(file_part)
+    }
+}
+
+impl PartBuilder {
+    pub async fn into_part(self) -> Result<Part, RequestError> {
+        let part = match self.kind {
+            PartKind::Text(value) => {
+                Part::new_with_content_type(self.name, "text/plain", PartBody::text(value))
+            }
+            PartKind::File(file_part) => file_part.into_part(self.name).await?,
+        };
+        Ok(part)
+    }
+}
+
+impl MultipartBuilder {
+    pub fn new() -> Self {
+        MultipartBuilder { inner: vec![] }
+    }
+
+    pub fn text(
+        mut self,
+        name: impl Into<Cow<'static, str>>,
+        value: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        self.inner.push(PartBuilder {
+            name: name.into(),
+            kind: PartKind::Text(value.into()),
+        });
+        self
+    }
+
+    pub fn bytes(
+        mut self,
+        name: impl Into<Cow<'static, str>>,
+        bytes: impl Into<Cow<'static, [u8]>>,
+        filename: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        self.inner.push(PartBuilder {
+            name: name.into(),
+            kind: PartKind::File(FilePartKind::Bytes {
+                value: bytes.into(),
+                filename: filename.into(),
+            }),
+        });
+        self
+    }
+
+    pub fn path(
+        mut self,
+        name: impl Into<Cow<'static, str>>,
+        path: impl Into<Cow<'static, Path>>,
+    ) -> Self {
+        self.inner.push(PartBuilder {
+            name: name.into(),
+            kind: PartKind::File(FilePartKind::Path(path.into())),
+        });
+        self
+    }
+
+    pub async fn into_multipart(self) -> Result<Multipart, RequestError> {
+        let s = self
+            .inner
+            .into_iter()
+            .map(|part_builder| part_builder.into_part());
+        let parts = try_join_all(s).await?;
+        Ok(Multipart { parts })
     }
 }

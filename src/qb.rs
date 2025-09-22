@@ -2,6 +2,7 @@
 mod qb_request;
 use crate::error::{CommonErrorKind, ResultExt};
 use crate::qb::qb_request::QbRequest;
+use crate::request::multipart::MultipartBuilder;
 use crate::request::{MyRequest, MyRequestBuilder, RequestError};
 use crate::{
     config,
@@ -475,9 +476,8 @@ pub async fn add_by_file(
     ratio_limit: f64,
 ) -> Result<(), QbError> {
     let host = host()?;
-    let file_part = FilePart::path(torrent_path).await?;
-    let multipart = Multipart::new()
-        .file("torrents", file_part)
+    let multipart = MultipartBuilder::new()
+        .path("torrents", torrent_path.to_path_buf())
         .text("category", CATEGORY)
         .text("savepath", save_path.to_string())
         .text("seedingTimeLimit", seeding_time_limit.to_string())
@@ -498,9 +498,9 @@ pub async fn add_by_bytes(
     data: Cow<'static, [u8]>,
 ) -> Result<(), QbError> {
     let host = host()?;
-    let file_part = FilePart::bytes(data, file_name.to_string());
-    let form = Multipart::new()
-        .file("torrents", file_part)
+
+    let form = MultipartBuilder::new()
+        .bytes("torrents", data, file_name.to_string())
         .text("savepath", save_path.to_string())
         .text("category", CATEGORY)
         .text("stopped", "true");

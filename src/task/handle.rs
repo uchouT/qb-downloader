@@ -159,23 +159,9 @@ fn classify_torrent_state(state: String) -> TorrentState {
 /// # Error
 /// - may return [`TaskError::Qb`] is get torrents status failed
 async fn update_task() -> Result<(), TaskError> {
-    let torrent_infos = {
-        let result = qb::get_torrent_info().await;
-        match result {
-            Ok(infos) => infos,
-            Err(e) => {
-                if let qb::QbError::NotLogin = e {
-                    // maybe session expired, try to re-login again
-                    qb::login().await;
-                    qb::get_torrent_info()
-                        .await
-                        .add_context("Failed to get torrent infos")?
-                } else {
-                    Err(e).add_context("Failed to get torrent infos")?
-                }
-            }
-        }
-    };
+    let torrent_infos = qb::get_torrent_info()
+        .await
+        .add_context("Failed to get torrent infos")?;
 
     let mut task_map = task_map_mut();
     let mut new_task_map = TaskMap::new();
