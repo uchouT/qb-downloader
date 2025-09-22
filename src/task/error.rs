@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::{
     bencode::BencodeError,
-    error::{CommonError, QbError, ResultExt},
+    errors::{IntoContextError, CommonError, QbError},
     request::RequestError,
 };
 
@@ -53,13 +53,13 @@ pub enum TaskError {
     Abort,
 }
 
-impl<V> ResultExt<V> for Result<V, QbError> {
+impl IntoContextError for QbError {
     type TargetError = TaskError;
-    fn add_context(self, msg: impl Into<Cow<'static, str>>) -> Result<V, Self::TargetError> {
-        self.map_err(|e| TaskError::Qb {
+    fn into_error(self, msg: impl Into<Cow<'static, str>>) -> Self::TargetError {
+        TaskError::Qb {
             msg: msg.into(),
-            source: e,
-        })
+            source: self,
+        }
     }
 }
 

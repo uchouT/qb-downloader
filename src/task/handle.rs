@@ -1,7 +1,7 @@
 //! This module handle task process
 
 use crate::{
-    error::{ResultExt, format_error_chain},
+    errors::{ResultExt, format_error_chain},
     qb, request,
     task::{
         self, RuntimeTaskError, Status, TaskMap, TaskValue,
@@ -212,11 +212,13 @@ async fn update_task() -> Result<(), TaskError> {
     std::mem::take(&mut *task_map)
         .into_iter()
         .for_each(|(hash, task)| {
-            task.state_mut().status = Status::Error;
-            task.set_error_info(RuntimeTaskError::from_kind(
-                RuntimeTaskErrorKind::TorrentNotFound,
-                None,
-            ));
+            if task.state().status != Status::Done {
+                task.state_mut().status = Status::Error;
+                task.set_error_info(RuntimeTaskError::from_kind(
+                    RuntimeTaskErrorKind::TorrentNotFound,
+                    None,
+                ));
+            }
             new_task_map.insert(hash, task);
         });
     *task_map = new_task_map;
@@ -254,7 +256,7 @@ async fn add_next_part(task: Arc<TaskValue>) -> Result<(), TaskError> {
     Ok(())
 }
 
-async fn shutdown() -> Result<(), crate::error::CommonError> {
+async fn shutdown() -> Result<(), crate::errors::CommonError> {
     task::save().await?;
     Ok(())
 }

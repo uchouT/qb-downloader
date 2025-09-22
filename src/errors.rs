@@ -63,7 +63,7 @@ pub enum CommonErrorKind {
         #[from]
         #[source]
         request::RequestError,
-    )
+    ),
 }
 
 impl From<DeError> for CommonErrorKind {
@@ -72,20 +72,50 @@ impl From<DeError> for CommonErrorKind {
     }
 }
 
-pub trait ResultExt<V> {
+/// Add context to error and turn into TargetError
+pub trait IntoContextError: StdError {
     type TargetError;
-    fn add_context(self, msg: impl Into<Cow<'static, str>>) -> Result<V, Self::TargetError>;
+    fn into_error(self, msg: impl Into<Cow<'static, str>>) -> Self::TargetError;
 }
 
-impl<V, E> ResultExt<V> for Result<V, E>
+/// Add context to a Result, whose Err implements [`IntoContextError`]
+pub trait ResultExt<V, S: IntoContextError> {
+    fn add_context(self, msg: impl Into<Cow<'static, str>>) -> Result<V, S::TargetError>;
+}
+
+impl<V, S> ResultExt<V, S> for Result<V, S>
+where
+    S: IntoContextError,
+{
+    fn add_context(
+        self,
+        msg: impl Into<Cow<'static, str>>,
+    ) -> Result<V, <S as IntoContextError>::TargetError> {
+        self.map_err(|e| e.into_error(msg.into()))
+    }
+}
+
+impl<E> IntoContextError for E
 where
     E: Into<CommonErrorKind> + StdError,
 {
     type TargetError = CommonError;
-    fn add_context(self, msg: impl Into<Cow<'static, str>>) -> Result<V, CommonError> {
-        self.map_err(|e| CommonError {
+    fn into_error(self, msg: impl Into<Cow<'static, str>>) -> Self::TargetError {
+        CommonError {
             msg: msg.into(),
-            kind: e.into(),
-        })
+            kind: self.into(),
+        }
     }
 }
+// impl<V, E> ResultExt<V> for Result<V, E>
+// where
+//     E: Into<CommonErrorKind> + StdError,
+// {
+//     type TargetError = CommonError;
+//     fn add_context(self, msg: impl Into<Cow<'static, str>>) -> Result<V, CommonError> {
+//         self.map_err(|e| CommonError {
+//             msg: msg.into(),
+//             kind: e.into(),
+//         })
+//     }
+// }

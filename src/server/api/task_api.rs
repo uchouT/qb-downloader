@@ -6,7 +6,7 @@
 //! DELETE: delete task
 use crate::{
     config::{self, strip_slash},
-    error::{TaskError, format_error_chain},
+    errors::{TaskError, format_error_chain},
     qb,
     server::{
         ResultResponse,

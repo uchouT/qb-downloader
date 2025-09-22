@@ -1,14 +1,14 @@
 pub mod app;
 mod bencode;
 mod config;
-mod error;
+mod errors;
 mod qb;
 mod request;
 mod server;
 mod task;
 mod upload;
 
-use crate::error::format_error_chain;
+use crate::errors::format_error_chain;
 use crate::server::auth;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 

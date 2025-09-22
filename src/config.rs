@@ -1,6 +1,6 @@
 use crate::{
     auth::{TOKEN, encode},
-    error::{CommonError, ResultExt},
+    errors::{CommonError, ResultExt},
     remove_slash,
 };
 use arc_swap::{ArcSwap, Guard};
@@ -180,7 +180,7 @@ pub fn init(path: Option<PathBuf>) -> Result<(), CommonError> {
     TOKEN
         .set(std::sync::RwLock::new(String::new()))
         .expect("Failed to set global token");
-    
+
     info!("Config loading from: {}", &config.filepath.display());
     debug!("Config content: {:?}", &config.value);
     CONFIG.set(config).expect("Failed to set global config");

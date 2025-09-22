@@ -3,7 +3,7 @@ pub mod auth;
 pub mod error;
 use crate::{
     config,
-    error::{ResultExt, format_error_chain},
+    errors::{ResultExt, format_error_chain},
 };
 use anyhow::Error;
 use api::Action;

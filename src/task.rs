@@ -19,7 +19,7 @@ use tokio::{fs, sync::Mutex, time::sleep};
 
 use crate::{
     bencode,
-    error::{CommonError, QbError, ResultExt, TaskError},
+    errors::{CommonError, QbError, ResultExt, TaskError},
     format_error_chain, qb,
     task::{
         self,
@@ -72,7 +72,7 @@ pub struct State {
 }
 
 /// task status
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
     /// on interval task
     OnTask,

@@ -5,7 +5,7 @@ use super::{Action, BoxBody, Req, ServerResult};
 use crate::{
     auth::{Login, TOKEN, encode},
     config::{self, Account, ConfigValue},
-    error::CommonError,
+    errors::CommonError,
     qb,
     server::{
         ResultResponse,

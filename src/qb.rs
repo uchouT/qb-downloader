@@ -1,10 +1,10 @@
 //! This module provides API to interact with qBittorrent
 mod qb_request;
-use crate::error::{CommonErrorKind, ResultExt};
+use crate::errors::{CommonErrorKind, ResultExt};
 use crate::qb::qb_request::QbRequest;
 use crate::request::multipart::MultipartBuilder;
 use crate::request::{MyRequest, MyRequestBuilder, RequestError};
-use crate::{config, error::CommonError, remove_slash, request};
+use crate::{config, errors::CommonError, remove_slash, request};
 use arc_swap::ArcSwap;
 use base32::Alphabet;
 use log::{error, info, warn};

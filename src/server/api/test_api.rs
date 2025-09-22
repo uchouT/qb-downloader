@@ -7,7 +7,7 @@
 //! Else return success to test authentication
 use super::{Action, BoxBody, Req, ServerResult};
 use crate::{
-    error::QbError,
+    errors::QbError,
     qb,
     server::{
         ResultResponse,
