@@ -111,22 +111,27 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     Ok(ResultResponse::success_msg("Task added successfully"))
 }
 
+/// # query parameters
+/// - hash (required)
+/// - type (required)
+/// - skip (optional)
 async fn put(req: Req) -> ServerResult<Response<BoxBody>> {
-    let (hash, manipulate_type, forced) = {
+    let (hash, manipulate_type, skip) = {
         let params = get_param_map(&req).ok_or(ServerError::MissingParams("hash or type"))?;
         (
             get_required_param::<String>(&params, "hash")?,
             get_required_param::<String>(&params, "type")?,
-            get_option_param::<bool>(&params, "forced"),
+            get_option_param::<bool>(&params, "skip"),
         )
     };
     match manipulate_type.as_str() {
-        "start" => start_task(&hash, forced).await?,
+        "start" => start_task(&hash, skip).await?,
         "stop" => task::stop(&hash).await.context("Failed to stop task")?,
         _ => {
             return Ok(ResultResponse::bad_request(Some("Invalid type".into())));
         }
     }
+    task::save().await.context("Failed to save tasks")?;
     Ok(ResultResponse::success())
 }
 
@@ -156,8 +161,8 @@ pub struct TaskReq {
     pub selected_file_index: Option<Vec<usize>>,
 }
 
-async fn start_task(hash: &str, forced: Option<bool>) -> ServerResult<()> {
-    let forced = forced.unwrap_or(false);
+async fn start_task(hash: &str, skip: Option<bool>) -> ServerResult<()> {
+    let skip = skip.unwrap_or(false);
     let task = task_map()
         .get(hash)
         .cloned()
@@ -170,15 +175,16 @@ async fn start_task(hash: &str, forced: Option<bool>) -> ServerResult<()> {
         // start from error state
         task::Status::Error => {
             let kind = task.error_info().as_ref().as_ref().unwrap().kind;
-            if forced && !kind.skipable() {
+            if skip && !kind.skipable() {
                 Err(anyhow::anyhow!(
                     "This error is not skipable, cannot force start"
                 ))?;
             }
 
-            task::resume(task, kind, forced)
+            task::resume(task.clone(), kind, skip)
                 .await
                 .context("Failed to resume task")?;
+            task.clean_error_info();
         }
         _ => Err(anyhow::anyhow!("Task is not in a paused or error state"))?,
     }

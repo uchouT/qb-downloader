@@ -9,10 +9,7 @@ use crate::{
     config,
     errors::{ResultExt, TaskError},
     request::{self, MyRequestBuilder, RequestError},
-    task::{
-        TaskValue,
-        error::{RuntimeTaskError, RuntimeTaskErrorKind},
-    },
+    task::TaskValue,
 };
 use log::debug;
 
@@ -35,19 +32,17 @@ pub trait UploaderTrait {
 
 impl Uploader {
     /// Check if upload is completed
-    pub async fn check(&self, task: Arc<TaskValue>) -> Result<bool, RuntimeTaskError> {
+    pub async fn check(&self, task: Arc<TaskValue>) -> Result<bool, TaskError> {
         match self {
             Uploader::Rclone(_) => Rclone::check(task.clone()).await,
         }
-        .map_err(|e| RuntimeTaskError::from_kind(RuntimeTaskErrorKind::RuntimeUpload, Some(e)))
     }
 
     /// Submit upload task
-    pub async fn upload(&self, task: Arc<TaskValue>) -> Result<(), RuntimeTaskError> {
+    pub async fn upload(&self, task: Arc<TaskValue>) -> Result<(), TaskError> {
         match self {
             Uploader::Rclone(_) => Rclone::upload(task.clone()).await,
         }
-        .map_err(|e| RuntimeTaskError::from_kind(RuntimeTaskErrorKind::LaunchUpload, Some(e)))
     }
 }
 

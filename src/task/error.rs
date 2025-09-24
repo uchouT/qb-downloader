@@ -105,7 +105,7 @@ pub enum RuntimeTaskErrorKind {
 }
 
 impl RuntimeTaskErrorKind {
-    /// whether this error is skipable, if true, the task can be forced to continue
+    /// whether this error is skipable, if true, the task can be skip to continue
     pub fn skipable(&self) -> bool {
         use RuntimeTaskErrorKind::*;
         match self {

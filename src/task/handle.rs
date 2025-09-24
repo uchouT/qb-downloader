@@ -112,11 +112,15 @@ async fn process_task(task: Arc<TaskValue>) -> Result<(), RuntimeTaskError> {
 
     match status {
         Status::OnTask => {
-            task.run_check().await?;
+            task.run_check().await.map_err(|e| {
+                RuntimeTaskError::from_kind(RuntimeTaskErrorKind::RuntimeUpload, Some(e))
+            })?;
             Ok(())
         }
         Status::Downloaded => {
-            task.run_interval().await?;
+            task.run_interval().await.map_err(|e| {
+                RuntimeTaskError::from_kind(RuntimeTaskErrorKind::LaunchUpload, Some(e))
+            })?;
             Ok(())
         }
         Status::Finished => {
@@ -228,7 +232,7 @@ async fn update_task() -> Result<(), TaskError> {
 /// Add the next part of the task, may get task state write lock
 /// # Error
 /// may return [`RuntimeTaskError::AddNextPart`]
-async fn add_next_part(task: Arc<TaskValue>) -> Result<(), TaskError> {
+pub(super) async fn add_next_part(task: Arc<TaskValue>) -> Result<(), TaskError> {
     let hash = &task.hash;
     let (current_part_num, total_parts) = { (task.state().current_part_num, task.total_part_num) };
     qb::delete(hash, true)
@@ -240,7 +244,12 @@ async fn add_next_part(task: Arc<TaskValue>) -> Result<(), TaskError> {
         info!("Task: {} completed", &task.name);
         return Ok(());
     }
+    let new_part_num = current_part_num + 1;
+    add_part(new_part_num, task).await
+}
 
+/// Add torrent from cached, launch given index part
+pub(super) async fn add_part(index: usize, task: Arc<TaskValue>) -> Result<(), TaskError> {
     qb::add_by_file(
         &task.torrent_path,
         &task.save_path,
@@ -249,10 +258,9 @@ async fn add_next_part(task: Arc<TaskValue>) -> Result<(), TaskError> {
     )
     .await
     .add_context("Failed to add to qbittorrent")?;
-
-    let new_part_num = current_part_num + 1;
-    launch(new_part_num, hash, task.clone().as_ref()).await?;
-    info!("Added part {} for task: {}", new_part_num + 1, &task.name);
+    sleep(Duration::from_millis(500)).await;
+    launch(index, &task.hash, task.clone().as_ref()).await?;
+    info!("Added part {} for task: {}", index + 1, &task.name);
     Ok(())
 }
 

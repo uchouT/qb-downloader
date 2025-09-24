@@ -1,12 +1,12 @@
 //! qb-downloader task manager
 pub mod error;
 pub mod handle;
+mod resume;
 use std::{
     borrow::Cow,
     collections::BTreeMap,
     path::{Path, PathBuf},
     sync::{Arc, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard},
-    time::Duration,
 };
 
 use anyhow::{Context, Error};
@@ -15,7 +15,7 @@ use directories_next::BaseDirs;
 use futures_util::future::{join, join_all};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
-use tokio::{fs, sync::Mutex, time::sleep};
+use tokio::{fs, sync::Mutex};
 
 use crate::{
     bencode,
@@ -24,6 +24,7 @@ use crate::{
     task::{
         self,
         error::{RuntimeTaskError, RuntimeTaskErrorKind},
+        resume::{resume_from_error, skip_task},
     },
     upload::Uploader,
 };
@@ -111,7 +112,9 @@ impl TaskValue {
     pub fn error_info(&self) -> Arc<Option<RuntimeTaskError>> {
         self.error_info.load().clone()
     }
-
+    pub fn clean_error_info(&self) {
+        self.error_info.store(Arc::from(None));
+    }
     pub fn set_error_info(&self, error: RuntimeTaskError) {
         self.error_info.store(Arc::from(Some(error)));
     }
@@ -119,7 +122,7 @@ impl TaskValue {
     /// Launch the interval task
     /// # Error
     /// may return [`RuntimeTaskError::LaunchUpload`]
-    pub async fn run_interval(self: Arc<Self>) -> Result<(), RuntimeTaskError> {
+    pub async fn run_interval(self: Arc<Self>) -> Result<(), TaskError> {
         self.state_mut().status = Status::OnTask;
         info!("Running interval task for: {}", &self.name);
         self.uploader.upload(self.clone()).await
@@ -128,7 +131,7 @@ impl TaskValue {
     /// Check if the upload is complete
     /// # Error
     /// may return [`RuntimeTaskError::RuntimeUpload`]
-    pub async fn run_check(self: Arc<Self>) -> Result<(), RuntimeTaskError> {
+    pub async fn run_check(self: Arc<Self>) -> Result<(), TaskError> {
         if self.uploader.check(self.clone()).await? {
             self.state_mut().status = Status::Finished;
             info!("Upload completed for task: {}", &self.name);
@@ -243,12 +246,19 @@ pub async fn start(task: Arc<TaskValue>) -> Result<(), TaskError> {
 }
 
 /// Resume a task from Error state
+/// # Preconditions
+/// - skip is compatible with kind
+/// - torrent cache must exist TODO: perhaps in the future add method to recover
 pub async fn resume(
     task: Arc<TaskValue>,
     kind: RuntimeTaskErrorKind,
-    forced: bool,
+    skip: bool,
 ) -> Result<(), TaskError> {
-    unimplemented!()
+    if skip {
+        skip_task(task, kind).await
+    } else {
+        resume_from_error(task, kind).await
+    }
 }
 
 pub async fn stop(hash: &str) -> Result<(), TaskError> {
@@ -416,17 +426,20 @@ pub async fn add(
         .await
         .add_context("Failed to set share limit")?;
     launch(0, &hash, &task_value).await?;
+    qb::remove_tag(&hash, qb::Tag::Waited)
+        .await
+        .add_context("Failed to remove Waited tag in qb")?;
     info!("Task added: {hash}");
     task_map_mut().insert(hash, Arc::new(task_value));
     save().await?;
     Ok(())
 }
 
-/// launch a task
+/// launch a task part by index, update current_part_num to the passed index,
+/// and set the task status to [`Status::Downloading`] if success.
+/// # Preconditions
+/// - the task must have been added, with [`Status::Paused`] or [`Status::Error`]
 pub async fn launch(index: usize, hash: &str, task: &TaskValue) -> Result<(), TaskError> {
-    task.state_mut().current_part_num = index;
-    // qb may not respond immediately after adding a torrent
-    sleep(Duration::from_millis(500)).await;
     qb::set_not_download(hash, task.file_num)
         .await
         .add_context("Failed to set not download in qb")?;
@@ -436,9 +449,7 @@ pub async fn launch(index: usize, hash: &str, task: &TaskValue) -> Result<(), Ta
     qb::start(hash)
         .await
         .add_context("Failed to start torrent in qb")?;
-    qb::remove_tag(hash, qb::Tag::Waited)
-        .await
-        .add_context("Failed to remove Waited tag in qb")?;
+    task.state_mut().current_part_num = index;
     task.state_mut().status = Status::Downloading;
     Ok(())
 }
