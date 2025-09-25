@@ -259,7 +259,7 @@ pub(super) async fn add_part(index: usize, task: Arc<TaskValue>) -> Result<(), T
     .await
     .add_context("Failed to add to qbittorrent")?;
     sleep(Duration::from_millis(500)).await;
-    launch(index, &task.hash, task.clone().as_ref()).await?;
+    launch(index, &task.hash, task.clone()).await?;
     info!("Added part {} for task: {}", index + 1, &task.name);
     Ok(())
 }

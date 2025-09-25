@@ -422,15 +422,21 @@ pub async fn add(
         ratio_limit,
         error_info: ArcSwap::from_pointee(None),
     };
-    qb::set_share_limit(&hash, ratio_limit, seeding_time_limit)
-        .await
-        .add_context("Failed to set share limit")?;
-    launch(0, &hash, &task_value).await?;
+    let task_value = Arc::from(task_value);
+    let (set_share_limit_res, launch_res) = join(
+        qb::set_share_limit(&hash, ratio_limit, seeding_time_limit),
+        launch(0, &hash, task_value.clone()),
+    )
+    .await;
+
+    set_share_limit_res.add_context("Failed to set share limit")?;
+    launch_res?;
+    
     qb::remove_tag(&hash, qb::Tag::Waited)
         .await
         .add_context("Failed to remove Waited tag in qb")?;
     info!("Task added: {hash}");
-    task_map_mut().insert(hash, Arc::new(task_value));
+    task_map_mut().insert(hash, task_value);
     save().await?;
     Ok(())
 }
@@ -439,7 +445,7 @@ pub async fn add(
 /// and set the task status to [`Status::Downloading`] if success.
 /// # Preconditions
 /// - the task must have been added, with [`Status::Paused`] or [`Status::Error`]
-pub async fn launch(index: usize, hash: &str, task: &TaskValue) -> Result<(), TaskError> {
+pub async fn launch(index: usize, hash: &str, task: Arc<TaskValue>) -> Result<(), TaskError> {
     qb::set_not_download(hash, task.file_num)
         .await
         .add_context("Failed to set not download in qb")?;
