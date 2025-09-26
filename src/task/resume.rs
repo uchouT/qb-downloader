@@ -1,4 +1,3 @@
-// TODO: needs tesk
 use crate::task::handle::{add_next_part, add_part};
 use super::*;
 
@@ -30,9 +29,11 @@ pub(super) async fn resume_from_error(
         // re-launch upload
         LaunchUpload | RuntimeUpload => task.run_interval().await,
         // re-add next part
+        // TODO: require test
         AddNextPart => add_next_part(task).await,
         // try to set category, and other configuration, then mark state [`Status::Downloading`],
         // user needs to fix qbittorrent download issue, probably network, storage, etc.
+        // TODO: require test
         Download => {
             let _ = qb::delete(&task.hash, false)
                 .await;

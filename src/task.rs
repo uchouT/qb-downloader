@@ -123,9 +123,10 @@ impl TaskValue {
     /// # Error
     /// may return [`RuntimeTaskError::LaunchUpload`]
     pub async fn run_interval(self: Arc<Self>) -> Result<(), TaskError> {
-        self.state_mut().status = Status::OnTask;
         info!("Running interval task for: {}", &self.name);
-        self.uploader.upload(self.clone()).await
+        self.uploader.upload(self.clone()).await?;
+        self.state_mut().status = Status::OnTask;
+        Ok(())
     }
 
     /// Check if the upload is complete
@@ -431,7 +432,7 @@ pub async fn add(
 
     set_share_limit_res.add_context("Failed to set share limit")?;
     launch_res?;
-    
+
     qb::remove_tag(&hash, qb::Tag::Waited)
         .await
         .add_context("Failed to remove Waited tag in qb")?;
@@ -455,8 +456,9 @@ pub async fn launch(index: usize, hash: &str, task: Arc<TaskValue>) -> Result<()
     qb::start(hash)
         .await
         .add_context("Failed to start torrent in qb")?;
-    task.state_mut().current_part_num = index;
-    task.state_mut().status = Status::Downloading;
+    let mut state = task.state_mut();
+    state.current_part_num = index;
+    state.status = Status::Downloading;
     Ok(())
 }
 
