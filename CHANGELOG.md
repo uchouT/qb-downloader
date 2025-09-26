@@ -1,6 +1,18 @@
 # Changelog
 
 
+## v2.2.1
+
+[compare changes](https://github.com/uchouT/qb-downloader/compare/v2.2.0...v2.2.1)
+
+### 🚀 Enhancements
+
+- Allow to customize listening ip ([34a2aad](https://github.com/uchouT/qb-downloader/commit/34a2aad))
+
+### 🏡 Chore
+
+- **release:** V2.2.0 ([1bfb6a9](https://github.com/uchouT/qb-downloader/commit/1bfb6a9))
+
 ## v2.2.0
 
 [compare changes](https://github.com/uchouT/qb-downloader/compare/v2.1.1...v2.2.0)
