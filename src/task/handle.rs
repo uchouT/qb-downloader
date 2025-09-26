@@ -216,7 +216,9 @@ async fn update_task() -> Result<(), TaskError> {
     std::mem::take(&mut *task_map)
         .into_iter()
         .for_each(|(hash, task)| {
-            if task.state().status != Status::Done {
+            let status = task.state().status;
+            if status != Status::Done && status != Status::Error {
+                error!("Task: {} not found in qbittorrent", &task.name);
                 task.state_mut().status = Status::Error;
                 task.set_error_info(RuntimeTaskError::from_kind(
                     RuntimeTaskErrorKind::TorrentNotFound,
