@@ -20,7 +20,10 @@ use hyper_util::rt::TokioIo;
 use log::{debug, error, info, warn};
 use serde::Serialize;
 use std::{
-    borrow::Cow, convert::Infallible, net::{IpAddr, SocketAddr}, time::Duration
+    borrow::Cow,
+    convert::Infallible,
+    net::{IpAddr, SocketAddr},
+    time::Duration,
 };
 use tokio::{net::TcpListener, sync::broadcast, time::sleep};
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, Infallible>;
@@ -68,9 +71,14 @@ define_routes! {
 
 pub async fn run(
     mut shutdown_rx: broadcast::Receiver<()>,
+    addr: Option<IpAddr>,
     port: u16,
 ) -> std::result::Result<(), Error> {
-    let addr: SocketAddr = ([0, 0, 0, 0], port).into();
+    let addr: SocketAddr = if let Some(ip) = addr {
+        (ip, port).into()
+    } else {
+        ([127, 0, 0, 1], port).into()
+    };
     let listener = TcpListener::bind(addr)
         .await
         .add_context("Failed to bind to address")?;

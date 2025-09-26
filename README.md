@@ -49,17 +49,20 @@ WantedBy=multi-user.target
 
 1. **Download the binary**
    
-   Download the latest executable for your platform from the [releases page](https://github.com/uchouT/qb-downloader-rust/releases).
+   Download the latest executable for your platform from the [releases page](https://github.com/uchouT/qb-downloader/releases).
 
 2. **Run the service**
    ```bash
-   # Default port (7845)
-   ./qb-downloader-rust
+   # Default listen on `127.0.0.1:7845`
+   ./qb-downloader
    
    # Custom port
-   ./qb-downloader-rust --port 8080
+   ./qb-downloader --port 8080
    # or
-   ./qb-downloader-rust -p 8080
+   ./qb-downloader -p 8080
+
+   # Custom ip
+   ./qb-downloader --addr 0.0.0.0
    ```
 
 3. **Access the web interface**
