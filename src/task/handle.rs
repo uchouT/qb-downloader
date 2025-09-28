@@ -1,7 +1,7 @@
 //! This module handle task process
 
 use crate::{
-    errors::{ResultExt, format_error_chain},
+    errors::{ContextedResult, format_error_chain},
     qb, request,
     task::{
         self, RuntimeTaskError, Status, TaskMap, TaskValue,

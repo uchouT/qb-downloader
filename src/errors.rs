@@ -25,13 +25,8 @@ type SerError = toml::ser::Error;
 type JsonError = serde_json::Error;
 
 /// Unexpected and unhandleable error that may occur in multiple places, with context message.
-#[derive(Debug, Error)]
-#[error("{msg}")]
-pub struct CommonError {
-    pub msg: Cow<'static, str>,
-    #[source]
-    pub kind: CommonErrorKind,
-}
+pub type CommonError = ContextedError<CommonErrorKind>;
+
 #[derive(Debug, Error)]
 pub enum CommonErrorKind {
     #[error("Io error")]
@@ -72,50 +67,70 @@ impl From<DeError> for CommonErrorKind {
     }
 }
 
-/// Add context to error and turn into TargetError
-pub trait IntoContextError: StdError {
-    type TargetError;
-    fn into_error(self, msg: impl Into<Cow<'static, str>>) -> Self::TargetError;
+/// error wrapper with context message
+#[derive(Debug, Error)]
+#[error("{msg}")]
+pub struct ContextedError<E: StdError> {
+    msg: Cow<'static, str>,
+    #[source]
+    source: E,
 }
 
-/// Add context to a Result, whose Err implements [`IntoContextError`]
-pub trait ResultExt<V, S: IntoContextError> {
-    fn add_context(self, msg: impl Into<Cow<'static, str>>) -> Result<V, S::TargetError>;
+/// Create a [`ContextedError`] with message and error
+pub fn create_contexted_error<E: StdError>(
+    msg: impl Into<Cow<'static, str>>,
+    e: E,
+) -> ContextedError<E> {
+    ContextedError {
+        msg: msg.into(),
+        source: e,
+    }
 }
 
-impl<V, S> ResultExt<V, S> for Result<V, S>
-where
-    S: IntoContextError,
-{
-    fn add_context(
+/// Wrap Self as [`ContextedError`]
+pub trait IntoContextedError: StdError + Sized {
+    fn into_contexted_error(self, msg: impl Into<Cow<'static, str>>) -> ContextedError<Self> {
+        create_contexted_error(msg, self)
+    }
+}
+impl<E: StdError + Sized> IntoContextedError for E {}
+
+/// Map Result error to [`ContextedError`]
+pub trait ContextedResult<V, S: IntoContextedError> {
+    fn add_context(self, msg: impl Into<Cow<'static, str>>) -> Result<V, ContextedError<S>>;
+}
+impl<V, S: IntoContextedError> ContextedResult<V, S> for Result<V, S> {
+    fn add_context(self, msg: impl Into<Cow<'static, str>>) -> Result<V, ContextedError<S>> {
+        self.map_err(|e| e.into_contexted_error(msg))
+    }
+}
+
+/// Convert Self into target Error, then wrap target Error as [`ContextedError`]
+pub trait IntoTargetContextedError<T: StdError>: StdError + Into<T> {
+    fn convert_then_into_contexted_error(
         self,
         msg: impl Into<Cow<'static, str>>,
-    ) -> Result<V, <S as IntoContextError>::TargetError> {
-        self.map_err(|e| e.into_error(msg.into()))
+    ) -> ContextedError<T> {
+        create_contexted_error(msg, self.into())
     }
 }
 
-impl<E> IntoContextError for E
-where
-    E: Into<CommonErrorKind> + StdError,
+/// Map result error to target error, then wrap target error as [`ContextedError`]
+pub trait TargetContextedResult<V, E: IntoTargetContextedError<T>, T: StdError> {
+    fn convert_then_add_context(
+        self,
+        msg: impl Into<Cow<'static, str>>,
+    ) -> Result<V, ContextedError<T>>;
+}
+impl<V, E: IntoTargetContextedError<T>, T: StdError> TargetContextedResult<V, E, T>
+    for Result<V, E>
 {
-    type TargetError = CommonError;
-    fn into_error(self, msg: impl Into<Cow<'static, str>>) -> Self::TargetError {
-        CommonError {
-            msg: msg.into(),
-            kind: self.into(),
-        }
+    fn convert_then_add_context(
+        self,
+        msg: impl Into<Cow<'static, str>>,
+    ) -> Result<V, ContextedError<T>> {
+        self.map_err(|e| e.convert_then_into_contexted_error(msg))
     }
 }
-// impl<V, E> ResultExt<V> for Result<V, E>
-// where
-//     E: Into<CommonErrorKind> + StdError,
-// {
-//     type TargetError = CommonError;
-//     fn add_context(self, msg: impl Into<Cow<'static, str>>) -> Result<V, CommonError> {
-//         self.map_err(|e| CommonError {
-//             msg: msg.into(),
-//             kind: e.into(),
-//         })
-//     }
-// }
+
+impl<E: Into<CommonErrorKind> + StdError> IntoTargetContextedError<CommonErrorKind> for E {}

@@ -3,7 +3,7 @@ pub mod auth;
 pub mod error;
 use crate::{
     config,
-    errors::{ResultExt, format_error_chain},
+    errors::{TargetContextedResult, format_error_chain},
 };
 use anyhow::Error;
 use api::Action;
@@ -81,7 +81,7 @@ pub async fn run(
     };
     let listener = TcpListener::bind(addr)
         .await
-        .add_context("Failed to bind to address")?;
+        .convert_then_add_context("Failed to bind to address")?;
     let graceful = hyper_util::server::graceful::GracefulShutdown::new();
     info!("Listening on http://{addr}");
 

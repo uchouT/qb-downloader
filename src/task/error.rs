@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::{
     bencode::BencodeError,
-    errors::{IntoContextError, CommonError, QbError},
+    errors::{CommonError, ContextedError, QbError},
     request::RequestError,
 };
 
@@ -14,10 +14,7 @@ use crate::{
 #[non_exhaustive]
 pub enum TaskError {
     #[error(transparent)]
-    Common(
-        #[from]
-        CommonError,
-    ),
+    Common(#[from] CommonError),
 
     #[error("bencode parse error")]
     Bencode(
@@ -31,12 +28,8 @@ pub enum TaskError {
 
     // #[error("job_id:{0} missing, upload may finished")]
     // RcloneJobIdMissing(i32),
-    #[error("{msg}")]
-    Qb {
-        msg: Cow<'static, str>,
-        #[source]
-        source: QbError,
-    },
+    #[error(transparent)]
+    Qb(#[from] ContextedError<QbError>),
 
     #[error("File over size limit")]
     OverSize,
@@ -50,16 +43,6 @@ pub enum TaskError {
 
     #[error("Task aborted")]
     Abort,
-}
-
-impl IntoContextError for QbError {
-    type TargetError = TaskError;
-    fn into_error(self, msg: impl Into<Cow<'static, str>>) -> Self::TargetError {
-        TaskError::Qb {
-            msg: msg.into(),
-            source: self,
-        }
-    }
 }
 
 /// Error that may occur when a task is added, which is always bind to one single task

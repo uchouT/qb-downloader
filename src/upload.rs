@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     config,
-    errors::{ResultExt, TaskError},
+    errors::{TargetContextedResult, TaskError},
     request::{self, MyRequestBuilder, RequestError},
     task::TaskValue,
 };
@@ -105,7 +105,7 @@ impl UploaderTrait for Rclone {
                     .json()
                     .await
                     .map_err(RequestError::from)
-                    .add_context("Failed to parse Json")?;
+                    .convert_then_add_context("Failed to parse Json")?;
                 let success = value.get("success").and_then(|v| v.as_bool()).unwrap();
                 let finished = value.get("finished").and_then(|v| v.as_bool()).unwrap();
 

@@ -19,7 +19,9 @@ use tokio::{fs, sync::Mutex};
 
 use crate::{
     bencode,
-    errors::{CommonError, QbError, ResultExt, TaskError},
+    errors::{
+        CommonError, ContextedResult, IntoContextedError, QbError, TargetContextedResult, TaskError,
+    },
     format_error_chain, qb,
     task::{
         self,
@@ -163,10 +165,10 @@ impl Task {
             return Ok(());
         }
         let task_file = std::fs::File::open(path)
-            .add_context(format!("Failed to open task file: {}", path.display()))?;
+            .convert_then_add_context(format!("Failed to open task file: {}", path.display()))?;
         let reader = std::io::BufReader::new(task_file);
-        let task_map: TaskMap =
-            serde_json::from_reader(reader).add_context("Failed to parse task file")?;
+        let task_map: TaskMap = serde_json::from_reader(reader)
+            .convert_then_add_context("Failed to parse task file")?;
         task_list.value = RwLock::new(task_map);
         Ok(())
     }
@@ -203,11 +205,11 @@ pub async fn save() -> Result<(), CommonError> {
 
     let contents = {
         let task_map = task_map().clone();
-        serde_json::to_vec(&task_map).add_context("Failed to serialize task list")?
+        serde_json::to_vec(&task_map).convert_then_add_context("Failed to serialize task list")?
     };
     fs::write(path, contents)
         .await
-        .add_context("Failed to write task list to file")?;
+        .convert_then_add_context("Failed to write task list to file")?;
     Ok(())
 }
 
@@ -284,7 +286,7 @@ pub async fn clean(hash: &str) -> Result<(), TaskError> {
     }
     fs::remove_file(path)
         .await
-        .add_context(format!("Failed to clean waited torrent file: {hash}"))?;
+        .convert_then_add_context(format!("Failed to clean waited torrent file: {hash}"))?;
     Ok(())
 }
 
@@ -329,7 +331,7 @@ pub async fn add_torrent<B: Into<Cow<'static, [u8]>>>(
             let path = get_torrent_path(&hash);
             fs::write(path, &file)
                 .await
-                .add_context("Failed to write torrent file")?;
+                .convert_then_add_context("Failed to write torrent file")?;
             qb::add_by_bytes(url, save_path, file)
                 .await
                 .add_context("Failed to add torrent by bytes in qb")?;
@@ -356,10 +358,9 @@ pub async fn add_torrent<B: Into<Cow<'static, [u8]>>>(
                 if let QbError::Cancelled = e {
                     TaskError::Abort
                 } else {
-                    TaskError::Qb {
-                        msg: "Failed to export torrent file in qb".into(),
-                        source: e,
-                    }
+                    TaskError::Qb(
+                        e.into_contexted_error("Failed to export torrent file in qb"),
+                    )
                 }
             })?;
             hash

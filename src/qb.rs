@@ -1,6 +1,6 @@
 //! This module provides API to interact with qBittorrent
 mod qb_request;
-use crate::errors::{CommonErrorKind, ResultExt};
+use crate::errors::{IntoTargetContextedError, TargetContextedResult};
 use crate::qb::qb_request::QbRequest;
 use crate::request::multipart::MultipartBuilder;
 use crate::request::{MyRequest, MyRequestBuilder, RequestError};
@@ -37,27 +37,21 @@ pub enum QbError {
     Cancelled,
 
     #[error(transparent)]
-    CommonError(
-        #[from]
-        CommonError,
-    ),
+    CommonError(#[from] CommonError),
 }
 
 impl From<RequestError> for QbError {
     fn from(value: RequestError) -> Self {
-        QbError::CommonError(CommonError {
-            msg: "Failed to send HTTP request to qb".into(),
-            kind: CommonErrorKind::Request(value),
-        })
+        let e = value.convert_then_into_contexted_error("Failed to send HTTP request to qb");
+        QbError::CommonError(e)
     }
 }
 
 impl From<nyquest::Error> for QbError {
     fn from(value: nyquest::Error) -> Self {
-        QbError::CommonError(CommonError {
-            msg: "Failed to send HTTP request to qb".into(),
-            kind: CommonErrorKind::Request(RequestError::from(value)),
-        })
+        let e = RequestError::from(value)
+            .convert_then_into_contexted_error("Failed to send HTTP request to qb");
+        QbError::CommonError(e)
     }
 }
 
@@ -414,9 +408,10 @@ pub async fn export(hash: &str, path: &Path) -> Result<(), QbError> {
         .form([("hash", hash.to_string())])
         .send_and_then(async |res| {
             let data = res.bytes().await?;
-            let mut file = File::create(path).add_context("Failed to create torrent file")?;
+            let mut file =
+                File::create(path).convert_then_add_context("Failed to create torrent file")?;
             file.write_all(&data)
-                .add_context("Failed to write torrent bytes")?;
+                .convert_then_add_context("Failed to write torrent bytes")?;
             remove_tag(hash, Tag::New).await?;
             Ok(())
         })

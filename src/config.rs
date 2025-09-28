@@ -1,6 +1,6 @@
 use crate::{
     auth::{TOKEN, encode},
-    errors::{CommonError, ResultExt},
+    errors::{CommonError, TargetContextedResult},
     remove_slash,
 };
 use arc_swap::{ArcSwap, Guard};
@@ -132,10 +132,12 @@ impl Config {
     /// # Error
     /// If the file cannot be read or parsed, it will return a [`CommonError`].
     fn load(filepath: PathBuf) -> Result<Self, CommonError> {
-        let content = std::fs::read_to_string(&filepath)
-            .add_context(format!("Failed to read config file {}", filepath.display()))?;
+        let content = std::fs::read_to_string(&filepath).convert_then_add_context(format!(
+            "Failed to read config file {}",
+            filepath.display()
+        ))?;
         let config_value: ConfigValue =
-            toml::from_str(&content).add_context("Failed to parse config file")?;
+            toml::from_str(&content).convert_then_add_context("Failed to parse config file")?;
         Ok(Self {
             filepath,
             value: ArcSwap::from_pointee(config_value),
@@ -146,17 +148,17 @@ impl Config {
 /// save the config to target file, which is stored in filepath field
 pub async fn save() -> Result<(), CommonError> {
     let value = value();
-    let content =
-        toml::to_string_pretty(value.as_ref()).add_context("Failed to serialize config file")?;
+    let content = toml::to_string_pretty(value.as_ref())
+        .convert_then_add_context("Failed to serialize config file")?;
     let filepath = &CONFIG.get().unwrap().filepath;
     if let Some(parent) = filepath.parent() {
         tokio::fs::create_dir_all(parent)
             .await
-            .add_context("Failed to create config directory")?;
+            .convert_then_add_context("Failed to create config directory")?;
     }
     tokio::fs::write(filepath, content)
         .await
-        .add_context("Failed to write config file")?;
+        .convert_then_add_context("Failed to write config file")?;
     Ok(())
 }
 
