@@ -1,7 +1,7 @@
 //! This module handle task process
 
 use crate::{
-    errors::{ContextedResult, format_error_chain},
+    errors::{AppError, ContextedResult, TargetContextedResult, format_error_chain},
     qb, request,
     task::{
         self, RuntimeTaskError, Status, TaskMap, TaskValue,
@@ -9,7 +9,7 @@ use crate::{
         launch, task_map, task_map_mut,
     },
 };
-use anyhow::{Context, Error};
+
 use futures_util::{FutureExt, future::join_all, select};
 use log::{error, info, warn};
 use std::sync::Arc;
@@ -28,7 +28,7 @@ const SEEDING: [&str; 5] = [
 const FINISHED_SEEDING: [&str; 2] = ["stoppedUP", "pausedUP"];
 const ERROR: [&str; 2] = ["error", "missingFiles"];
 
-pub async fn run(mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), Error> {
+pub async fn run(mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), AppError> {
     request::init().await;
     qb::init();
     qb::login().await;
@@ -64,11 +64,13 @@ pub async fn run(mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), Error> 
 }
 
 /// process all tasks
-async fn process_task_list() -> Result<(), Error> {
+async fn process_task_list() -> Result<(), AppError> {
     if task_map().is_empty() {
         return Ok(());
     }
-    update_task().await.context("Failed to update task")?;
+    update_task()
+        .await
+        .convert_then_add_context("Failed to update task")?;
     let futures: Vec<_> = {
         let task_map = task_map();
         task_map
@@ -85,7 +87,9 @@ async fn process_task_list() -> Result<(), Error> {
     };
 
     join_all(futures).await;
-    task::save().await.context("Failed to save task list")?;
+    task::save()
+        .await
+        .convert_then_add_context("Failed to save task list")?;
     Ok(())
 }
 

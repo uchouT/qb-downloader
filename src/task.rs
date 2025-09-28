@@ -9,7 +9,6 @@ use std::{
     sync::{Arc, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use anyhow::{Context, Error};
 use arc_swap::ArcSwap;
 use directories_next::BaseDirs;
 use futures_util::future::{join, join_all};
@@ -20,7 +19,8 @@ use tokio::{fs, sync::Mutex};
 use crate::{
     bencode,
     errors::{
-        CommonError, ContextedResult, IntoContextedError, QbError, TargetContextedResult, TaskError,
+        AppError, CommonError, ContextedResult, IntoContextedError, QbError, TargetContextedResult,
+        TaskError,
     },
     format_error_chain, qb,
     task::{
@@ -174,13 +174,14 @@ impl Task {
     }
 }
 
-pub fn init(path: Option<PathBuf>) -> Result<(), Error> {
+pub fn init(path: Option<PathBuf>) -> Result<(), AppError> {
     let mut task_list = Task::new(path);
-    Task::load(&mut task_list).with_context(|| {
+    Task::load(&mut task_list).convert_then_with_context(|| {
         format!(
             "Failed to load task list from: {}",
             task_list.filepath.display()
         )
+        .into()
     })?;
     debug!("Task list loaded from: {}", &task_list.filepath.display());
     debug!("Task list content: {:?}", &task_list.value);
@@ -195,7 +196,7 @@ pub fn init(path: Option<PathBuf>) -> Result<(), Error> {
         )
         .expect("Failed to set torrent directory");
     std::fs::create_dir_all(TORRENT_DIR.get().unwrap())
-        .context("Failed to create torrent cache directory")?;
+        .expect("Failed to create torrent cache directory");
     info!("Task list initialized.");
     Ok(())
 }
@@ -358,9 +359,7 @@ pub async fn add_torrent<B: Into<Cow<'static, [u8]>>>(
                 if let QbError::Cancelled = e {
                     TaskError::Abort
                 } else {
-                    TaskError::Qb(
-                        e.into_contexted_error("Failed to export torrent file in qb"),
-                    )
+                    TaskError::Qb(e.into_contexted_error("Failed to export torrent file in qb"))
                 }
             })?;
             hash

@@ -1,6 +1,5 @@
-use anyhow::Error;
-use qb_downloader::app;
-fn main() -> Result<(), Error> {
+use qb_downloader::app::{self, AppError};
+fn main() -> Result<(), AppError> {
     let (addr, port) = app::init()?;
     app::run(addr, port)?;
     Ok(())

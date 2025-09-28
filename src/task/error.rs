@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::{
     bencode::BencodeError,
-    errors::{CommonError, ContextedError, QbError},
+    errors::{CommonError, ContextedError, IntoContextedError, QbError},
     request::RequestError,
 };
 
@@ -93,3 +93,4 @@ impl RuntimeTaskErrorKind {
         matches!(self, RuntimeUpload | TorrentNotFound)
     }
 }
+impl IntoContextedError for QbError {}

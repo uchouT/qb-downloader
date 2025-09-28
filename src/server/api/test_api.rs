@@ -7,7 +7,7 @@
 //! Else return success to test authentication
 use super::{Action, BoxBody, Req, ServerResult};
 use crate::{
-    errors::QbError,
+    errors::{QbError, TargetContextedResult},
     qb,
     server::{
         ResultResponse,
@@ -15,7 +15,7 @@ use crate::{
     },
     upload::{Rclone, UploaderTrait},
 };
-use anyhow::Context;
+
 use hyper::{Method, Response};
 use serde::Deserialize;
 
@@ -42,7 +42,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
                     if let QbError::UnsupportedVersion = e {
                         return Ok(ResultResponse::error_msg("Unsupported qbittorrent version"));
                     } else {
-                        Err(e).context("Failed to get qbittorrent version")?
+                        Err(e).convert_then_add_context("Failed to get qbittorrent version")?
                     }
                 }
                 Ok(ResultResponse::success())

@@ -5,7 +5,7 @@ use super::{Action, BoxBody, Req, ServerResult};
 use crate::{
     auth::{Login, TOKEN, encode},
     config::{self, Account, ConfigValue},
-    errors::CommonError,
+    errors::{CommonError, TargetContextedResult},
     qb,
     server::{
         ResultResponse,
@@ -13,7 +13,7 @@ use crate::{
         error::ServerError,
     },
 };
-use anyhow::Context;
+
 use futures_util::future::join;
 use hyper::{Method, Response};
 
@@ -62,7 +62,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
         update_config(config.clone(), account_changed),
     )
     .await;
-    config_res.context("error updating config")?;
+    config_res.convert_then_add_context("error updating config")?;
     Ok(ResultResponse::success_msg(
         "Configuration updated successfully",
     ))

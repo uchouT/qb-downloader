@@ -10,7 +10,6 @@ pub(super) mod version_api;
 use super::{BoxBody, Req};
 
 use crate::{auth, server::error::ServerError};
-use anyhow::Context;
 use http_body_util::BodyExt;
 use hyper::{Response, body::Bytes, header};
 use multer::Multipart;
@@ -98,7 +97,8 @@ pub async fn get_json_body(req: Req) -> ServerResult<Bytes> {
 }
 
 pub fn from_json<'de, T: Deserialize<'de>>(data: &'de Bytes) -> ServerResult<T> {
-    let value: T = from_slice(data).context("Failed to deserialize from json")?;
+    let value: T = from_slice(data)
+        .map_err(|_| ServerError::BadRequest(Some("Failed to deserialize json".into())))?;
     Ok(value)
 }
 

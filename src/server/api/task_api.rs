@@ -6,7 +6,7 @@
 //! DELETE: delete task
 use crate::{
     config::{self, strip_slash},
-    errors::{TaskError, format_error_chain},
+    errors::{TargetContextedResult, TaskError, format_error_chain},
     qb,
     server::{
         ResultResponse,
@@ -16,7 +16,7 @@ use crate::{
     task::{self, task_map},
     upload::Uploader,
 };
-use anyhow::Context;
+
 use hyper::{Method, Response, StatusCode};
 use log::{error, warn};
 use serde::Deserialize;
@@ -126,12 +126,16 @@ async fn put(req: Req) -> ServerResult<Response<BoxBody>> {
     };
     match manipulate_type.as_str() {
         "start" => start_task(&hash, skip).await?,
-        "stop" => task::stop(&hash).await.context("Failed to stop task")?,
+        "stop" => task::stop(&hash)
+            .await
+            .convert_then_add_context("Failed to stop task")?,
         _ => {
             return Ok(ResultResponse::bad_request(Some("Invalid type".into())));
         }
     }
-    task::save().await.context("Failed to save tasks")?;
+    task::save()
+        .await
+        .convert_then_add_context("Failed to save tasks")?;
     Ok(ResultResponse::success())
 }
 
@@ -166,27 +170,31 @@ async fn start_task(hash: &str, skip: Option<bool>) -> ServerResult<()> {
     let task = task_map()
         .get(hash)
         .cloned()
-        .ok_or(anyhow::anyhow!("Task not found"))?;
+        .ok_or(ServerError::create_internal("Task not found"))?;
     let status = task.state().status;
 
     match status {
         // start from paused state
-        task::Status::Paused => task::start(task).await.context("Failed to start task")?,
+        task::Status::Paused => task::start(task)
+            .await
+            .convert_then_add_context("Failed to start task")?,
         // start from error state
         task::Status::Error => {
             let kind = task.error_info().as_ref().as_ref().unwrap().kind;
             if skip && !kind.skipable() {
-                Err(anyhow::anyhow!(
-                    "This error is not skipable, cannot force start"
+                Err(ServerError::create_internal(
+                    "This error is not skipable, cannot force start",
                 ))?;
             }
 
             task::resume(task.clone(), kind, skip)
                 .await
-                .context("Failed to resume task")?;
+                .convert_then_add_context("Failed to resume task")?;
             task.clean_error_info();
         }
-        _ => Err(anyhow::anyhow!("Task is not in a paused or error state"))?,
+        _ => Err(ServerError::create_internal(
+            "Task is not in a paused or error state",
+        ))?,
     }
     Ok(())
 }

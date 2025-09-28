@@ -1,5 +1,8 @@
+use std::borrow::Cow;
+
+use crate::errors::AppError;
+
 use super::{BoxBody, ResultResponse, ServerResult};
-use anyhow::Error as AnyError;
 use hyper::{Response, StatusCode};
 use log::error;
 use thiserror::Error;
@@ -10,11 +13,14 @@ pub enum ServerError {
     MissingParams(&'static str),
 
     #[error("Bad request")]
-    BadRequest(
+    BadRequestHyper(
         #[source]
         #[from]
         hyper::Error,
     ),
+
+    #[error("{}", .0.as_deref().unwrap_or_default())]
+    BadRequest(Option<Cow<'static, str>>),
 
     #[error("Method not allowed")]
     MethodNotAllowed,
@@ -26,10 +32,10 @@ pub enum ServerError {
     Unauthorized,
 
     #[error(transparent)]
-    Any(
-        #[from]
-        AnyError,
-    ),
+    Any(#[from] AppError),
+
+    #[error("{0}")]
+    Internal(Cow<'static, str>),
 }
 
 impl From<multer::Error> for ServerError {
@@ -41,11 +47,12 @@ impl From<multer::Error> for ServerError {
 pub fn handle(e: ServerError) -> ServerResult<Response<BoxBody>> {
     match e {
         ServerError::MissingParams(msg) => Ok(ResultResponse::bad_request(Some(msg.into()))),
-        ServerError::BadRequest(_) => Ok(ResultResponse::bad_request(None)),
+        ServerError::BadRequestHyper(_) => Ok(ResultResponse::bad_request(None)),
         ServerError::Unauthorized => Ok(ResultResponse::unauthorized()),
         ServerError::MethodNotAllowed => Ok(ResultResponse::error_with_code(
             StatusCode::METHOD_NOT_ALLOWED,
         )),
+        ServerError::BadRequest(msg) => Ok(ResultResponse::bad_request(msg)),
         ServerError::BadRequestMultipart => Ok(ResultResponse::bad_request(Some(
             "failed to parse multipart".into(),
         ))),
@@ -53,5 +60,15 @@ pub fn handle(e: ServerError) -> ServerResult<Response<BoxBody>> {
             error!("{:?}", &e);
             Ok(ResultResponse::error_msg(e.to_string()))
         }
+        ServerError::Internal(msg) => {
+            error!("{msg}");
+            Ok(ResultResponse::error_msg(msg))
+        }
+    }
+}
+
+impl ServerError {
+    pub fn create_internal(msg: impl Into<Cow<'static, str>>) -> Self {
+        Self::Internal(msg.into())
     }
 }

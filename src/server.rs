@@ -3,9 +3,9 @@ pub mod auth;
 pub mod error;
 use crate::{
     config,
-    errors::{TargetContextedResult, format_error_chain},
+    errors::{CommonError, TargetContextedResult, format_error_chain},
 };
-use anyhow::Error;
+
 use api::Action;
 use error::handle;
 use futures_util::{FutureExt, select};
@@ -73,7 +73,7 @@ pub async fn run(
     mut shutdown_rx: broadcast::Receiver<()>,
     addr: Option<IpAddr>,
     port: u16,
-) -> std::result::Result<(), Error> {
+) -> std::result::Result<(), CommonError> {
     let addr: SocketAddr = if let Some(ip) = addr {
         (ip, port).into()
     } else {

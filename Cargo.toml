@@ -36,7 +36,6 @@ nyquest = { version = "0.3.0", features = ["async", "multipart", "json"] }
 base64 = "0.22.1"
 thiserror = "2.0.16"
 hyper = { version = "1.7.0", features = ["http1", "server"] }
-anyhow = "1.0.99"
 humantime = "2.3.0"
 
 [target.'cfg(target_env = "musl")'.dependencies]

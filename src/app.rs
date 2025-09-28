@@ -1,3 +1,5 @@
+use crate::{VERSION, config, errors::TargetContextedResult, qb, server, task};
+pub use crate::errors::AppError;
 use futures_util::{FutureExt, select, try_join};
 use log::{error, info};
 use std::{convert::Infallible, net::IpAddr, path::PathBuf};
@@ -6,11 +8,9 @@ use tokio::{
     sync::broadcast,
 };
 
-use crate::{VERSION, config, qb, server, task};
-use anyhow::Error;
 const PORT: u16 = 7845;
 
-pub fn run(addr: Option<IpAddr>, port: u16) -> Result<(), Error> {
+pub fn run(addr: Option<IpAddr>, port: u16) -> Result<(), AppError> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -27,8 +27,8 @@ pub fn run(addr: Option<IpAddr>, port: u16) -> Result<(), Error> {
         let result = match try_join!(task_service, server_service) {
             Ok((res1, res2)) => {
                 res1?;
-                res2?;
-                Ok::<(), Error>(())
+                res2.convert_then_add_context("http server error")?;
+                Ok::<(), AppError>(())
             }
             Err(e) => {
                 error!("A service encountered an error: {e}");
@@ -65,7 +65,7 @@ async fn cleanup() -> Result<(), Infallible> {
     Ok(())
 }
 
-pub fn init() -> Result<(Option<IpAddr>, u16), Error> {
+pub fn init() -> Result<(Option<IpAddr>, u16), AppError> {
     let args: Vec<String> = std::env::args().collect();
     let mut config_path = None;
     let mut task_path = None;
@@ -113,7 +113,7 @@ pub fn init() -> Result<(Option<IpAddr>, u16), Error> {
     log_builder.init();
 
     info!("qb-downloader v{VERSION} starting...");
-    config::init(config_path)?;
+    config::init(config_path).convert_then_add_context("Failed to init config")?;
     task::init(task_path)?;
     Ok((addr, port))
 }

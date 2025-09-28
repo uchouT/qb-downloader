@@ -10,6 +10,7 @@ use std::borrow::Cow;
 use crate::{
     bencode::{self, BencodeError, FileNode},
     config::{self, strip_slash},
+    errors::{IntoContextedError, TargetContextedResult},
     qb::{self, Tag},
     remove_slash,
     server::{
@@ -21,7 +22,7 @@ use crate::{
     },
     task::{self, error::TaskError, get_torrent_path},
 };
-use anyhow::{Context, anyhow};
+
 use hyper::{Method, Response, StatusCode, body::Bytes};
 use serde::{Deserialize, Serialize};
 
@@ -67,7 +68,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
             if let TaskError::Abort = e {
                 return Ok(ResultResponse::success());
             } else {
-                Err(e).context("Failed to add torrent")?
+                Err(e).convert_then_add_context("Failed to add torrent")?
             }
         }
     };
@@ -79,9 +80,9 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
         });
 
         if let BencodeError::SingleFile = e {
-            anyhow!("Not a multi-file torrent")
+            ServerError::create_internal("Not a multi-file torrent")
         } else {
-            anyhow::Error::from(e).context("Failed to parse torrent")
+            ServerError::from(e.into_contexted_error("Failed to parse torrent"))
         }
     })?;
     let res = TorrentRes {
@@ -100,15 +101,23 @@ async fn add_by_file(req: Req) -> ServerResult<(Option<Bytes>, String, String)> 
     while let Some(field) = multipart
         .next_field()
         .await
-        .context("Failed to read multipart field")?
+        .convert_then_add_context("Failed to read multipart field")?
     {
         match field.name() {
             Some("torrent") => {
                 file_name = field.file_name().map(|s| s.to_string());
-                data = Some(field.bytes().await.context("Failed to read torrent file")?);
+                data = Some(
+                    field
+                        .bytes()
+                        .await
+                        .convert_then_add_context("Failed to read torrent file")?,
+                );
             }
             Some("save_path") => {
-                let path = field.text().await.context("Failed to read save_path")?;
+                let path = field
+                    .text()
+                    .await
+                    .convert_then_add_context("Failed to read save_path")?;
                 if !remove_slash(&path).is_empty() {
                     save_path = Some(path);
                 }
@@ -159,7 +168,7 @@ async fn get(req: Req) -> ServerResult<Response<BoxBody>> {
     let torrent_path = get_torrent_path(&hash);
     let file_tree = FileNode::get_tree(&torrent_path)
         .await
-        .context("Failed to get torrent content tree")?;
+        .convert_then_add_context("Failed to get torrent content tree")?;
     Ok(ResultResponse::success_data(vec![file_tree]))
 }
 
@@ -175,15 +184,15 @@ async fn delete(req: Req) -> ServerResult<Response<BoxBody>> {
     if let Some(hash) = hash {
         task::delete(&hash, false)
             .await
-            .context("Failed to delete torrent")?;
+            .convert_then_add_context("Failed to delete torrent")?;
     } else {
         let hash_list = qb::get_tag_torrent_list(Tag::New)
             .await
-            .context("Failed to get waited torrent list")?;
+            .convert_then_add_context("Failed to get waited torrent list")?;
         let hash = hash_list.join("|");
         qb::delete(&hash, true)
             .await
-            .context("Failed to delete waited torrents in qbitorrent")?;
+            .convert_then_add_context("Failed to delete waited torrents in qbitorrent")?;
     }
     Ok(ResultResponse::success())
 }
