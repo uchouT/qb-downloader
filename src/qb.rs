@@ -36,10 +36,9 @@ pub enum QbError {
     #[error("torrent cancelled")]
     Cancelled,
 
-    #[error("{0}")]
+    #[error(transparent)]
     CommonError(
         #[from]
-        #[source]
         CommonError,
     ),
 }

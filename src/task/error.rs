@@ -13,10 +13,9 @@ use crate::{
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum TaskError {
-    #[error("{0}")]
+    #[error(transparent)]
     Common(
         #[from]
-        #[source]
         CommonError,
     ),
 

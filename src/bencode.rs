@@ -24,10 +24,9 @@ pub enum BencodeError {
     #[error("Failed to decode .torrent file")]
     Decode,
 
-    #[error("{0}")]
+    #[error(transparent)]
     Common(
         #[from]
-        #[source]
         CommonError,
     ),
 

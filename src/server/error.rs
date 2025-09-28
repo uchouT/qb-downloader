@@ -25,9 +25,8 @@ pub enum ServerError {
     #[error("Unauthorized")]
     Unauthorized,
 
-    #[error("{0}")]
+    #[error(transparent)]
     Any(
-        #[source]
         #[from]
         AnyError,
     ),
