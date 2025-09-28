@@ -67,7 +67,7 @@ impl MyRequestBuilder for QbRequestBuilder {
 
         match self.inner.header(header::COOKIE, cookie).send().await {
             Err(e) => {
-                let err = RequestError::from(e);
+                let err = e;
                 if let RequestError::Response(code) = err
                     && code == 403
                 {

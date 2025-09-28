@@ -1,6 +1,6 @@
 //! This module provides API to interact with qBittorrent
 mod qb_request;
-use crate::errors::{IntoTargetContextedError, TargetContextedResult};
+use crate::errors::{IntoContextedError, TargetContextedResult};
 use crate::qb::qb_request::QbRequest;
 use crate::request::multipart::MultipartBuilder;
 use crate::request::{MyRequest, MyRequestBuilder, RequestError};
@@ -42,15 +42,14 @@ pub enum QbError {
 
 impl From<RequestError> for QbError {
     fn from(value: RequestError) -> Self {
-        let e = value.convert_then_into_contexted_error("Failed to send HTTP request to qb");
+        let e = value.into_contexted_error("Failed to send HTTP request to qb");
         QbError::CommonError(e)
     }
 }
 
 impl From<nyquest::Error> for QbError {
     fn from(value: nyquest::Error) -> Self {
-        let e = RequestError::from(value)
-            .convert_then_into_contexted_error("Failed to send HTTP request to qb");
+        let e = RequestError::from(value).into_contexted_error("Failed to send HTTP request to qb");
         QbError::CommonError(e)
     }
 }

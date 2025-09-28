@@ -253,7 +253,7 @@ impl MyRequestBuilder for MyRequestBuilderImpl {
         if res.status().is_successful() {
             Ok(res)
         } else {
-            Err(RequestError::Response(res.status().code())).map_err(Self::Err::from)
+            Err(RequestError::Response(res.status().code()))
         }
     }
 }

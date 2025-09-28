@@ -88,12 +88,15 @@ pub fn create_contexted_error<E: StdError>(
 }
 
 /// Wrap Self as [`ContextedError`]
-pub trait IntoContextedError: StdError + Sized {
-    fn into_contexted_error(self, msg: impl Into<Cow<'static, str>>) -> ContextedError<Self> {
-        create_contexted_error(msg, self)
+pub trait IntoContextedError<T = Self>: StdError + Into<T>
+where
+    T: StdError,
+{
+    fn into_contexted_error(self, msg: impl Into<Cow<'static, str>>) -> ContextedError<T> {
+        create_contexted_error(msg, self.into())
     }
 }
-impl<E: StdError + Sized> IntoContextedError for E {}
+impl IntoContextedError for QbError {}
 
 /// Map Result error to [`ContextedError`]
 pub trait ContextedResult<V, S: IntoContextedError> {
@@ -105,32 +108,20 @@ impl<V, S: IntoContextedError> ContextedResult<V, S> for Result<V, S> {
     }
 }
 
-/// Convert Self into target Error, then wrap target Error as [`ContextedError`]
-pub trait IntoTargetContextedError<T: StdError>: StdError + Into<T> {
-    fn convert_then_into_contexted_error(
-        self,
-        msg: impl Into<Cow<'static, str>>,
-    ) -> ContextedError<T> {
-        create_contexted_error(msg, self.into())
-    }
-}
-
 /// Map result error to target error, then wrap target error as [`ContextedError`]
-pub trait TargetContextedResult<V, E: IntoTargetContextedError<T>, T: StdError> {
+pub trait TargetContextedResult<V, E: IntoContextedError<T>, T: StdError> {
     fn convert_then_add_context(
         self,
         msg: impl Into<Cow<'static, str>>,
     ) -> Result<V, ContextedError<T>>;
 }
-impl<V, E: IntoTargetContextedError<T>, T: StdError> TargetContextedResult<V, E, T>
-    for Result<V, E>
-{
+impl<V, E: IntoContextedError<T>, T: StdError> TargetContextedResult<V, E, T> for Result<V, E> {
     fn convert_then_add_context(
         self,
         msg: impl Into<Cow<'static, str>>,
     ) -> Result<V, ContextedError<T>> {
-        self.map_err(|e| e.convert_then_into_contexted_error(msg))
+        self.map_err(|e| e.into_contexted_error(msg))
     }
 }
 
-impl<E: Into<CommonErrorKind> + StdError> IntoTargetContextedError<CommonErrorKind> for E {}
+impl<E: Into<CommonErrorKind> + StdError> IntoContextedError<CommonErrorKind> for E {}

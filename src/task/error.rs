@@ -23,7 +23,7 @@ pub enum TaskError {
         BencodeError,
     ),
 
-    #[error("{}", .0.as_deref().unwrap_or("Unknown upload error".into()))]
+    #[error("{}", .0.as_deref().unwrap_or("Unknown upload error"))]
     Upload(Option<Cow<'static, str>>),
 
     // #[error("job_id:{0} missing, upload may finished")]
@@ -90,9 +90,6 @@ impl RuntimeTaskErrorKind {
     /// whether this error is skipable, if true, the task can be skip to continue
     pub fn skipable(&self) -> bool {
         use RuntimeTaskErrorKind::*;
-        match self {
-            RuntimeUpload | TorrentNotFound => true,
-            _ => false,
-        }
+        matches!(self, RuntimeUpload | TorrentNotFound)
     }
 }
