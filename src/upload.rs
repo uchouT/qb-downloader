@@ -1,9 +1,6 @@
 //! deal with upload
 
-use std::{
-    borrow::Cow,
-    sync::{Arc, RwLock},
-};
+use std::{borrow::Cow, sync::Arc};
 
 use crate::{
     config,
@@ -11,6 +8,7 @@ use crate::{
     request::{self, MyRequestBuilder, RequestError},
     task::TaskValue,
 };
+use arc_swap::ArcSwap;
 use log::debug;
 
 use serde::{Deserialize, Serialize};
@@ -21,7 +19,7 @@ use serde_json::{Value, json};
 #[serde(tag = "type", content = "job")]
 pub enum Uploader {
     /// the containing value is rclone job id
-    Rclone(RwLock<Option<i32>>),
+    Rclone(ArcSwap<Option<i32>>),
 }
 
 pub trait UploaderTrait {
@@ -72,7 +70,7 @@ impl UploaderTrait for Rclone {
                 let value: Value = res.json().await.map_err(RequestError::from)?;
                 if let Some(job_id) = value.get("jobid").and_then(|v| v.as_i64()) {
                     let Uploader::Rclone(id) = &task.uploader;
-                    *id.write().unwrap() = Some(job_id as i32);
+                    id.store(Arc::from(Some(job_id as i32)));
                     Ok(())
                 } else {
                     let error_msg = Self::get_error_msg(&value);
@@ -92,7 +90,7 @@ impl UploaderTrait for Rclone {
 
         let job_id = {
             let Uploader::Rclone(job_id_opt) = &task.uploader;
-            job_id_opt.read().unwrap().unwrap()
+            job_id_opt.load().unwrap()
         };
 
         request::post(format!("{host}/job/status"))
