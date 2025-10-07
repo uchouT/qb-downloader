@@ -11,8 +11,7 @@ use crate::{
     bencode::{self, BencodeError, FileNode},
     config::{self, strip_slash},
     errors::{IntoContextedError, TargetContextedResult},
-    qb::{self, Tag},
-    remove_slash,
+    qb, remove_slash,
     server::{
         ResultResponse,
         api::{
@@ -54,6 +53,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
         add_by_url(req).await?
     };
     let hash = match task::add_torrent(
+        // TODO: zero-copy here
         file.map(|f| {
             let bytes: Vec<_> = f.into();
             Cow::Owned(bytes)
@@ -74,10 +74,7 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     };
     let torrent_name = bencode::get_torrent_name(&hash).await.map_err(|e| {
         // clean added torrent
-        let hash = hash.clone();
-        tokio::spawn(async move {
-            let _ = task::delete(&hash, false).await;
-        });
+        tokio::spawn(task::delete(hash.clone(), false));
 
         if let BencodeError::SingleFile = e {
             ServerError::create_internal("Not a multi-file torrent")
@@ -174,25 +171,22 @@ async fn get(req: Req) -> ServerResult<Response<BoxBody>> {
 
 /// delete aborted torrent (not added as task)
 async fn delete(req: Req) -> ServerResult<Response<BoxBody>> {
-    let hash = {
-        if let Some(params) = get_param_map(&req) {
-            get_option_param::<String>(&params, "hash")
-        } else {
-            None
-        }
+    let (hash, fetching) = {
+        let params = get_param_map(&req).ok_or(ServerError::MissingParams("hash"))?;
+        (
+            get_required_param::<String>(&params, "hash")?,
+            get_option_param::<bool>(&params, "fetching"),
+        )
     };
-    if let Some(hash) = hash {
+
+    if matches!(fetching, Some(true)) {
+        task::cancel_fetching(&hash)
+            .await
+            .convert_then_add_context("Failed to cancel torrent adding")?;
+    } else {
         task::delete(&hash, false)
             .await
             .convert_then_add_context("Failed to delete torrent")?;
-    } else {
-        let hash_list = qb::get_tag_torrent_list(Tag::New)
-            .await
-            .convert_then_add_context("Failed to get waited torrent list")?;
-        let hash = hash_list.join("|");
-        qb::delete(&hash, true)
-            .await
-            .convert_then_add_context("Failed to delete waited torrents in qbitorrent")?;
     }
     Ok(ResultResponse::success())
 }

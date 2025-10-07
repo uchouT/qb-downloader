@@ -10,6 +10,7 @@ use base32::Alphabet;
 use log::{error, info, warn};
 use serde::Deserialize;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::{
     borrow::Cow,
     fmt::Display,
@@ -19,7 +20,6 @@ use std::{
     sync::{Arc, OnceLock},
 };
 use thiserror::Error;
-use tokio::time::sleep;
 const CATEGORY: &str = "QBD";
 
 #[derive(Debug, Error)]
@@ -56,10 +56,10 @@ impl From<nyquest::Error> for QbError {
 
 /// qBittorrent tag
 pub enum Tag {
-    // new added torrent, but haven't fetched meta data yet.
+    // new added torrent, but haven't fetched info hash
     New,
 
-    // new added torrent, but haven't added to task list yet.
+    // new added torrent, but haven't added to task list yet
     Waited,
 }
 
@@ -392,16 +392,11 @@ pub async fn set_share_limit(
     Ok(())
 }
 
-/// export .torrent file to a specified path, and remove the [`Tag::New`]
+/// export .torrent file to a specified path
+/// # Precondition
+/// - qbittorrent have fetched meta data
 pub async fn export(hash: &str, path: &Path) -> Result<(), QbError> {
-    // wait for the torrent to fetch meta data
-    loop {
-        let state = get_state(hash).await?;
-        if ["stoppedUP", "pausedUP", "stoppedDL", "pausedDL"].contains(&state.as_str()) {
-            break;
-        }
-        sleep(std::time::Duration::from_secs(1)).await;
-    }
+    
     let host = host()?;
     QbRequest::post(format!("{host}/api/v2/torrents/export"))
         .form([("hash", hash.to_string())])
@@ -411,7 +406,6 @@ pub async fn export(hash: &str, path: &Path) -> Result<(), QbError> {
                 File::create(path).convert_then_add_context("Failed to create torrent file")?;
             file.write_all(&data)
                 .convert_then_add_context("Failed to write torrent bytes")?;
-            remove_tag(hash, Tag::New).await?;
             Ok(())
         })
         .await
@@ -435,15 +429,19 @@ pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, QbError> {
 
 /// add a torrent to qBittorrent by URL
 /// if url is a magnet link, means hash is known, else add tag New and wait for [`get_hash`] to fetch the meta data
-pub async fn add_by_url(url: &str, save_path: &str) -> Result<(), QbError> {
+pub async fn add_by_url(url: &str, save_path: &str, is_magnet: bool) -> Result<(), QbError> {
     let host = host()?;
-    let param = [
+    let mut param = HashMap::from([
         ("urls", Cow::from(url.to_string())),
         ("savepath", Cow::from(save_path.to_string())),
         ("category", Cow::from(CATEGORY)),
         ("stopCondition", Cow::from("MetadataReceived")),
-        ("tags", Cow::from(Tag::New.as_str())),
-    ];
+    ]);
+
+    // add a tag marker
+    if !is_magnet {
+        param.insert("tags", Cow::from(Tag::New.as_str()));
+    }
 
     QbRequest::post(format!("{host}/api/v2/torrents/add"))
         .form(param)

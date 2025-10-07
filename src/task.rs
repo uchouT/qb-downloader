@@ -1,6 +1,7 @@
 //! qb-downloader task manager
 pub mod error;
 pub mod handle;
+mod metadata;
 mod resume;
 use std::{
     borrow::Cow,
@@ -18,10 +19,7 @@ use tokio::{fs, sync::Mutex};
 
 use crate::{
     bencode,
-    errors::{
-        AppError, CommonError, ContextedResult, IntoContextedError, QbError, TargetContextedResult,
-        TaskError,
-    },
+    errors::{AppError, CommonError, ContextedResult, TargetContextedResult, TaskError},
     format_error_chain, qb,
     task::{
         self,
@@ -293,7 +291,10 @@ pub async fn clean(hash: &str) -> Result<(), TaskError> {
 
 /// Delete task, both qBittorrent task and cached torrent file.
 /// If `added` is true, the task will be removed from the task list.
-pub async fn delete(hash: &str, added: bool) -> Result<(), TaskError> {
+/// # Preconditions
+/// - torrent has been added to torrent and cached
+pub async fn delete(hash: impl AsRef<str>, added: bool) -> Result<(), TaskError> {
+    let hash = hash.as_ref();
     let (qb_delete_res, file_clean_res) = join(qb::delete(hash, true), clean(hash)).await;
     if let Err(e) = qb_delete_res {
         error!(
@@ -314,7 +315,7 @@ pub async fn delete(hash: &str, added: bool) -> Result<(), TaskError> {
     Ok(())
 }
 
-/// Add a new torrent, and return the torrent's hash
+/// Add a new torrent to qbittorrent and cache the torrent file, return the torrent's hash
 /// # Parameters
 /// - `is_file`: Whether the torrent is a file or a URL
 /// - `file`: The file data
@@ -338,30 +339,40 @@ pub async fn add_torrent<B: Into<Cow<'static, [u8]>>>(
                 .add_context("Failed to add torrent by bytes in qb")?;
             hash
         } else {
-            let _lock = ADD_TORRENT_LOCK.lock().await;
             let hash = {
                 if let Some(hash) = qb::try_parse_hash(url) {
-                    qb::add_by_url(url, save_path)
+                    qb::add_by_url(url, save_path, true)
                         .await
                         .add_context("Failed to add torrent by url in qb")?;
                     hash
                 } else {
-                    qb::add_by_url(url, save_path)
+                    let _lock = ADD_TORRENT_LOCK.lock().await;
+                    qb::add_by_url(url, save_path, false)
                         .await
                         .add_context("Failed to add torrent by url in qb")?;
-                    qb::get_hash()
+                    let hash = qb::get_hash()
                         .await
-                        .add_context("Failed to get torrent hash in qb")?
+                        .add_context("Failed to get torrent hash in qb")?;
+                    qb::remove_tag(&hash, qb::Tag::New)
+                        .await
+                        .add_context("Failed to remove tag")?;
+                    hash
                 }
             };
             let path = get_torrent_path(&hash);
-            qb::export(&hash, &path).await.map_err(|e| {
-                if let QbError::Cancelled = e {
-                    TaskError::Abort
-                } else {
-                    TaskError::Qb(e.into_contexted_error("Failed to export torrent file in qb"))
-                }
-            })?;
+            // TODO
+            metadata::insert_fetching_task(
+                hash.clone(),
+                tokio::spawn(metadata::export(hash.clone(), path)),
+            );
+
+            // qb::export(&hash, &path).await.map_err(|e| {
+            //     if let QbError::Cancelled = e {
+            //         TaskError::Abort
+            //     } else {
+            //         TaskError::Qb(e.into_contexted_error("Failed to export torrent file in qb"))
+            //     }
+            // })?;
             hash
         }
     };
@@ -374,6 +385,18 @@ pub async fn add_torrent<B: Into<Cow<'static, [u8]>>>(
 
 pub fn get_torrent_path(hash: &str) -> PathBuf {
     TORRENT_DIR.get().unwrap().join(format!("{hash}.torrent"))
+}
+
+pub async fn cancel_fetching(hash: &str) -> Result<(), TaskError> {
+    if matches!(metadata::cancel(hash), Err(metadata::FetchingError::Closed)) {
+        // Perhaps torrent has been exported
+        task::delete(hash, false).await
+    } else {
+        qb::delete(hash, true)
+            .await
+            .add_context("Failed to delete torrent in qBittorrent")?;
+        Ok(())
+    }
 }
 
 /// add task from [`TaskReq`]
