@@ -244,6 +244,7 @@ pub async fn get_hash() -> Result<String, QbError> {
         .send_and_then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
             // Always occurs when a same torrent is added
+            // FIXME: panic if re-add the same torrent by url
             if json_array.is_empty() {
                 return Err(QbError::NoNewTorrents);
             }

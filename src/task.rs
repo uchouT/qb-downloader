@@ -388,15 +388,24 @@ pub fn get_torrent_path(hash: &str) -> PathBuf {
 }
 
 pub async fn cancel_fetching(hash: &str) -> Result<(), TaskError> {
-    if matches!(metadata::cancel(hash), Err(metadata::FetchingError::Closed)) {
-        // Perhaps torrent has been exported
-        task::delete(hash, false).await
-    } else {
-        qb::delete(hash, true)
-            .await
-            .add_context("Failed to delete torrent in qBittorrent")?;
-        Ok(())
+    match metadata::cancel(hash) {
+        // Perhaps torrent has been exported successfully
+        Err(metadata::FetchingError::Cancelled) => task::delete(hash, false).await,
+        Err(metadata::FetchingError::Finished) => Ok(()),
+        Ok(_) => {
+            qb::delete(hash, true)
+                .await
+                .add_context("Failed to delete torrent in qBittorrent")?;
+            Ok(())
+        }
     }
+}
+
+pub async fn block_fetching(hash: &str) -> Result<(), TaskError> {
+    let join_handle = metadata::fetching_task_handle(hash).ok_or(TaskError::Abort)?;
+    join_handle.await.unwrap()?;
+    metadata::finished_fetching_task(hash);
+    Ok(())
 }
 
 /// add task from [`TaskReq`]

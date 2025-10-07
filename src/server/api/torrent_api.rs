@@ -39,6 +39,7 @@ impl Action for TorrentAPI {
             Method::POST => post(req).await,
             Method::GET => get(req).await,
             Method::DELETE => delete(req).await,
+            Method::PUT => put(req).await,
             _ => Ok(ResultResponse::error_with_code(
                 StatusCode::METHOD_NOT_ALLOWED,
             )),
@@ -47,11 +48,13 @@ impl Action for TorrentAPI {
 }
 
 async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
-    let (file, url, save_path) = if req.is_multipart() {
-        add_by_file(req).await?
+    let is_file = req.is_multipart();
+    let (file, url, save_path) = if is_file {
+        get_add_by_file_param(req).await?
     } else {
-        add_by_url(req).await?
+        get_add_by_url_param(req).await?
     };
+
     let hash = match task::add_torrent(
         // TODO: zero-copy here
         file.map(|f| {
@@ -64,17 +67,30 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
     .await
     {
         Ok(h) => h,
-        Err(e) => {
-            if let TaskError::Abort = e {
-                return Ok(ResultResponse::success());
-            } else {
-                Err(e).convert_then_add_context("Failed to add torrent")?
-            }
-        }
+        Err(TaskError::Abort) => return Ok(ResultResponse::success()),
+        Err(e) => Err(e).convert_then_add_context("Failed to add torrent")?,
     };
+
+    if is_file {
+        // response with full torrent info
+        let torrent_name = get_torrent_name_from_hash(&hash).await?;
+        let res = TorrentRes {
+            torrent_name,
+            hash,
+            save_path,
+        };
+        Ok(ResultResponse::success_data(res))
+    } else {
+        // response with hash and save_path first, fetching metadata asynchronously
+        let res = AsyncTorrentRes { hash, save_path };
+        Ok(ResultResponse::success_data(res))
+    }
+}
+
+async fn get_torrent_name_from_hash(hash: &str) -> ServerResult<String> {
     let torrent_name = bencode::get_torrent_name(&hash).await.map_err(|e| {
         // clean added torrent
-        tokio::spawn(task::delete(hash.clone(), false));
+        tokio::spawn(task::delete(hash.to_string(), false));
 
         if let BencodeError::SingleFile = e {
             ServerError::create_internal("Not a multi-file torrent")
@@ -82,15 +98,10 @@ async fn post(req: Req) -> ServerResult<Response<BoxBody>> {
             ServerError::from(e.into_contexted_error("Failed to parse torrent"))
         }
     })?;
-    let res = TorrentRes {
-        torrent_name,
-        hash,
-        save_path,
-    };
-    Ok(ResultResponse::success_data(res))
+    Ok(torrent_name)
 }
 
-async fn add_by_file(req: Req) -> ServerResult<(Option<Bytes>, String, String)> {
+async fn get_add_by_file_param(req: Req) -> ServerResult<(Option<Bytes>, String, String)> {
     let mut multipart = req.into_multipart()?;
     let mut data = None;
     let mut save_path = None;
@@ -137,7 +148,7 @@ async fn add_by_file(req: Req) -> ServerResult<(Option<Bytes>, String, String)> 
     Ok((data, file_name.unwrap_or_default(), save_path.unwrap()))
 }
 
-async fn add_by_url(req: Req) -> ServerResult<(Option<Bytes>, String, String)> {
+async fn get_add_by_url_param(req: Req) -> ServerResult<(Option<Bytes>, String, String)> {
     let body = get_json_body(req).await?;
     let torrent_req: TorrentReq = from_json(&body)?;
     let save_path = {
@@ -191,9 +202,28 @@ async fn delete(req: Req) -> ServerResult<Response<BoxBody>> {
     Ok(ResultResponse::success())
 }
 
+async fn put(req: Req) -> ServerResult<Response<BoxBody>> {
+    let hash = {
+        let params = get_param_map(&req).ok_or(ServerError::MissingParams("hash"))?;
+        get_required_param::<String>(&params, "hash")?
+    };
+    task::block_fetching(&hash)
+        .await
+        .convert_then_add_context("Failed to waiting fetching metadata")?;
+    let torrent_name = get_torrent_name_from_hash(&hash).await?;
+    Ok(ResultResponse::success_data(torrent_name))
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TorrentRes {
     pub torrent_name: String,
+    pub hash: String,
+    /// save path should be nomalized before serialized
+    pub save_path: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct AsyncTorrentRes {
     pub hash: String,
     /// save path should be nomalized before serialized
     pub save_path: String,
