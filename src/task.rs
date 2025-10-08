@@ -15,7 +15,7 @@ use directories_next::BaseDirs;
 use futures_util::future::{join, join_all};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
-use tokio::{fs, sync::Mutex};
+use tokio::fs;
 
 use crate::{
     bencode,
@@ -31,7 +31,7 @@ use crate::{
 
 const TASK_FILE_NAME: &str = "tasks.json";
 const TORRENT_DIR_NAME: &str = "torrents";
-static ADD_TORRENT_LOCK: Mutex<()> = Mutex::const_new(());
+
 pub static TASK_LIST: OnceLock<Task> = OnceLock::new();
 static TORRENT_DIR: OnceLock<PathBuf> = OnceLock::new();
 
@@ -348,8 +348,8 @@ pub async fn add_torrent<B: Into<Cow<'static, [u8]>>>(
             qb::torrent_exists(&hash)
                 .await
                 .add_context("Failed to check qb torrent")?;
-            
-            qb::add_by_url(url, save_path, true)
+
+            qb::add_by_url(url, save_path)
                 .await
                 .add_context("Failed to add torrent by url in qb")?;
             let path = get_torrent_path(&hash);

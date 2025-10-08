@@ -59,9 +59,6 @@ impl From<nyquest::Error> for QbError {
 
 /// qBittorrent tag
 pub enum Tag {
-    // new added torrent, but haven't get info hash
-    New,
-
     // new added torrent, but haven't added to task list yet
     Waited,
 }
@@ -69,7 +66,6 @@ pub enum Tag {
 impl Tag {
     pub const fn as_str(&self) -> &'static str {
         match self {
-            Tag::New => "qbd_new",
             Tag::Waited => "qbd_waited",
         }
     }
@@ -235,23 +231,6 @@ pub async fn get_torrent_info() -> Result<Vec<TorrentInfo>, QbError> {
         .send_and_then(async |res| {
             let torrent_info_list: Vec<TorrentInfo> = res.json().await?;
             Ok(torrent_info_list)
-        })
-        .await
-}
-
-/// get the new added torrent hash, according to the tag [`Tag::New`]
-pub async fn get_hash() -> Result<String, QbError> {
-    let host = host()?;
-    QbRequest::get(format!("{host}/api/v2/torrents/info"))
-        .query([("category", CATEGORY), ("tag", Tag::New.as_str())])
-        .send_and_then(async |res| {
-            let json_array: Vec<Value> = res.json().await?;
-            // Always occurs when a same torrent is added
-            if json_array.is_empty() {
-                return Err(QbError::NoNewTorrents);
-            }
-            let hash = json_array[0].get("hash").and_then(|v| v.as_str()).unwrap();
-            Ok(hash.to_string())
         })
         .await
 }
@@ -440,21 +419,15 @@ pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, QbError> {
 
 /// add a torrent to qBittorrent by URL, with [`CATEGORY`] and [Tag::Waited]
 /// if url is a magnet link, means hash is known, else add [`Tag::New`] and wait for [`get_hash`] to fetch the meta data
-pub async fn add_by_url(url: &str, save_path: &str, is_magnet: bool) -> Result<(), QbError> {
+pub async fn add_by_url(url: &str, save_path: &str) -> Result<(), QbError> {
     let host = host()?;
-    let mut param = HashMap::from([
+    let param = HashMap::from([
         ("urls", Cow::from(url.to_string())),
         ("savepath", Cow::from(save_path.to_string())),
         ("category", Cow::from(CATEGORY)),
         ("stopCondition", Cow::from("MetadataReceived")),
+        ("tags", Cow::from(Tag::Waited.as_str())),
     ]);
-
-    // add a tag marker
-    if !is_magnet {
-        param.insert("tags", Cow::from(format!("{},{}", Tag::New, Tag::Waited)));
-    } else {
-        param.insert("tags", Cow::from(Tag::Waited.as_str()));
-    }
 
     QbRequest::post(format!("{host}/api/v2/torrents/add"))
         .form(param)
