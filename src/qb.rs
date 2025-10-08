@@ -38,6 +38,9 @@ pub enum QbError {
 
     #[error(transparent)]
     CommonError(#[from] CommonError),
+
+    #[error("Failed to parse magnet")]
+    ParseMagnet,
 }
 
 impl From<RequestError> for QbError {
@@ -56,7 +59,7 @@ impl From<nyquest::Error> for QbError {
 
 /// qBittorrent tag
 pub enum Tag {
-    // new added torrent, but haven't fetched info hash
+    // new added torrent, but haven't get info hash
     New,
 
     // new added torrent, but haven't added to task list yet
@@ -64,7 +67,7 @@ pub enum Tag {
 }
 
 impl Tag {
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Tag::New => "qbd_new",
             Tag::Waited => "qbd_waited",
@@ -244,7 +247,6 @@ pub async fn get_hash() -> Result<String, QbError> {
         .send_and_then(async |res| {
             let json_array: Vec<Value> = res.json().await?;
             // Always occurs when a same torrent is added
-            // FIXME: panic if re-add the same torrent by url
             if json_array.is_empty() {
                 return Err(QbError::NoNewTorrents);
             }
@@ -272,10 +274,10 @@ pub async fn remove_tag(hash: &str, tag: Tag) -> Result<(), QbError> {
     manage_tag(hash, tag, "removeTags").await
 }
 
-/// add tag to the corresponding torrent
-pub async fn add_tag(hash: &str, tag: Tag) -> Result<(), QbError> {
-    manage_tag(hash, tag, "addTags").await
-}
+// /// add tag to the corresponding torrent
+// pub async fn add_tag(hash: &str, tag: Tag) -> Result<(), QbError> {
+//     manage_tag(hash, tag, "addTags").await
+// }
 
 /// manage torrent task
 async fn manage(hash: &str, action: &'static str) -> Result<(), QbError> {
@@ -323,6 +325,8 @@ pub async fn delete(hash: &str, delete_files: bool) -> Result<(), QbError> {
 }
 
 /// get the state of a torrent
+/// # Error
+/// [QbError::Cancelled] if the regarding torrent not found in qBittorrent
 pub async fn get_state(hash: &str) -> Result<String, QbError> {
     let host = host()?;
     QbRequest::get(format!("{host}/api/v2/torrents/info"))
@@ -340,6 +344,13 @@ pub async fn get_state(hash: &str) -> Result<String, QbError> {
         .await
 }
 
+pub async fn torrent_exists(hash: &str) -> Result<(), QbError> {
+    match get_state(hash).await {
+        Ok(_) => Err(QbError::NoNewTorrents),
+        Err(QbError::Cancelled) => Ok(()),
+        Err(e) => Err(e),
+    }
+}
 /// set the download priority of a torrent
 /// # Arguments
 /// * `hash` - The hash of the torrent.
@@ -397,7 +408,6 @@ pub async fn set_share_limit(
 /// # Precondition
 /// - qbittorrent have fetched meta data
 pub async fn export(hash: &str, path: &Path) -> Result<(), QbError> {
-    
     let host = host()?;
     QbRequest::post(format!("{host}/api/v2/torrents/export"))
         .form([("hash", hash.to_string())])
@@ -428,8 +438,8 @@ pub async fn get_tag_torrent_list(tag: Tag) -> Result<Vec<String>, QbError> {
         .await
 }
 
-/// add a torrent to qBittorrent by URL
-/// if url is a magnet link, means hash is known, else add tag New and wait for [`get_hash`] to fetch the meta data
+/// add a torrent to qBittorrent by URL, with [`CATEGORY`] and [Tag::Waited]
+/// if url is a magnet link, means hash is known, else add [`Tag::New`] and wait for [`get_hash`] to fetch the meta data
 pub async fn add_by_url(url: &str, save_path: &str, is_magnet: bool) -> Result<(), QbError> {
     let host = host()?;
     let mut param = HashMap::from([
@@ -441,7 +451,9 @@ pub async fn add_by_url(url: &str, save_path: &str, is_magnet: bool) -> Result<(
 
     // add a tag marker
     if !is_magnet {
-        param.insert("tags", Cow::from(Tag::New.as_str()));
+        param.insert("tags", Cow::from(format!("{},{}", Tag::New, Tag::Waited)));
+    } else {
+        param.insert("tags", Cow::from(Tag::Waited.as_str()));
     }
 
     QbRequest::post(format!("{host}/api/v2/torrents/add"))
@@ -487,7 +499,8 @@ pub async fn add_by_bytes(
         .bytes("torrents", data, file_name.to_string())
         .text("savepath", save_path.to_string())
         .text("category", CATEGORY)
-        .text("stopped", "true");
+        .text("stopped", "true")
+        .text("tags", Tag::Waited.as_str());
     QbRequest::post(format!("{host}/api/v2/torrents/add"))
         .multipart(form)
         .send()
@@ -496,27 +509,29 @@ pub async fn add_by_bytes(
 }
 
 /// Try to parse the hash from a url first, usually used to parse magnet link
-/// If failed, it means the url is probably an http link, e.g. "http://example.com/file.torrent"
-pub fn try_parse_hash(url: &str) -> Option<String> {
+/// If failed, it means the url is probably an http link, e.g. "http://example.com/file.torrent", which is not supported
+/// # Errors
+/// [QbError::ParseMagnet]
+pub fn try_parse_hash(url: &str) -> Result<String, QbError> {
     if let Some(mut hash) = url.strip_prefix("magnet:?xt=urn:btih:") {
         if let Some(end) = hash.find('&') {
             hash = &hash[..end];
         }
         let mut hash = hash.to_string();
         // Base32
-        if hash.len() == 32
-            && let Some(hash_raw) = base32::decode(Alphabet::Rfc4648 { padding: false }, &hash)
-        {
-            hash = hash_raw
-                .iter()
-                .map(|b| format!("{:02x}", b))
-                .collect::<String>();
-        } else {
-            // parse base32 failed
-            return None;
+        if hash.len() == 32 {
+            if let Some(hash_raw) = base32::decode(Alphabet::Rfc4648 { padding: false }, &hash) {
+                hash = hash_raw
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>();
+            } else {
+                // parse base32 failed
+                return Err(QbError::ParseMagnet);
+            }
         }
-        Some(hash)
+        Ok(hash)
     } else {
-        None
+        Err(QbError::ParseMagnet)
     }
 }

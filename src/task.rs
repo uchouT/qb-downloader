@@ -330,6 +330,11 @@ pub async fn add_torrent<B: Into<Cow<'static, [u8]>>>(
         if let Some(file) = file {
             let file = file.into();
             let hash = bencode::get_hash(&file)?;
+
+            qb::torrent_exists(&hash)
+                .await
+                .add_context("Failed to check qb torrent")?;
+
             let path = get_torrent_path(&hash);
             fs::write(path, &file)
                 .await
@@ -339,47 +344,23 @@ pub async fn add_torrent<B: Into<Cow<'static, [u8]>>>(
                 .add_context("Failed to add torrent by bytes in qb")?;
             hash
         } else {
-            let hash = {
-                if let Some(hash) = qb::try_parse_hash(url) {
-                    qb::add_by_url(url, save_path, true)
-                        .await
-                        .add_context("Failed to add torrent by url in qb")?;
-                    hash
-                } else {
-                    let _lock = ADD_TORRENT_LOCK.lock().await;
-                    qb::add_by_url(url, save_path, false)
-                        .await
-                        .add_context("Failed to add torrent by url in qb")?;
-                    let hash = qb::get_hash()
-                        .await
-                        .add_context("Failed to get torrent hash in qb")?;
-                    qb::remove_tag(&hash, qb::Tag::New)
-                        .await
-                        .add_context("Failed to remove tag")?;
-                    hash
-                }
-            };
+            let hash = qb::try_parse_hash(url).add_context("Failed to get hash")?;
+            qb::torrent_exists(&hash)
+                .await
+                .add_context("Failed to check qb torrent")?;
+            
+            qb::add_by_url(url, save_path, true)
+                .await
+                .add_context("Failed to add torrent by url in qb")?;
             let path = get_torrent_path(&hash);
-            // TODO
             metadata::insert_fetching_task(
                 hash.clone(),
                 tokio::spawn(metadata::export(hash.clone(), path)),
             );
-
-            // qb::export(&hash, &path).await.map_err(|e| {
-            //     if let QbError::Cancelled = e {
-            //         TaskError::Abort
-            //     } else {
-            //         TaskError::Qb(e.into_contexted_error("Failed to export torrent file in qb"))
-            //     }
-            // })?;
             hash
         }
     };
 
-    qb::add_tag(hash.as_str(), qb::Tag::Waited)
-        .await
-        .add_context("Failed to add Waited tag in qb")?;
     Ok(hash)
 }
 

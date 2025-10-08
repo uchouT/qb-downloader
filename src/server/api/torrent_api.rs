@@ -207,9 +207,12 @@ async fn put(req: Req) -> ServerResult<Response<BoxBody>> {
         let params = get_param_map(&req).ok_or(ServerError::MissingParams("hash"))?;
         get_required_param::<String>(&params, "hash")?
     };
-    task::block_fetching(&hash)
-        .await
-        .convert_then_add_context("Failed to waiting fetching metadata")?;
+    if let Err(e) = task::block_fetching(&hash).await {
+        if matches!(e, TaskError::Abort) {
+            return Ok(ResultResponse::success());
+        }
+        Err(e).convert_then_add_context("Failed to waiting fetching metadata")?;
+    }
     let torrent_name = get_torrent_name_from_hash(&hash).await?;
     Ok(ResultResponse::success_data(torrent_name))
 }

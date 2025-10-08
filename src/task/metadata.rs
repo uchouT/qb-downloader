@@ -97,7 +97,6 @@ pub(super) fn cancel(hash: &str) -> Result<(), FetchingError> {
     }
 }
 
-// FIXME: panic if re-add torrent by url
 /// Export torrent file after fetching metadata
 /// Preconditions
 /// - call only once per fetching task
