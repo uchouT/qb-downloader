@@ -1,6 +1,34 @@
 # Changelog
 
 
+## v2.3.0
+
+[compare changes](https://github.com/uchouT/qb-downloader/compare/v2.2.1...v2.3.0)
+
+### 🚀 Enhancements
+
+- **api:** Add block on waiting for fetching metadata api ([32eb372](https://github.com/uchouT/qb-downloader/commit/32eb372))
+- Remove support for non-magnet url ([579575d](https://github.com/uchouT/qb-downloader/commit/579575d))
+
+### 🩹 Fixes
+
+- Panic when adding same torrent fix: parse magnet url ([dc8d104](https://github.com/uchouT/qb-downloader/commit/dc8d104))
+
+### 💅 Refactors
+
+- Abstract ContextedError ([2f868a2](https://github.com/uchouT/qb-downloader/commit/2f868a2))
+- Remove anyhow ([f185548](https://github.com/uchouT/qb-downloader/commit/f185548))
+- Use ArcSwap to store job id ([029916c](https://github.com/uchouT/qb-downloader/commit/029916c))
+- Asynchronize cache torrent file ([6892b77](https://github.com/uchouT/qb-downloader/commit/6892b77))
+
+### 🏡 Chore
+
+- Use thiserror transparent to wrap CommonError ([3cf9f94](https://github.com/uchouT/qb-downloader/commit/3cf9f94))
+
+### 🎨 Styles
+
+- Clippy ([cdbb4a1](https://github.com/uchouT/qb-downloader/commit/cdbb4a1))
+
 ## v2.2.1
 
 [compare changes](https://github.com/uchouT/qb-downloader/compare/v2.2.0...v2.2.1)
