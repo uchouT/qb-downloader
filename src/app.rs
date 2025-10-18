@@ -1,5 +1,5 @@
-use crate::{VERSION, config, errors::TargetContextedResult, qb, server, task};
 pub use crate::errors::AppError;
+use crate::{VERSION, config, errors::TargetContextedResult, qb, server, task};
 use futures_util::{FutureExt, select, try_join};
 use log::{error, info};
 use std::{convert::Infallible, net::IpAddr, path::PathBuf};
@@ -21,24 +21,32 @@ pub fn run(addr: Option<IpAddr>, port: u16) -> Result<(), AppError> {
 
         tokio::spawn(wait_for_signal(shutdown_tx.clone()));
 
-        let task_service = tokio::spawn(task::handle::run(shutdown_tx.subscribe()));
-        let server_service = tokio::spawn(server::run(shutdown_tx.subscribe(), addr, port));
-
-        let result = match try_join!(task_service, server_service) {
-            Ok((res1, res2)) => {
-                res1?;
-                res2.convert_then_add_context("http server error")?;
-                Ok::<(), AppError>(())
-            }
-            Err(e) => {
-                error!("A service encountered an error: {e}");
-                Ok(())
-            }
-        };
+        let result = service_start(shutdown_tx.clone(), addr, port).await;
         let _ = cleanup().await;
         result
     })?;
     Ok(())
+}
+
+async fn service_start(
+    shutdown_tx: broadcast::Sender<()>,
+    addr: Option<IpAddr>,
+    port: u16,
+) -> Result<(), AppError> {
+    let task_service = tokio::spawn(task::handle::run(shutdown_tx.subscribe()));
+    let server_service = tokio::spawn(server::run(shutdown_tx.subscribe(), addr, port));
+
+    match try_join!(task_service, server_service) {
+        Ok((res1, res2)) => {
+            res1?;
+            res2.convert_then_add_context("http server error")?;
+            Ok::<(), AppError>(())
+        }
+        Err(e) => {
+            error!("A service encountered an error: {e}");
+            Ok(())
+        }
+    }
 }
 
 async fn wait_for_signal(shutdown_tx: broadcast::Sender<()>) {
