@@ -11,14 +11,8 @@ use log::{error, info, warn};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::{
-    borrow::Cow,
-    fmt::Display,
-    fs::File,
-    io::Write,
-    path::Path,
-    sync::{Arc, OnceLock},
-};
+use std::sync::LazyLock;
+use std::{borrow::Cow, fmt::Display, fs::File, io::Write, path::Path, sync::Arc};
 use thiserror::Error;
 const CATEGORY: &str = "QBD";
 
@@ -92,12 +86,8 @@ pub struct TorrentInfo {
     pub progress: f64,
 }
 
-static QB: OnceLock<ArcSwap<Qb>> = OnceLock::new();
+static QB: LazyLock<ArcSwap<Qb>> = LazyLock::new(|| ArcSwap::from_pointee(Qb::new()));
 
-pub fn init() {
-    QB.set(ArcSwap::from_pointee(Qb::new()))
-        .expect("Failed to initialize qBittorrent client");
-}
 impl Qb {
     pub fn new() -> Self {
         Qb {
@@ -109,12 +99,12 @@ impl Qb {
     }
 }
 pub fn is_logined() -> bool {
-    QB.get().unwrap().load().logined
+    QB.load().logined
 }
 
 /// get the host if logged in, else return error
 fn host() -> Result<Arc<str>, QbError> {
-    let qb = QB.get().unwrap().load();
+    let qb = QB.load();
     if qb.logined {
         Ok(qb.host.clone())
     } else {
@@ -123,7 +113,7 @@ fn host() -> Result<Arc<str>, QbError> {
 }
 
 fn version() -> u8 {
-    QB.get().unwrap().load().version
+    QB.load().version
 }
 
 /// try to login with qb info in config
@@ -138,7 +128,7 @@ pub async fn login() {
 pub async fn login_with(host: &str, username: &str, password: &str) {
     match test_login(host, username, password).await {
         None => {
-            QB.get().unwrap().store(Arc::new(Qb {
+            QB.store(Arc::new(Qb {
                 host: Arc::from(host),
                 logined: false,
                 version: 0,
@@ -148,7 +138,7 @@ pub async fn login_with(host: &str, username: &str, password: &str) {
         }
         Some(cookie) => match get_version(host, cookie.clone()).await {
             Ok(v) => {
-                QB.get().unwrap().store(Arc::new(Qb {
+                QB.store(Arc::new(Qb {
                     host: Arc::from(host),
                     logined: true,
                     version: v,
@@ -162,7 +152,7 @@ pub async fn login_with(host: &str, username: &str, password: &str) {
                 } else {
                     error!("Failed to get qBittorrent version");
                 }
-                QB.get().unwrap().store(Arc::new(Qb {
+                QB.store(Arc::new(Qb {
                     host: Arc::from(host),
                     logined: false,
                     version: 0,

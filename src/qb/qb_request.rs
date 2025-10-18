@@ -63,7 +63,7 @@ impl MyRequestBuilder for QbRequestBuilder {
 
     async fn send(self) -> Result<Res, QbError> {
         let sender = self.inner.clone();
-        let cookie = QB.get().unwrap().load().cookie.clone().unwrap();
+        let cookie = QB.load().cookie.clone().unwrap();
 
         match self.inner.header(header::COOKIE, cookie).send().await {
             Err(e) => {
@@ -72,7 +72,7 @@ impl MyRequestBuilder for QbRequestBuilder {
                     && code == 403
                 {
                     qb::login().await;
-                    let cookie = QB.get().unwrap().load().cookie.clone().unwrap();
+                    let cookie = QB.load().cookie.clone().unwrap();
                     sender
                         .header(header::COOKIE, cookie)
                         .send()

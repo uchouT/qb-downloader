@@ -30,7 +30,6 @@ const ERROR: [&str; 2] = ["error", "missingFiles"];
 
 pub async fn run(mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), AppError> {
     request::init().await;
-    qb::init();
     qb::login().await;
     let mut task_interval = interval(Duration::from_secs(5));
     loop {
