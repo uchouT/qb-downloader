@@ -517,13 +517,15 @@ fn get_task_order(
         }
         Some(file_index) => {
             for &index in file_index {
-                let length = torrent_lengths_list[index];
-                if !current_part.is_empty() && current_size + length > max {
-                    task_order.push(std::mem::take(&mut current_part));
-                    current_size = 0;
+                unsafe {
+                    let length = *torrent_lengths_list.get_unchecked(index);
+                    if !current_part.is_empty() && current_size + length > max {
+                        task_order.push(std::mem::take(&mut current_part));
+                        current_size = 0;
+                    }
+                    current_part.push(index);
+                    current_size += length;
                 }
-                current_part.push(index);
-                current_size += length;
             }
         }
     }
